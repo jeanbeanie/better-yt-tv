@@ -1,17 +1,24 @@
 {
-  "name": "better-yt-tv",
+  "name": "server",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "concurrently -n server,client -c blue,green \"pnpm --filter server dev\" \"pnpm --filter client dev\""
+    "dev": "tsx watch src/index.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.19.0",
+  "dependencies": {
+    "express": "^5.2.1"
+  },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.12.4",
+    "tsx": "^4.22.0",
+    "typescript": "~6.0.3"
   }
 }
