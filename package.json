@@ -5,13 +5,18 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "concurrently -n server,client -c blue,green \"pnpm --filter server dev\" \"pnpm --filter client dev\""
+    "dev": "concurrently -n server,client -c blue,green \"pnpm --filter server dev\" \"pnpm --filter client dev\"",
+
+    "db:up": "dotenv -- docker run --rm -it -v \"%cd%:/work\" -w /work -e DBMATE_MIGRATIONS_DIR=server/src/db/migrations -e DBMATE_SCHEMA_FILE=server/src/db/schema.sql -e DATABASE_URL ghcr.io/amacneil/dbmate:latest up",
+    "db:status": "dotenv -- docker run --rm -it -v \"%cd%:/work\" -w /work -e DBMATE_MIGRATIONS_DIR=server/src/db/migrations -e DBMATE_SCHEMA_FILE=server/src/db/schema.sql -e DATABASE_URL ghcr.io/amacneil/dbmate:latest status",
+    "db:new": "dotenv -- docker run --rm -it -v \"%cd%:/work\" -w /work -e DBMATE_MIGRATIONS_DIR=server/src/db/migrations -e DBMATE_SCHEMA_FILE=server/src/db/schema.sql -e DATABASE_URL ghcr.io/amacneil/dbmate:latest new"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.19.0",
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "dotenv-cli": "^11.0.0"
   }
 }
