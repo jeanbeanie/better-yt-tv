@@ -10,6 +10,16 @@ services:
       - "5432:5432"
     volumes:
       - better_yt_tv_pgdata:/var/lib/postgresql/data
-
+  dbmate:
+    image: ghcr.io/amacneil/dbmate:latest
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      DBMATE_MIGRATIONS_DIR: ${DBMATE_MIGRATIONS_DIR}
+      DBMATE_SCHEMA_FILE: ${DBMATE_SCHEMA_FILE}
+    volumes:
+      - ./:/work
+    working_dir: /work
 volumes:
   better_yt_tv_pgdata:
