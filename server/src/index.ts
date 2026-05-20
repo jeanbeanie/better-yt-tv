@@ -1,20 +1,19 @@
 import express from "express";
+import cookieParser from "cookie-parser";
 import { env } from "./config/env.js";
-import { pool } from "./db/pool.js"
+import { pool } from "./db/pool.js";
+import { authRouter } from "./routes/auth.js"
 
 const app = express();
+
 app.use(express.json());
+app.use(cookieParser());
 
 app.get("/api/test", (_req, res) => {
   res.json({ ok: true });
 });
 
-const port = env.PORT;
-
-app.listen(port, () => {
-  console.log(`API listening on http://localhost:${port}`);
-});
-
+// db test
 app.get("/api/db-test", async (_req, res, next) => {
   try {
     const result = await pool.query("select 1 as ok");
@@ -23,3 +22,15 @@ app.get("/api/db-test", async (_req, res, next) => {
     next(err);
   }
 });
+
+// mount auth routes:
+// - GET /api/auth/login
+// - GET /api/auth/callback
+app.use("/api/auth", authRouter);
+
+const port = env.PORT;
+
+app.listen(port, () => {
+  console.log(`API listening on http://localhost:${port}`);
+});
+
