@@ -6,6 +6,19 @@ import { authRouter } from "./routes/auth.js"
 
 const app = express();
 
+// must run CORS before routes
+// origin cannot be "*" when credentials:true
+// credentials: true is required for cookies over fetch()
+app.use(
+  cors({
+    origin: env.CLIENT_ORIGIN,
+    credentials: true,
+  }),
+);
+
+// handle preflight
+app.options("*", cors({ origin: env.CLIENT_ORIGIN, credentials: true }));
+
 app.use(express.json());
 app.use(cookieParser());
 
