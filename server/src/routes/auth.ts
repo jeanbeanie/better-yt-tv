@@ -38,6 +38,37 @@ authRouter.get("/login", async (req: Request, res: Response) => {
   res.redirect(authUrl);
 });
 
+
+// POST /api/auth/logout
+authRouter.post("/logout", async (req: Request, res: Response, next) => {
+
+  try {
+    const sid = req.cookies?.sid;
+
+    // always clear cookie (missing or not) so browser state resets
+    res.clearCookie("sid", {
+      path:"/",
+    });
+
+    if(!sid) return res.json({ ok:true });
+    
+    // update session row's revoked_at to now()
+    await pool.query(
+      `
+      update sessions
+      set revoked_at = now()
+      where id = $1
+      `,
+      [sid],
+    );
+
+    return res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+
 // GET /api/auth/callback
 authRouter.get("/callback", async (req: Request, res: Response, next) => {
   try {

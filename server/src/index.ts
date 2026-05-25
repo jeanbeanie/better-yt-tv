@@ -38,6 +38,7 @@ app.get("/api/db-test", async (_req, res, next) => {
 
 // mount auth routes:
 // - GET /api/auth/login
+// - POST /api/auth/logout
 // - GET /api/auth/callback
 app.use("/api/auth", authRouter);
 
