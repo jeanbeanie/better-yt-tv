@@ -4,6 +4,7 @@ import { env } from "../config/env.js";
 import { exchangeCodeForTokens, getGoogleUserFromIdToken, buildGoogleAuthUrl } from "../auth/google.js";
 import { encryptRefreshToken } from "../auth/crypto.js";
 import { pool } from "../db/pool.js";
+import crypto from "node:crypto";
 
 export const authRouter = express.Router();
 
@@ -112,6 +113,29 @@ authRouter.get("/callback", async (req: Request, res: Response, next) => {
       );
     }
 
+    // Create a session and set sid cookie
+    const sessionTtlMs = 30 * 24 * 60 * 60 * 1000; // 30 days
+    const expiresAt = new Date(Date.now() + sessionTtlMs);
+
+    const sessionRes = await pool.query(
+      `
+      insert into sessions (user_id, expires_at)
+      values ($1, $2)
+      returning id
+      `,
+      [userId, expiresAt],
+    );
+
+    const sid: string = sessionRes.rows[0].id;
+
+    res.cookie("sid", sid, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: false, // set true when behind https
+      maxAge: sessionTtlMs,
+      path: "/",
+    });
+
     // Clear state cookie
     res.clearCookie("oauth_state");
 
@@ -122,3 +146,34 @@ authRouter.get("/callback", async (req: Request, res: Response, next) => {
     next(err);
   }
 });
+
+// GET /api/auth/whoami
+authRouter.get("/whoami", async (req: Request, res: Response, next) => {
+  try {
+    const sid = req.cookies?.sid;
+    if (!sid) return res.json({ user: null });
+
+    const r = await pool.query(
+      `
+      select
+        u.id,
+        u.email,
+        u.google_sub,
+        s.expires_at
+      from sessions s
+      join users u on u.id = s.user_id
+      where s.id = $1
+        and s.revoked_at is null
+        and s.expires_at > now()
+      `,
+      [sid],
+    );
+
+    if (r.rowCount === 0) return res.json({ user: null });
+
+    return res.json({ user: r.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+

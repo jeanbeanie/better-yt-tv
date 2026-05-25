@@ -1,9 +1,9 @@
 import express from "express";
 import cookieParser from "cookie-parser";
+import cors from "cors";
 import { env } from "./config/env.js";
 import { pool } from "./db/pool.js";
 import { authRouter } from "./routes/auth.js"
-
 const app = express();
 
 // must run CORS before routes
@@ -17,7 +17,7 @@ app.use(
 );
 
 // handle preflight
-app.options("*", cors({ origin: env.CLIENT_ORIGIN, credentials: true }));
+app.options(/.*/, cors({ origin: env.CLIENT_ORIGIN, credentials: true }));
 
 app.use(express.json());
 app.use(cookieParser());
