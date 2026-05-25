@@ -42,6 +42,12 @@ app.get("/api/db-test", async (_req, res, next) => {
 // - GET /api/auth/callback
 app.use("/api/auth", authRouter);
 
+// error handler
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error(err);
+  res.status(500).json({ error: "Internal Server Error" });
+});
+
 const port = env.PORT;
 
 app.listen(port, () => {
