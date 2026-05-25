@@ -144,6 +144,18 @@ authRouter.get("/callback", async (req: Request, res: Response, next) => {
       );
     }
 
+    // Revoke any existing active sessions for this user (so for now: 1 active session)
+    await pool.query(
+      `
+      update sessions
+      set revoked_at = now()
+      where user_id = $1
+        and revoked_at is null
+        and expires_at > now()
+      `,
+      [userId],
+    );
+
     // Create a session and set sid cookie
     const sessionTtlMs = 30 * 24 * 60 * 60 * 1000; // 30 days
     const expiresAt = new Date(Date.now() + sessionTtlMs);
