@@ -6,8 +6,10 @@ function App() {
 
   return (
     <div>
-      <a href="http://localhost:5179/api/auth/login">Login with Google</a>
-
+      <nav>
+        <a href="http://localhost:5179/api/auth/login">Login with Google</a>
+      </nav>
+      <h1>Better YT TV</h1>
       <button
         onClick={async () => {
           const json = await whoami();
