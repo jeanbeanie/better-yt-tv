@@ -72,3 +72,31 @@ export function getGoogleUserFromIdToken(idToken: string): { sub: string; email?
   if (!payload.sub) throw new Error("id_token missing sub");
   return { sub: String(payload.sub), email: payload.email ? String(payload.email) : undefined };
 }
+
+// for requesting additional refresh access tokens from Google AFTER initial login 
+export async function refreshAccessToken(args: {
+  clientId: string;
+  clientSecret: string;
+  refreshToken: string;
+}): Promise<{ access_token: string; expires_in: number; expires_at: number }> {
+  const body = new URLSearchParams();
+  body.set("client_id", args.clientId);
+  body.set("client_secret", args.clientSecret);
+  body.set("refresh_token", args.refreshToken);
+  body.set("grant_type", "refresh_token");
+
+  const resp = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body,
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`Refresh failed: ${resp.status} ${text}`);
+  }
+
+  const json = (await resp.json()) as any;
+  const expires_at = Date.now() + Number(json.expires_in) * 1000;
+  return { access_token: String(json.access_token), expires_in: Number(json.expires_in), expires_at };
+}
