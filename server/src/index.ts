@@ -3,7 +3,10 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import { env } from "./config/env.js";
 import { pool } from "./db/pool.js";
-import { authRouter } from "./routes/auth.js"
+import { authRouter } from "./routes/auth.js";
+import { youtubeRouter } from "./routes/youtube.js";
+
+
 const app = express();
 
 // must run CORS before routes
@@ -36,11 +39,15 @@ app.get("/api/db-test", async (_req, res, next) => {
   }
 });
 
-// mount auth routes:
+// Mount other routes:
+ 
 // - GET /api/auth/login
 // - POST /api/auth/logout
 // - GET /api/auth/callback
 app.use("/api/auth", authRouter);
+
+// - GET /api/youtube/subscriptions
+app.use("/api/youtube", youtubeRouter);
 
 // error handler
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

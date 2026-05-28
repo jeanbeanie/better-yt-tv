@@ -73,7 +73,7 @@ export function getGoogleUserFromIdToken(idToken: string): { sub: string; email?
   return { sub: String(payload.sub), email: payload.email ? String(payload.email) : undefined };
 }
 
-// for requesting additional refresh access tokens from Google AFTER initial login 
+// re-establish access after prev access token expires with a refresh token
 export async function refreshAccessToken(args: {
   clientId: string;
   clientSecret: string;
