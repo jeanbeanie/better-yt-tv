@@ -1,27 +1,23 @@
-import { useState } from 'react';
-import { whoami } from "./whoamiTest";
+import { Link, Route, Routes } from "react-router-dom";
+import HomePage from "./pages/HomePage";
+//import AllPage from "./pages/AllPage";
+// <Route path="/all" element={<AllPage />} />
 
 function App() {
-  const [data, setData] = useState(null);
-
   return (
-    <div>
-      <nav>
-        <a href="http://localhost:5179/api/auth/login">Login with Google</a>
-      </nav>
-      <h1>Better YT TV</h1>
-      <button
-        onClick={async () => {
-          const json = await whoami();
-          setData(json);
-        }}
-      >
-        Who am I?
-      </button>
+    <div style={{ padding: "2rem", fontFamily: "sans-serif" }}>
+      <header style={{ marginBottom: "2rem" }}>
+        <nav style={{ display: "flex", gap: "1rem" }}>
+          <Link to="/">Home</Link>
+          <Link to="/all">All</Link>
+        </nav>
+      </header>
 
-      <pre>{JSON.stringify(data, null, 2)}</pre>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+      </Routes>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
