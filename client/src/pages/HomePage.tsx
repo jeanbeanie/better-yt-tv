@@ -42,7 +42,7 @@ export default function HomePage() {
   return (
     <main>
       <h1>Better YT TV</h1>
-      <p>A calmer way to browse your YouTube subscriptions.</p>
+      <p>A better way to browse your YouTube subscriptions.</p>
 
       {loading && <p>Loading user...</p>}
 
