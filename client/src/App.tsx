@@ -1,7 +1,6 @@
 import { Link, Route, Routes } from "react-router-dom";
 import HomePage from "./pages/HomePage";
-//import AllPage from "./pages/AllPage";
-// <Route path="/all" element={<AllPage />} />
+import AllPage from "./pages/AllPage";
 
 function App() {
   return (
@@ -15,6 +14,7 @@ function App() {
 
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/all" element={<AllPage />} />
       </Routes>
     </div>
   );
