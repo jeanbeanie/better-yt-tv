@@ -20,7 +20,7 @@ async function getUserRefreshToken(userId: string){
     );
 
     if (tokenResponse.rowCount === 0) {
-      return res.status(400).json({ error: "No OAuth tokens stored for this user. Re-login." });
+      throw new Error("No OAuth tokens stored for this user.");
     }
 
     return decryptRefreshToken(
