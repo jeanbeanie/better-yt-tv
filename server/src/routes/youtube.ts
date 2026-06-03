@@ -7,11 +7,8 @@ import { refreshAccessToken } from "../auth/google.js";
 
 export const youtubeRouter = express.Router();
 
-// GET /api/youtube/subscriptions
-youtubeRouter.get("/subscriptions", requireAuth, async (req, res, next) => {
-  try {
-    const userId = (req as AuthedRequest).userId;
-
+// load and decrypt user's stored refresh token
+async function getUserRefreshToken(userId: string){
     // look up refresh_token tied to currently logged in user
     const tokenResponse = await pool.query(
       `
@@ -26,10 +23,19 @@ youtubeRouter.get("/subscriptions", requireAuth, async (req, res, next) => {
       return res.status(400).json({ error: "No OAuth tokens stored for this user. Re-login." });
     }
 
-    const refreshToken = decryptRefreshToken(
+    return decryptRefreshToken(
       tokenResponse.rows[0].refresh_token_ciphertext,
       env.TOKEN_ENCRYPTION_KEY,
     );
+  
+}
+
+// GET /api/youtube/subscriptions
+youtubeRouter.get("/subscriptions", requireAuth, async (req, res, next) => {
+  try {
+    const userId = (req as AuthedRequest).userId;
+    // load refresh token from DB
+    const refreshToken = await getUserRefreshToken(userId);
 
     // send in decrypted refresh token to get a fresh Google Access Token
     const { access_token } = await refreshAccessToken({
@@ -56,10 +62,10 @@ youtubeRouter.get("/subscriptions", requireAuth, async (req, res, next) => {
     const data:any = await ytResponse.json();
 
     // return a trimmed response
-    const items = (data.items ?? []).map((it: any) => ({
-      channelId: it.snippet?.resourceId?.channelId,
-      title: it.snippet?.title,
-      thumbnails: it.snippet?.thumbnails,
+    const items = (data.items ?? []).map((item: any) => ({
+      channelId: item.snippet?.resourceId?.channelId,
+      title: item.snippet?.title,
+      thumbnails: item.snippet?.thumbnails,
     }));
 
     res.json({ items });
