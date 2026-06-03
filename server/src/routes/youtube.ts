@@ -7,6 +7,15 @@ import { refreshAccessToken } from "../auth/google.js";
 
 export const youtubeRouter = express.Router();
 
+//shaped API response type to send to client
+type YoutubeSubscription = {
+  channelId: string;
+  title: string;
+  thumbnails?: { url: string };
+  medium?: { url: string };
+  high?: { url: string };
+}
+
 // load and decrypt user's stored refresh token
 async function getUserRefreshToken(userId: string){
     // look up refresh_token tied to currently logged in user
@@ -30,11 +39,7 @@ async function getUserRefreshToken(userId: string){
   
 }
 
-// GET /api/youtube/subscriptions
-youtubeRouter.get("/subscriptions", requireAuth, async (req, res, next) => {
-  try {
-    const userId = (req as AuthedRequest).userId;
-    // load refresh token from DB
+async function getGoogleAccessToken(userId:string) {
     const refreshToken = await getUserRefreshToken(userId);
 
     // send in decrypted refresh token to get a fresh Google Access Token
@@ -43,7 +48,11 @@ youtubeRouter.get("/subscriptions", requireAuth, async (req, res, next) => {
       clientSecret: env.GOOGLE_CLIENT_SECRET,
       refreshToken,
     });
+    
+    return access_token;
+}
 
+async function fetchYoutubeSubscriptions(accessToken: string): Promise<YoutubeSubscription[]> {
     // YouTube Data API: subscriptions.list
     const url = new URL("https://www.googleapis.com/youtube/v3/subscriptions");
     url.searchParams.set("part", "snippet");
@@ -51,7 +60,7 @@ youtubeRouter.get("/subscriptions", requireAuth, async (req, res, next) => {
     url.searchParams.set("maxResults", "50");
 
     const ytResponse = await fetch(url, {
-      headers: { Authorization: `Bearer ${access_token}` },
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
 
     if (!ytResponse.ok) {
@@ -61,12 +70,29 @@ youtubeRouter.get("/subscriptions", requireAuth, async (req, res, next) => {
 
     const data:any = await ytResponse.json();
 
-    // return a trimmed response
-    const items = (data.items ?? []).map((item: any) => ({
-      channelId: item.snippet?.resourceId?.channelId,
-      title: item.snippet?.title,
-      thumbnails: item.snippet?.thumbnails,
-    }));
+    // return response shaped into our YoutubeSubscription type
+    return (data.items ?? [])
+     .map((item: any) => ({
+        channelId: item.snippet?.resourceId?.channelId,
+        title: item.snippet?.title,
+        thumbnails: item.snippet?.thumbnails,
+      }))
+      .filter((item: YoutubeSubscription) => Boolean(
+        // Filter out malformed items so one bad row doesn't break everything
+        item.channelId && item.title
+      ));
+}
+
+// GET /api/youtube/subscriptions
+youtubeRouter.get("/subscriptions", requireAuth, async (req, res, next) => {
+  try {
+    const userId = (req as AuthedRequest).userId;
+
+    // get temporary Google access token for logged in user
+    const accessToken = await getGoogleAccessToken(userId);
+    
+    // normalized subscriptions from YT
+    const items = await fetchYoutubeSubscriptions(accessToken);
 
     res.json({ items });
   } catch (err) {
