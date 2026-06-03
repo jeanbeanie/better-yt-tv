@@ -99,3 +99,40 @@ youtubeRouter.get("/subscriptions", requireAuth, async (req, res, next) => {
     next(err);
   }
 });
+
+// POST /api/youtube/sync-subscriptions
+// fetches subs from YT and saved into DB
+youtubeRouter.post("/sync-subscriptions", requireAuth, async (req, res, next) => {
+  try {
+    const userId = (req as AuthedRequest).userId;
+
+    // get google access token for this user
+    const accessToken = await getGoogleAccessToken(userId);
+
+    // fetch subs from YT using access token
+    const items = await fetchYoutubeSubscriptions(accessToken);
+
+    // save into DB user_subscriptions so feed logic can use our own data model
+    for (const item of items) {
+      // if sub already exists, update instead of duplicating
+      await pool.query(
+        `
+        insert into user_subscriptions (user_id, channel_id, channel_title)
+        values ($1, $2, $3)
+        on conflict (user_id, channel_id) do update
+          set channel_title = excluded.channel_title
+        `,
+        [userId, item.channelId, item.title],
+      );
+    }
+
+    // return a tiny confirmation for the UI
+    res.json({
+      ok: true,
+      syncedCount: items.length,
+    });
+  } catch (err) {
+    next(err);
+  }
+
+});
