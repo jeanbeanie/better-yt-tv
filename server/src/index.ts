@@ -5,7 +5,7 @@ import { env } from "./config/env.js";
 import { pool } from "./db/pool.js";
 import { authRouter } from "./routes/auth.js";
 import { youtubeRouter } from "./routes/youtube.js";
-
+import { feedRouter } from "./routes/feed.js";
 
 const app = express();
 
@@ -47,7 +47,11 @@ app.get("/api/db-test", async (_req, res, next) => {
 app.use("/api/auth", authRouter);
 
 // - GET /api/youtube/subscriptions
+// - POST /api/youtube/sync-subscriptions
 app.use("/api/youtube", youtubeRouter);
+
+// GET /api/feed/all
+app.use("/api/feed", feedRouter);
 
 // error handler
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
