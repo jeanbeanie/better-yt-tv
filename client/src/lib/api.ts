@@ -1,4 +1,4 @@
-// todo get from env
+// TODO get from env
 const API_BASE = "http://localhost:5179";
 
 // get current user profile details
@@ -44,4 +44,31 @@ export async function getSubscriptions() {
 // returns URL string users needs to login
 export function getLoginUrl() {
   return `${API_BASE}/api/auth/login`;
+}
+
+// Get current user's saved feed data from the backend
+export async function getAllFeed() {
+  const resp = await fetch(`${API_BASE}/api/feed/all`, {
+    credentials: "include",
+  });
+
+  if (!resp.ok) {
+    throw new Error(`all feed failed: ${resp.status}`);
+  }
+
+  return resp.json();
+}
+
+// Do a one-time sync from YouTube into the DB
+export async function syncSubscriptions() {
+  const resp = await fetch(`${API_BASE}/api/youtube/sync-subscriptions`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!resp.ok) {
+    throw new Error(`sync subscriptions failed: ${resp.status}`);
+  }
+
+  return resp.json();
 }
