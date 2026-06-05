@@ -1,40 +1,53 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getSubscriptions } from "../lib/api";
+import { getAllFeed, syncSubscriptions } from "../lib/api";
 
-type SubscriptionItem = {
-  channelId: string;
-  title: string;
-  thumbnails?: {
-    default?: { url: string };
-    medium?: { url: string };
-    high?: { url: string };
-  };
+type FeedItem = {
+  channel_id: string;
+  channel_title: string;
 };
 
 export default function AllPage() {
-  const [items, setItems] = useState<SubscriptionItem[]>([]);
+  const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadSubscriptions() {
+  async function loadFeed() {
     try {
       setLoading(true);
       setError(null);
-      const data = await getSubscriptions();
+
+      // Load the DB feed data for this user
+      const data = await getAllFeed();
       setItems(data.items ?? []);
-      console.log('items', data.items)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load subscriptions");
-      console.log('err', err)
+      setError(err instanceof Error ? err.message : "Failed to load /all feed");
     } finally {
       setLoading(false);
     }
   }
 
+  async function handleSync() {
+    try {
+      setSyncing(true);
+      setError(null);
+
+      // Pull subscriptions from YouTube into the DB
+      // then reload the page data from our own backend
+      await syncSubscriptions();
+      await loadFeed();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to sync subscriptions");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   useEffect(() => {
-    void loadSubscriptions();
-  }, []);
+    // discard promise to ensure useEffect returns nothing/undefined
+    void loadFeed();
+  }, []); // run once when component first mounts
 
   return (
     <main>
@@ -42,39 +55,29 @@ export default function AllPage() {
         <Link to="/">← Back home</Link>
       </nav>
 
-      <h1>All Subscriptions</h1>
-      <p>This is the /all page placeholder texterooo.</p>
+      <h1>All Feed</h1>
 
-      {loading && <p>Loading subscriptions...</p>}
+      <p>
+        /all showing all subs from db for nowww
+      </p>
+
+      <button onClick={() => void handleSync()} disabled={syncing}>
+        {syncing ? "Syncing..." : "Sync subscriptions from YouTube"}
+      </button>
+
+      {loading && <p>Loading feed...</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
 
       {!loading && !error && items.length === 0 && (
-        <p>No subscriptions found.</p>
+        <p>No saved subscriptions yet. Try syncing first!</p>
       )}
 
-      <ul style={{ listStyle: "none"}}>
+      <ul>
         {items.map((item) => (
-          <li
-            key={item.channelId}
-            style={{
-              display: "flex",
-              alignItems: "center", // vertically center thumbnail
-              gap: "1rem", // space between img and div
-              marginBottom: "1rem",
-            }}
-          >
-            {item.thumbnails?.default?.url && (
-              <img
-                src={item.thumbnails.default.url}
-                alt={item.title}
-                width={48}
-                height={48}
-              />
-            )}
-            <div>
-              <div>{item.title}</div>
-              <p>channel id: {item.channelId}</p>
-            </div>
+          <li key={item.channel_id}>
+            <b>{item.channel_title}</b>
+            <br />
+            <p>{item.channel_id}</p>
           </li>
         ))}
       </ul>
