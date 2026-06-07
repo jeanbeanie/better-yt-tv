@@ -4,6 +4,7 @@ import { pool } from "../db/pool.js";
 import { requireAuth, type AuthedRequest } from "../auth/requireAuth.js";
 import { decryptRefreshToken } from "../auth/crypto.js";
 import { refreshAccessToken } from "../auth/google.js";
+import { fetchRecentVideosForChannel, upsertVideosCache } from "../youtube/videos.js";
 
 export const youtubeRouter = express.Router();
 
@@ -136,3 +137,58 @@ youtubeRouter.post("/sync-subscriptions", requireAuth, async (req, res, next) =>
   }
 
 });
+
+// POST /api/youtube/refresh-all-cache
+// Refresh recent videos for every subscribed channel
+// and save into videos_cache
+youtubeRouter.post("/refresh-all-cache", requireAuth, async (req, res, next) => {
+  try {
+     const userId = (req as AuthedRequest).userId;
+
+    // get the Google token for YouTube API calls
+    const accessToken = await getGoogleAccessToken(userId);
+
+    // Grab this user's saved subscriptions from our DB
+    const subResult = await pool.query(
+      `
+      select channel_id
+      from user_subscriptions
+      where user_id = $1
+      `,
+      [userId],
+    );
+
+    const channelIds: string[] = subResult.rows.map((row) => row.channel_id);
+
+    // If the user hasn't synced subscriptions yet, there's nothing to refresh
+    if (channelIds.length === 0) {
+      return res.json({
+        ok: true,
+        refreshedChannels: 0,
+        cachedVideos: 0,
+      });
+    }
+
+    let cachedVideos = 0;
+
+    // otherwise for each channel, fetch recent videos and upsert them into videos_cache
+    for (const channelId of channelIds) {
+      const videos = await fetchRecentVideosForChannel({
+        accessToken,
+        channelId,
+        maxResults: 10,
+      });
+
+      await upsertVideosCache(videos);
+      cachedVideos += videos.length;
+    }
+
+    return res.json({
+      ok: true,
+      refreshedChannels: channelIds.length,
+      cachedVideos,
+    });
+  }  catch (err) {
+    next(err);
+  }
+})
