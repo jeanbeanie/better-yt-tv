@@ -1,16 +1,20 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getAllFeed, syncSubscriptions } from "../lib/api";
+import { getAllFeed, syncSubscriptions, refreshAllCache } from "../lib/api";
 
 type FeedItem = {
+  video_id: string;
   channel_id: string;
   channel_title: string;
+  title: string;
+  published_at: string;
+  thumb_url: string | null;
 };
 
 export default function AllPage() {
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function loadFeed() {
@@ -28,19 +32,23 @@ export default function AllPage() {
     }
   }
 
-  async function handleSync() {
+  async function handleInitialBuild() {
     try {
-      setSyncing(true);
+      setBusy(true);
       setError(null);
 
-      // Pull subscriptions from YouTube into the DB
-      // then reload the page data from our own backend
+      // Pull subscriptions from YouTube into DB
       await syncSubscriptions();
+
+      // pull recent videos for those channels into DB
+      await refreshAllCache();
+
+      // then reload the page data from our own backend
       await loadFeed();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to sync subscriptions");
     } finally {
-      setSyncing(false);
+      setBusy(false);
     }
   }
 
@@ -55,29 +63,35 @@ export default function AllPage() {
         <Link to="/">← Back home</Link>
       </nav>
 
-      <h1>All Feed</h1>
+      <h1>All Videos Feed</h1>
 
       <p>
-        /all showing all subs from db for nowww
+        /all showing recemt cached videos from channels you follow
       </p>
 
-      <button onClick={() => void handleSync()} disabled={syncing}>
-        {syncing ? "Syncing..." : "Sync subscriptions from YouTube"}
+      <button onClick={() => void handleInitialBuild()} disabled={busy}>
+        {busy ? "Building feed..." : "Build/Refresh Feed"}
       </button>
 
       {loading && <p>Loading feed...</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
 
       {!loading && !error && items.length === 0 && (
-        <p>No saved subscriptions yet. Try syncing first!</p>
+        <p>No videos yet. Try building the feed.</p>
       )}
 
       <ul>
         {items.map((item) => (
-          <li key={item.channel_id}>
-            <b>{item.channel_title}</b>
-            <br />
-            <p>{item.channel_id}</p>
+          <li key={item.video_id}>
+            {item.thumb_url && (
+              <img
+                src={item.thumb_url}
+                alt={item.title}
+              />
+            )}
+            <p>{item.title}</p>
+            <p>{item.published_at}</p>
+            <p>{item.channel_title}</p>
           </li>
         ))}
       </ul>
