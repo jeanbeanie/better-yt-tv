@@ -72,3 +72,17 @@ export async function syncSubscriptions() {
 
   return resp.json();
 }
+
+// Trigger refresh of recent videos into videos_cache
+export async function refreshAllCache() {
+  const resp = await fetch(`${API_BASE}/api/youtube/refresh-all-cache`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!resp.ok) {
+    throw new Error(`refresh all cache failed: ${resp.status}`);
+  }
+
+  return resp.json();
+}
