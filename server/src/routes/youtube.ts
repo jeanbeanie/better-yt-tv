@@ -4,7 +4,12 @@ import { pool } from "../db/pool.js";
 import { requireAuth, type AuthedRequest } from "../auth/requireAuth.js";
 import { decryptRefreshToken } from "../auth/crypto.js";
 import { refreshAccessToken } from "../auth/google.js";
-import { fetchRecentVideosForChannel, upsertVideosCache } from "../youtube/videos.js";
+import { 
+  fetchRecentVideosForChannel,
+  upsertVideosCache,
+  isChannelCacheStale,
+  markChannelCacheRefreshed,
+} from "../youtube/videos.js";
 
 export const youtubeRouter = express.Router();
 
@@ -140,13 +145,10 @@ youtubeRouter.post("/sync-subscriptions", requireAuth, async (req, res, next) =>
 
 // POST /api/youtube/refresh-all-cache
 // Refresh recent videos for every subscribed channel
-// and save into videos_cache
+// whose cache is STALE and save into videos_cache
 youtubeRouter.post("/refresh-all-cache", requireAuth, async (req, res, next) => {
   try {
      const userId = (req as AuthedRequest).userId;
-
-    // get the Google token for YouTube API calls
-    const accessToken = await getGoogleAccessToken(userId);
 
     // Grab this user's saved subscriptions from our DB
     const subResult = await pool.query(
@@ -165,27 +167,54 @@ youtubeRouter.post("/refresh-all-cache", requireAuth, async (req, res, next) => 
       return res.json({
         ok: true,
         refreshedChannels: 0,
+        skippedChannels: 0,
         cachedVideos: 0,
       });
     }
 
+    let refreshedChannels = 0;
+    let skippedChannels = 0;
     let cachedVideos = 0;
 
-    // otherwise for each channel, fetch recent videos and upsert them into videos_cache
+    // lazily request Google access token only if needed
+    let accessToken: string | null = null;
+
+    // fetch recent videos for each channel, upsert them into videos_cache
     for (const channelId of channelIds) {
+      const stale = await isChannelCacheStale(channelId);
+
+      // skip channels whose cache is still valid
+      if(!stale) {
+        skippedChannels += 1;
+        continue;
+      }
+
+      // only fetch access token if at least one channels needs refreshing
+      if(!accessToken) {
+        accessToken = await getGoogleAccessToken(userId);
+      }
+      
+      // fetch recent videos from YouTube for this stale channel
       const videos = await fetchRecentVideosForChannel({
         accessToken,
         channelId,
         maxResults: 10,
       });
 
+      // save videos into cache table
       await upsertVideosCache(videos);
+
+      // mark channel's cache state as fresh again
+      await markChannelCacheRefreshed(channelId);
+
+      refreshedChannels += 1;
       cachedVideos += videos.length;
     }
 
     return res.json({
       ok: true,
-      refreshedChannels: channelIds.length,
+      refreshedChannels,
+      skippedChannels,
       cachedVideos,
     });
   }  catch (err) {
