@@ -86,3 +86,46 @@ export async function upsertVideosCache(videos: CachedVideo[]) {
     );
   }
 }
+
+// check if a channel's cached video data is still fresh
+// if channel has no row yet, treat as stale so it gets fetched
+export async function isChannelCacheStale(channelId: string) {
+  const result = await pool.query(
+    `
+    select cache_expires_at
+    from channel_recent_cache_state
+    where channel_id = $1
+    `,
+    [channelId],
+  );
+
+  // No cache state row = channel has never been refreshed
+  if (result.rowCount === 0) {
+    return true;
+  }
+
+  const cacheExpiresAt = new Date(result.rows[0].cache_expires_at);
+  return cacheExpiresAt.getTime() <= Date.now();
+}
+
+// After refreshing a channel, update its cache freshness window
+// Future refreshes will skip channels that are still fresh
+export async function markChannelCacheRefreshed(channelId: string) {
+  const ttlMinutes = env.YOUTUBE_CACHE_TTL_MINUTES;
+  const cacheExpiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
+
+  await pool.query(
+    `
+    insert into channel_recent_cache_state (
+      channel_id,
+      cache_expires_at,
+      last_checked_at
+    )
+    values ($1, $2, now())
+    on conflict (channel_id) do update
+      set cache_expires_at = excluded.cache_expires_at,
+          last_checked_at = now()
+    `,
+    [channelId, cacheExpiresAt],
+  );
+}
