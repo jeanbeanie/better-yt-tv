@@ -1,4 +1,5 @@
 import { pool } from "../db/pool.js";
+import { env } from "../config/env.js";
 
 // shape we want to send into database
 export type CachedVideo = {
