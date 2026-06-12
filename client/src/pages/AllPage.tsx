@@ -11,11 +11,19 @@ type FeedItem = {
   thumb_url: string | null;
 };
 
+type RefreshResult = {
+  ok: boolean;
+  refreshedChannels: number;
+  skippedChannels?: number;
+  cachedVideos: number;
+};
+
 export default function AllPage() {
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refreshResult, setRefreshResult] = useState<RefreshResult | null>(null);
 
   async function loadFeed() {
     try {
@@ -36,12 +44,14 @@ export default function AllPage() {
     try {
       setBusy(true);
       setError(null);
+      setRefreshResult(null);
 
       // Pull subscriptions from YouTube into DB
       await syncSubscriptions();
 
       // pull recent videos for those channels into DB
-      await refreshAllCache();
+      const refresh = await refreshAllCache();
+      setRefreshResult(refresh);
 
       // then reload the page data from our own backend
       await loadFeed();
@@ -72,6 +82,13 @@ export default function AllPage() {
       <button onClick={() => void handleInitialBuild()} disabled={busy}>
         {busy ? "Building feed..." : "Build/Refresh Feed"}
       </button>
+
+      {refreshResult && (
+        <p>
+          Refreshed {refreshResult.refreshedChannels} channels, skipped{" "}
+          {refreshResult.skippedChannels ?? 0}, cached {refreshResult.cachedVideos} videos.
+        </p>
+      )}
 
       {loading && <p>Loading feed...</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
