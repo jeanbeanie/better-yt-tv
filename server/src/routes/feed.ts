@@ -46,3 +46,39 @@ feedRouter.get("/all", requireAuth, async (req, res, next) => {
     next(err);
   }
 });
+
+// POST /api/feed/videos/:videoId/watch
+// Mark a video as watched for the current user
+feedRouter.post("/videos/:videoId/watch", requireAuth, async (req, res, next) => {
+  try {
+    const userId = (req as AuthedRequest).userId;
+    const { videoId } = req.params;
+
+    if (!videoId) {
+      return res.status(400).json({ error: "Missing videoId" });
+    }
+
+    // Upsert watched state so repeated clicks are harmless
+    await pool.query(
+      `
+      insert into user_video_state (
+        user_id,
+        video_id,
+        watched_at,
+        source,
+        updated_at
+      )
+      values ($1, $2, now(), 'manual', now())
+      on conflict (user_id, video_id) do update
+        set watched_at = now(),
+            source = 'manual',
+            updated_at = now()
+      `,
+      [userId, videoId],
+    );
+
+    return res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
