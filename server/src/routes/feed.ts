@@ -12,20 +12,28 @@ feedRouter.get("/all", requireAuth, async (req, res, next) => {
 
     // Join user_subscriptions with videos_cache so we only return
     // videos from channels the current user follows
+    // calc user's is_watched state per video
     const result = await pool.query(
-      `
+       `
       select
         v.video_id,
         v.channel_id,
         us.channel_title,
         v.title,
         v.published_at,
-        v.thumb_url
+        v.thumb_url,
+        uvs.watched_at,
+        (uvs.watched_at is not null) as is_watched
       from user_subscriptions us
       join videos_cache v
         on v.channel_id = us.channel_id
+      left join user_video_state uvs
+        on uvs.user_id = us.user_id
+       and uvs.video_id = v.video_id
       where us.user_id = $1
-      order by v.published_at desc
+      order by
+        (uvs.watched_at is not null) asc,
+        v.published_at desc
       limit 200
       `,
       [userId],
