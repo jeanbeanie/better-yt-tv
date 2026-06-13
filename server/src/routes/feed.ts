@@ -82,3 +82,39 @@ feedRouter.post("/videos/:videoId/watch", requireAuth, async (req, res, next) =>
     next(err);
   }
 });
+
+// POST /api/feed/videos/:videoId/unwatch
+// Mark a video as not watched for the current user
+feedRouter.post("/videos/:videoId/unwatch", requireAuth, async (req, res, next) => {
+  try {
+    const userId = (req as AuthedRequest).userId;
+    const { videoId } = req.params;
+
+    if (!videoId) {
+      return res.status(400).json({ error: "Missing videoId" });
+    }
+
+    // Keep the row but clear watched_at to preserve per-user state history shape
+    await pool.query(
+      `
+      insert into user_video_state (
+        user_id,
+        video_id,
+        watched_at,
+        source,
+        updated_at
+      )
+      values ($1, $2, null, 'reset', now())
+      on conflict (user_id, video_id) do update
+        set watched_at = null,
+            source = 'reset',
+            updated_at = now()
+      `,
+      [userId, videoId],
+    );
+
+    return res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
