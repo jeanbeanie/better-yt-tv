@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getAllFeed, syncSubscriptions, refreshAllCache } from "../lib/api";
+import { 
+  getAllFeed, 
+  syncSubscriptions, 
+  refreshAllCache,
+  markVideoWatched,
+  markVideoUnwatched,
+} from "../lib/api";
 
 type FeedItem = {
   video_id: string;
@@ -9,6 +15,8 @@ type FeedItem = {
   title: string;
   published_at: string;
   thumb_url: string | null;
+  watched_at: string | null;
+  is_watched: boolean;
 };
 
 type RefreshResult = {
@@ -62,6 +70,21 @@ export default function AllPage() {
     }
   }
 
+ async function handleToggleWatched(item: FeedItem) {
+    try {
+      if (item.is_watched) {
+        await markVideoUnwatched(item.video_id);
+      } else {
+        await markVideoWatched(item.video_id);
+      }
+
+      // Reload feed after toggle so ordering and watched state stay accurate
+      await loadFeed();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update watched state");
+    }
+  }
+
   useEffect(() => {
     // discard promise to ensure useEffect returns nothing/undefined
     void loadFeed();
@@ -109,6 +132,9 @@ export default function AllPage() {
             <p>{item.title}</p>
             <p>{item.published_at}</p>
             <p>{item.channel_title}</p>
+            <button onClick={() => void handleToggleWatched(item)}>
+              {item.is_watched ? "Mark Unwatched" : "Mark Watched"}
+            </button>
           </li>
         ))}
       </ul>
