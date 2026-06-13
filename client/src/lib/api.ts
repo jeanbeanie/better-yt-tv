@@ -86,3 +86,31 @@ export async function refreshAllCache() {
 
   return resp.json();
 }
+
+// Mark a specific video as watched for the current user
+export async function markVideoWatched(videoId: string) {
+  const resp = await fetch(`${API_BASE}/api/feed/videos/${videoId}/watch`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!resp.ok) {
+    throw new Error(`mark watched failed: ${resp.status}`);
+  }
+
+  return resp.json();
+}
+
+// Mark a specific video as not watched for the current user
+export async function markVideoUnwatched(videoId: string) {
+  const resp = await fetch(`${API_BASE}/api/feed/videos/${videoId}/unwatch`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!resp.ok) {
+    throw new Error(`mark unwatched failed: ${resp.status}`);
+  }
+
+  return resp.json();
+}
