@@ -118,10 +118,10 @@ export default function AllPage() {
         <Link to="/">← Back home</Link>
       </nav>
 
-      <h1>All Videos Feed</h1>
+      <h1>All Videos</h1>
 
       <p>
-        /all showing recemt cached videos from channels you follow
+        A queue of recent videos from channels you follow.
       </p>
 
       <button onClick={() => void handleInitialBuild()} disabled={busy}>
@@ -161,56 +161,101 @@ export default function AllPage() {
         <p>No videos yet. Try building the feed.</p>
       )}
 
-     <ul style={{ listStyle: "none", padding: 0 }}>
-        {items.map((item) => (
-          <li
-            key={item.video_id}
-            style={{
-              display: "flex",
-              gap: "1rem",
-              marginBottom: "1rem",
-              padding: "1rem",
-              border: item.video_id === selectedVideoId ? "2px solid pink" : "1px solid black",
-              borderRadius: "8px",
-              opacity: item.is_watched ? 0.5 : 1,
-              cursor: "pointer",
-            }}
-            onClick={() => setSelectedVideoId(item.video_id)}
-          >
-            {item.thumb_url && (
-              <img
-                src={item.thumb_url}
-                alt={item.title}
-                width={200}
-                style={{ borderRadius: "10px" }}
-              />
-            )}
+     {!loading && !error && items.length > 0 && (
+        <section>
+          {/* TODO make this its own video queue component */}
+          <h2 style={{ marginBottom: "1rem" }}>Queue</h2>
 
-            <div style={{ flex: 1 }}>
-              <h3>{item.title}</h3>
-              <p>
-                <strong>{item.channel_title}</strong>
-              </p>
-              <p>
-                {new Date(item.published_at).toLocaleString()}
-              </p>
-              <p>
-                Status: {item.is_watched ? "Watched" : "Unwatched"}
-              </p>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {items.map((item) => {
+              const isSelected = item.video_id === selectedVideoId;
 
-              <button
-                onClick={(event) => {
-                  // Prevent the row click from also changing selection unexpectedly
-                  event.stopPropagation();
-                  void handleToggleWatched(item);
-                }}
-              >
-                {item.is_watched ? "Mark Unwatched" : "Mark Watched"}
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </main>
+              return (
+                <li
+                  key={item.video_id}
+                  onClick={() => setSelectedVideoId(item.video_id)}
+                  style={{
+                    display: "flex",
+                    gap: "1rem",
+                    alignItems: "center",
+                    padding: "0.5rem 0",
+                    borderTop: "1px solid #2e303a",
+                    cursor: "pointer",
+                    opacity: item.is_watched ? 0.5 : 1,
+                    backgroundColor: isSelected ? "#333" : "transparent",
+                  }}
+                >
+                  {item.thumb_url && (
+                    <img
+                      src={item.thumb_url}
+                      alt={item.title}
+                      width={120}
+                      style={{
+                        borderRadius: "8px",
+                        flexShrink: 0,
+                      }}
+                    />
+                  )}
+
+                  {/* Main text area: title first, then compact metadata line */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontWeight: isSelected ? 700 : 500,
+                      }}
+                    >
+                      {item.title}
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: "0.8rem",
+                        color: "#666",
+                      }}
+                    >
+                      {item.channel_title} ·{" "}
+                      {new Date(item.published_at).toLocaleString()}
+                    </div>
+                  </div>
+
+                  {/* Keep actions/status small and to the right */}
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "flex-end",
+                      gap: "0.5rem",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "0.8rem",
+                        color: item.is_watched ? "#777" : "#111",
+                        paddingRight: ".5rem",
+                      }}
+                    >
+                      {item.is_watched ? "Watched" : "Unwatched"}
+                    </span>
+
+                    <button
+                      style={{
+                        marginRight: ".5rem",
+                      }}
+                      onClick={(event) => {
+                        // Prevent row click from also changing selection unexpectedly.
+                        event.stopPropagation();
+                        void handleToggleWatched(item);
+                      }}
+                    >
+                      {item.is_watched ? "Unwatch" : "Watch"}
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}    </main>
   );
 }
