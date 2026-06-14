@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { 
   getAllFeed, 
@@ -7,6 +7,7 @@ import {
   markVideoWatched,
   markVideoUnwatched,
 } from "../lib/api";
+import YoutubePlayer from "../components/Player/YoutubePlayer";
 
 type FeedItem = {
   video_id: string;
@@ -28,6 +29,7 @@ type RefreshResult = {
 
 export default function AllPage() {
   const [items, setItems] = useState<FeedItem[]>([]);
+  const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +42,21 @@ export default function AllPage() {
 
       // Load the DB feed data for this user
       const data = await getAllFeed();
+      const nextItems = data.items ?? [];
       setItems(data.items ?? []);
+
+      // If nothing is selected yet, default to the first item in the queue
+      if (!selectedVideoId && nextItems.length > 0) {
+        setSelectedVideoId(nextItems[0].video_id);
+      }
+
+      // If the currently selected video disappeared from the list, fall back to first item
+      if (
+        selectedVideoId &&
+        !nextItems.some((item: FeedItem) => item.video_id === selectedVideoId)
+      ) {
+        setSelectedVideoId(nextItems[0]?.video_id ?? null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load /all feed");
     } finally {
@@ -85,6 +101,12 @@ export default function AllPage() {
     }
   }
 
+
+  const selectedItem = useMemo(
+    () => items.find((item) => item.video_id === selectedVideoId) ?? null,
+    [items, selectedVideoId],
+  );
+
   useEffect(() => {
     // discard promise to ensure useEffect returns nothing/undefined
     void loadFeed();
@@ -113,6 +135,25 @@ export default function AllPage() {
         </p>
       )}
 
+
+      {selectedItem && (
+        <section style={{ margin: "1.5rem 0" }}>
+          <h2>Now Playing</h2>
+          <p>
+            <strong>{selectedItem.title}</strong>
+            <br />
+            {selectedItem.channel_title}
+          </p>
+
+          <YoutubePlayer
+            videoId={selectedItem.video_id}
+            onEnded={() => {
+              console.log("video ended", selectedItem.video_id);
+            }}
+          />
+        </section>
+      )}
+
       {loading && <p>Loading feed...</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
 
@@ -120,21 +161,53 @@ export default function AllPage() {
         <p>No videos yet. Try building the feed.</p>
       )}
 
-      <ul>
+     <ul style={{ listStyle: "none", padding: 0 }}>
         {items.map((item) => (
-          <li key={item.video_id}>
+          <li
+            key={item.video_id}
+            style={{
+              display: "flex",
+              gap: "1rem",
+              marginBottom: "1rem",
+              padding: "1rem",
+              border: item.video_id === selectedVideoId ? "2px solid pink" : "1px solid black",
+              borderRadius: "8px",
+              opacity: item.is_watched ? 0.5 : 1,
+              cursor: "pointer",
+            }}
+            onClick={() => setSelectedVideoId(item.video_id)}
+          >
             {item.thumb_url && (
               <img
                 src={item.thumb_url}
                 alt={item.title}
+                width={200}
+                style={{ borderRadius: "10px" }}
               />
             )}
-            <p>{item.title}</p>
-            <p>{item.published_at}</p>
-            <p>{item.channel_title}</p>
-            <button onClick={() => void handleToggleWatched(item)}>
-              {item.is_watched ? "Mark Unwatched" : "Mark Watched"}
-            </button>
+
+            <div style={{ flex: 1 }}>
+              <h3>{item.title}</h3>
+              <p>
+                <strong>{item.channel_title}</strong>
+              </p>
+              <p>
+                {new Date(item.published_at).toLocaleString()}
+              </p>
+              <p>
+                Status: {item.is_watched ? "Watched" : "Unwatched"}
+              </p>
+
+              <button
+                onClick={(event) => {
+                  // Prevent the row click from also changing selection unexpectedly
+                  event.stopPropagation();
+                  void handleToggleWatched(item);
+                }}
+              >
+                {item.is_watched ? "Mark Unwatched" : "Mark Watched"}
+              </button>
+            </div>
           </li>
         ))}
       </ul>
