@@ -31,9 +31,7 @@ feedRouter.get("/all", requireAuth, async (req, res, next) => {
         on uvs.user_id = us.user_id
        and uvs.video_id = v.video_id
       where us.user_id = $1
-      order by
-        (uvs.watched_at is not null) asc,
-        v.published_at desc
+      order by v.published_at desc
       limit 200
       `,
       [userId],
