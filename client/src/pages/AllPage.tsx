@@ -34,6 +34,7 @@ export default function AllPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshResult, setRefreshResult] = useState<RefreshResult | null>(null);
+  const [hideWatched, setHideWatched] = useState(false);
 
   async function loadFeed() {
     try {
@@ -107,6 +108,15 @@ export default function AllPage() {
     [items, selectedVideoId],
   );
 
+  const visibleItems = useMemo(() => {
+    // V1: filter watched videos client side only
+    if (!hideWatched) {
+      return items;
+    }
+
+    return items.filter((item) => !item.is_watched);
+  }, [items, hideWatched]);
+
   useEffect(() => {
     // discard promise to ensure useEffect returns nothing/undefined
     void loadFeed();
@@ -134,7 +144,23 @@ export default function AllPage() {
           {refreshResult.skippedChannels ?? 0}, cached {refreshResult.cachedVideos} videos.
         </p>
       )}
-
+      <div style={{ margin: "1rem 0" }}>
+        <label
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            cursor: "pointer",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={hideWatched}
+            onChange={(e) => setHideWatched(e.target.checked)}
+          />
+          <span>Hide watched</span>
+        </label>
+      </div>
 
       {selectedItem && (
         <section style={{ margin: "1.5rem 0" }}>
@@ -161,13 +187,17 @@ export default function AllPage() {
         <p>No videos yet. Try building the feed.</p>
       )}
 
-     {!loading && !error && items.length > 0 && (
+      {!loading && !error && items.length > 0 && visibleItems.length === 0 && (
+        <p>All videos are watched. Turn off “Hide watched” to see them again.</p>
+      )}
+
+     {!loading && !error && visibleItems.length > 0 && (
         <section>
           {/* TODO make this its own video queue component */}
           <h2 style={{ marginBottom: "1rem" }}>Queue</h2>
 
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {items.map((item) => {
+            {visibleItems.map((item) => {
               const isSelected = item.video_id === selectedVideoId;
 
               return (
