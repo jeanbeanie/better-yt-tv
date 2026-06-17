@@ -35,6 +35,7 @@ export default function AllPage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshResult, setRefreshResult] = useState<RefreshResult | null>(null);
   const [hideWatched, setHideWatched] = useState(false);
+  const [catchUpMode, setCatchUpMode] = useState(true);
 
   async function loadFeed() {
     try {
@@ -64,6 +65,22 @@ export default function AllPage() {
       setLoading(false);
     }
   }
+
+
+  useEffect(() => {
+    // Load the user's saved catch-up preference once on first render
+    const saved = window.localStorage.getItem("betterYtTv.catchUpMode");
+
+    // If a saved preference exists, convert string "true"/"false" into a boolean
+    if (saved !== null) {
+      setCatchUpMode(saved === "true");
+    }
+  }, []);
+
+  useEffect(() => {
+    // Persist the current catch-up setting
+    window.localStorage.setItem("betterYtTv.catchUpMode", String(catchUpMode));
+  }, [catchUpMode]);
 
   async function handleInitialBuild() {
     try {
