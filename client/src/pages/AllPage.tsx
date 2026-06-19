@@ -94,6 +94,7 @@ export default function AllPage() {
 
       // pull recent videos for those channels into DB
       const refresh = await refreshAllCache();
+      // TODO timeout back to null after a few seconds
       setRefreshResult(refresh);
 
       // then reload the page data from our own backend
@@ -221,6 +222,27 @@ async function handleVideoEnded() {
           {refreshResult.skippedChannels ?? 0}, cached {refreshResult.cachedVideos} videos.
         </p>
       )}
+    <div style={{ margin: "1rem 0" }}>
+      <label
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.5rem",
+          cursor: "pointer",
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={catchUpMode}
+          onChange={(event) => setCatchUpMode(event.target.checked)}
+        />
+        <span>Catch-up mode</span>
+      </label>
+
+      <p style={{ margin: "0.35rem 0 0 1.5rem", color: "#666", fontSize: "0.9rem" }}>
+        Automatically play the next unwatched video when one ends.
+      </p>
+    </div>
       <div style={{ margin: "1rem 0" }}>
         <label
           style={{
@@ -267,6 +289,12 @@ async function handleVideoEnded() {
       {!loading && !error && items.length > 0 && visibleItems.length === 0 && (
         <p>All videos are watched. Turn off “Hide watched” to see them again.</p>
       )}
+
+{caughtUp && (
+  <p style={{ color: "#555", marginTop: "0.75rem" }}>
+    You&apos;re caught up — no unwatched videos remain.
+  </p>
+)}
 
      {!loading && !error && visibleItems.length > 0 && (
         <section>
