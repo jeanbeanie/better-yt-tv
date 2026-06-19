@@ -36,6 +36,7 @@ export default function AllPage() {
   const [refreshResult, setRefreshResult] = useState<RefreshResult | null>(null);
   const [hideWatched, setHideWatched] = useState(false);
   const [catchUpMode, setCatchUpMode] = useState(true);
+  const [caughtUp, setCaughtUp] = useState(false);
 
   async function loadFeed() {
     try {
@@ -119,11 +120,70 @@ export default function AllPage() {
     }
   }
 
+  function findNextUnwatchedVideo(items: FeedItem[], currentVideoId: string) {
+    const currentIndex = items.findIndex((item) => item.video_id === currentVideoId);
 
-  const selectedItem = useMemo(
-    () => items.find((item) => item.video_id === selectedVideoId) ?? null,
-    [items, selectedVideoId],
-  );
+    // If current item isn't found, fall back to the first unwatched video
+    if (currentIndex === -1) {
+      return items.find((item) => !item.is_watched) ?? null;
+    }
+
+    // Search forward from the current item to find the next unwatched video
+    for (let i = currentIndex + 1; i < items.length; i += 1) {
+      if (!items[i].is_watched) {
+        return items[i];
+      }
+    }
+
+    // If nothing later in the list is unwatched, we are caught up.
+    return null;
+  }
+
+async function handleVideoEnded() {
+  if (!selectedItem) {
+    return;
+  }
+
+  try {
+    setError(null);
+    setCaughtUp(false);
+
+    // Mark the video just finished as watched on the server
+    await markVideoWatched(selectedItem.video_id);
+
+    // Update local item state without waiting for feed to reload
+    const updatedItems = items.map((item) =>
+      item.video_id === selectedItem.video_id
+        ? {
+            ...item,
+            is_watched: true,
+            watched_at: new Date().toISOString(),
+          }
+        : item,
+    );
+
+    setItems(updatedItems);
+
+    // If catch-up mode is OFF, stop here
+    if (!catchUpMode) {
+      return;
+    }
+
+    // Find the next unwatched video after the one that just ended
+    const nextItem = findNextUnwatchedVideo(updatedItems, selectedItem.video_id);
+
+    if (nextItem) {
+      setSelectedVideoId(nextItem.video_id);
+    } else {
+      // No unwatched videos remain
+      setCaughtUp(true);
+    }
+  } catch (err) {
+    setError(err instanceof Error ? err.message : "Failed to advance queue");
+  }
+}
+
+  const selectedItem = items.find((item) => item.video_id === selectedVideoId) ?? null;
 
   const visibleItems = useMemo(() => {
     // V1: filter watched videos client side only
@@ -191,7 +251,7 @@ export default function AllPage() {
           <YoutubePlayer
             videoId={selectedItem.video_id}
             onEnded={() => {
-              console.log("video ended", selectedItem.video_id);
+              void handleVideoEnded();
             }}
           />
         </section>
