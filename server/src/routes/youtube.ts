@@ -130,6 +130,22 @@ youtubeRouter.post("/sync-subscriptions", requireAuth, async (req, res, next) =>
         `,
         [userId, item.channelId, item.title],
       );
+      // Ensure this synced channel has a default preference row
+      // Only create it if it does not already exist
+      await pool.query(
+        `
+        insert into channel_preferences (
+          user_id,
+          channel_id,
+          enabled_all,
+          enabled_live,
+          excluded_shorts
+        )
+        values ($1, $2, true, true, true)
+        on conflict (user_id, channel_id) do nothing
+        `,
+        [userId, item.channelId],
+      );
     }
 
     // return a tiny confirmation for the UI
