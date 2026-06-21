@@ -186,6 +186,7 @@ async function handleVideoEnded() {
 
   const selectedItem = items.find((item) => item.video_id === selectedVideoId) ?? null;
 
+  // when watched videos are toggled as hidden by user
   const visibleItems = useMemo(() => {
     // V1: filter watched videos client side only
     if (!hideWatched) {
@@ -199,6 +200,39 @@ async function handleVideoEnded() {
     // discard promise to ensure useEffect returns nothing/undefined
     void loadFeed();
   }, []); // run once when component first mounts
+
+  // return specified index from list of videos
+  function getSelectedIndex(items: FeedItem[], selectedVideoId: string | null) {
+    if (!selectedVideoId) {
+      return -1;
+    }
+
+    return items.findIndex((item) => item.video_id === selectedVideoId);
+  }
+
+  function goToPreviousVideo() {
+    const currentIndex = getSelectedIndex(items, selectedVideoId);
+
+    // If the first item, or nothing, is selected, do nothing
+    if (currentIndex <= 0) {
+      return;
+    }
+
+    setSelectedVideoId(items[currentIndex - 1].video_id);
+    setCaughtUp(false);
+  }
+
+  function goToNextVideo() {
+    const currentIndex = getSelectedIndex(items, selectedVideoId);
+
+    // If nothing is selected or we're already at the last item, do nothing
+    if (currentIndex === -1 || currentIndex >= items.length - 1) {
+      return;
+    }
+
+    setSelectedVideoId(items[currentIndex + 1].video_id);
+    setCaughtUp(false);
+  }
 
   return (
     <main>
@@ -276,6 +310,12 @@ async function handleVideoEnded() {
               void handleVideoEnded();
             }}
           />
+          <div
+            style={{display: "flex", gap: "50%", justifyContent:"center"}}
+          >
+            <button onClick={goToPreviousVideo}>Previous</button>
+            <button onClick={goToNextVideo}>Next</button>
+          </div>
         </section>
       )}
 
