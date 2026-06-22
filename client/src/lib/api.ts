@@ -114,3 +114,45 @@ export async function markVideoUnwatched(videoId: string) {
 
   return resp.json();
 }
+
+
+// Fetch the current user's synced channels and their preferences
+export async function getChannels() {
+  const resp = await fetch(`${API_BASE}/api/channels`, {
+    credentials: "include",
+  });
+
+  if (!resp.ok) {
+    throw new Error(`get channels failed: ${resp.status}`);
+  }
+
+  return resp.json();
+}
+
+// TODO move types into their own file
+type UpdateChannelPreferencesInput = {
+  enabledAll?: boolean;
+  enabledLive?: boolean;
+  excludedShorts?: boolean;
+};
+
+// Update current user preferences for one channel
+export async function updateChannel(
+  channelId: string,
+  updates: UpdateChannelPreferencesInput,
+) {
+  const resp = await fetch(`${API_BASE}/api/channels/${channelId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+    body: JSON.stringify(updates),
+  });
+
+  if (!resp.ok) {
+    throw new Error(`update channel failed: ${resp.status}`);
+  }
+
+  return resp.json();
+}
