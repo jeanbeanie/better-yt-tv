@@ -1,6 +1,6 @@
 // TODO get from env
-const API_BASE = "http://localhost:5179";
-
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+console.log('import meta env', import.meta.env.VITE_API_BASE_URL);
 // get current user profile details
 export async function getWhoAmI() {
   const resp = await fetch(`${API_BASE}/api/auth/whoami`, {
