@@ -4,6 +4,7 @@ import { pool } from "../db/pool.js";
 import { requireAuth, type AuthedRequest } from "../auth/requireAuth.js";
 import { decryptRefreshToken } from "../auth/crypto.js";
 import { refreshAccessToken } from "../auth/google.js";
+import { withYoutubeReauthHandling } from "./youtubeAuthGuard.js";
 import { 
   fetchRecentVideosForChannel,
   upsertVideosCache,
@@ -21,6 +22,8 @@ type YoutubeSubscription = {
   medium?: { url: string };
   high?: { url: string };
 }
+
+/* HELPER FUNCTIONS */
 
 // load and decrypt user's stored refresh token
 async function getUserRefreshToken(userId: string){
@@ -89,9 +92,14 @@ async function fetchYoutubeSubscriptions(accessToken: string): Promise<YoutubeSu
       ));
 }
 
+/* YOUTUBE ROUTE HANDLERS */
+
 // GET /api/youtube/subscriptions
-youtubeRouter.get("/subscriptions", requireAuth, async (req, res, next) => {
-  try {
+youtubeRouter.get(
+  "/subscriptions", 
+  requireAuth, 
+  withYoutubeReauthHandling(async (req, res) => {
+  
     const userId = (req as AuthedRequest).userId;
 
     // get temporary Google access token for logged in user
@@ -101,15 +109,16 @@ youtubeRouter.get("/subscriptions", requireAuth, async (req, res, next) => {
     const items = await fetchYoutubeSubscriptions(accessToken);
 
     res.json({ items });
-  } catch (err) {
-    next(err);
-  }
-});
+  })
+);
+
 
 // POST /api/youtube/sync-subscriptions
 // fetches subs from YT and saved into DB
-youtubeRouter.post("/sync-subscriptions", requireAuth, async (req, res, next) => {
-  try {
+youtubeRouter.post(
+  "/sync-subscriptions",
+  requireAuth,
+  withYoutubeReauthHandling(async (req, res) => {
     const userId = (req as AuthedRequest).userId;
 
     // get google access token for this user
@@ -153,17 +162,16 @@ youtubeRouter.post("/sync-subscriptions", requireAuth, async (req, res, next) =>
       ok: true,
       syncedCount: items.length,
     });
-  } catch (err) {
-    next(err);
-  }
-
-});
+  }),
+);
 
 // POST /api/youtube/refresh-all-cache
 // Refresh recent videos for every subscribed channel
 // whose cache is STALE and save into videos_cache
-youtubeRouter.post("/refresh-all-cache", requireAuth, async (req, res, next) => {
-  try {
+youtubeRouter.post(
+  "/refresh-all-cache",
+  requireAuth,
+  withYoutubeReauthHandling(async (req, res) => {
      const userId = (req as AuthedRequest).userId;
 
     // Grab this user's saved subscriptions from our DB
@@ -233,7 +241,5 @@ youtubeRouter.post("/refresh-all-cache", requireAuth, async (req, res, next) => 
       skippedChannels,
       cachedVideos,
     });
-  }  catch (err) {
-    next(err);
-  }
-})
+  }),
+);
