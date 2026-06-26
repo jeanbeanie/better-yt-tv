@@ -131,7 +131,7 @@ export async function syncSubscriptions() {
   });
 
   if (!resp.ok) {
-    throw new Error(`sync subscriptions failed: ${resp.status}`);
+    throw await parseApiError(resp, "sync subscriptions failed");
   }
 
   return resp.json();
