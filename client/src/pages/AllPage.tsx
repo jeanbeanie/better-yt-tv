@@ -6,6 +6,8 @@ import {
   refreshAllCache,
   markVideoWatched,
   markVideoUnwatched,
+  getLoginUrl,
+  ApiError,
 } from "../lib/api";
 import YoutubePlayer from "../components/Player/YoutubePlayer";
 
@@ -100,7 +102,19 @@ export default function AllPage() {
       // then reload the page data from our own backend
       await loadFeed();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to sync subscriptions");
+      console.log(';in handleInitialBuild, err', err);
+      if (
+        err instanceof ApiError &&
+        err.status === 401 &&
+        err.code === "YOUTUBE_REAUTH_REQUIRED"
+      ) {
+        setError("Your YouTube connection expired. Redirecting to sign in...");
+        window.location.href = getLoginUrl();
+        return;
+      }
+
+      setError(err instanceof Error ? err.message : "Failed to sync subscriptions"); 
+      console.log('setError', error)
     } finally {
       setBusy(false);
     }
