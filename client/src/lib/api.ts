@@ -1,5 +1,70 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
+// extend built-in Error class
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+type ApiErrorPayload = {
+  message?: string;
+  error?: string;
+  code?: string;
+};
+
+function isApiErrorPayload(value: unknown): value is ApiErrorPayload {
+  if (typeof value !== "object" || value === null) return false;
+  return true;
+}
+
+// try to extract something useful from error regardless of error shape
+async function parseApiError(resp: Response, fallback: string): Promise<ApiError> {
+  let payload: unknown;
+  try {
+    payload = await resp.json();
+  } catch {
+    payload = null;
+  }
+  let message = `${fallback}: ${resp.status}`;
+  let code: string | undefined;
+
+  if (isApiErrorPayload(payload)) {
+    if (typeof payload.message === "string" && payload.message.length > 0) {
+      message = payload.message;
+    } else if (typeof payload.error === "string" && payload.error.length > 0) {
+      message = payload.error;
+    }
+
+    if (typeof payload.code === "string" && payload.code.length > 0) {
+      code = payload.code;
+    }
+  }
+
+  return new ApiError(message, resp.status, code);
+}
+
+
+export async function refreshAllCache() {
+  const resp = await fetch(`${API_BASE}/api/youtube/refresh-all-cache`, {
+    method: "POST",
+    credentials: "include", // tells browser to send cookies with this request, necessary for auth
+  });
+
+  if (!resp.ok) {
+    throw await parseApiError(resp, "refresh all cache failed");
+  }
+
+  return resp.json
+}
+
+
 // get current user profile details
 export async function getWhoAmI() {
   const resp = await fetch(`${API_BASE}/api/auth/whoami`, {
@@ -67,20 +132,6 @@ export async function syncSubscriptions() {
 
   if (!resp.ok) {
     throw new Error(`sync subscriptions failed: ${resp.status}`);
-  }
-
-  return resp.json();
-}
-
-// Trigger refresh of recent videos into videos_cache
-export async function refreshAllCache() {
-  const resp = await fetch(`${API_BASE}/api/youtube/refresh-all-cache`, {
-    method: "POST",
-    credentials: "include",
-  });
-
-  if (!resp.ok) {
-    throw new Error(`refresh all cache failed: ${resp.status}`);
   }
 
   return resp.json();
