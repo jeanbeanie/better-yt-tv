@@ -3,7 +3,10 @@ import { pool } from "../db/pool.js";
 
 
 // extend standard Express Request to include userId
-export type AuthedRequest = Request & { userId: string };
+export type AuthedRequest = Request & { 
+  userId: string;
+  sessionId: string;
+};
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
 // Middleware to check if a user is securely logged in 
@@ -11,12 +14,19 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
   try {
     // look for session id cookie sent by user's browser
-    const sid = req.cookies?.sid;
-    if (!sid) return res.status(401).json({ error: "Not authenticated" });
+    const sid = req.cookies?.sid as string | undefined;
 
-    // find matching session id in sessions table,
-    // make sure it is not a revoked or expired session
-    const r = await pool.query(
+    // no session found, user isn't logged into site
+    if (!sid) {
+      return res.status(401).json({ 
+        code: "AUTH_REQUIRED",
+        message: "You must be signed in to continue.", 
+      });
+    }
+
+    // if session id, find matching session in sessions table,
+    // and make sure it is not a revoked or expired session
+    const result = await pool.query(
       `
       select user_id
       from sessions
@@ -27,12 +37,21 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       [sid],
     );
 
-    if (r.rowCount === 0) return res.status(401).json({ error: "Not authenticated" });
+    // session id not found in table, or expired/revoked
+    if (result.rowCount === 0) {
+      // clear stale/invalid session from browser
+      res.clearCookie("sid", { path: "/" });
+      return res.status(401).json({
+        code: "AUTH_REQUIRED",
+        message: "Your session is no longer valid. Please sign in again.", 
+      });
+    }
 
-    // attach user_id from table to request object before proceeding to actual route handler
-    (req as AuthedRequest).userId = r.rows[0].user_id;
-    next();
+    // attach user_id from tablen and session to request object before proceeding to actual route handler
+    (req as AuthedRequest).userId = result.rows[0].user_id as string;
+    (req as AuthedRequest).sessionId = sid;
+    return next();
   } catch (err) {
-    next(err);
+    return next(err);
   }
 }
