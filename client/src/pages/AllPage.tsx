@@ -7,7 +7,7 @@ import {
   markVideoWatched,
   markVideoUnwatched,
   getLoginUrl,
-  ApiError,
+  shouldRedirectToLogin,
 } from "../lib/api";
 import YoutubePlayer from "../components/Player/YoutubePlayer";
 
@@ -39,6 +39,22 @@ export default function AllPage() {
   const [hideWatched, setHideWatched] = useState(false);
   const [catchUpMode, setCatchUpMode] = useState(true);
   const [caughtUp, setCaughtUp] = useState(false);
+  const [pendingLoginRedirect, setPendingLoginRedirect] = useState(false);
+
+
+  useEffect(() => {
+    if (!pendingLoginRedirect) return;
+    window.location.assign(getLoginUrl());
+  }, [pendingLoginRedirect]);
+
+  function redirectIfAuthError(err: Error): boolean {
+    if (shouldRedirectToLogin(err)) {
+      setError("Your session expired. Redirecting to sign in...");
+      setPendingLoginRedirect(true);
+      return true;
+    }
+    return false;
+  }
 
   async function loadFeed() {
     try {
@@ -63,6 +79,7 @@ export default function AllPage() {
         setSelectedVideoId(nextItems[0]?.video_id ?? null);
       }
     } catch (err) {
+      if (redirectIfAuthError(err)) return;
       setError(err instanceof Error ? err.message : "Failed to load /all feed");
     } finally {
       setLoading(false);
@@ -102,19 +119,8 @@ export default function AllPage() {
       // then reload the page data from our own backend
       await loadFeed();
     } catch (err) {
-      console.log(';in handleInitialBuild, err', err);
-      if (
-        err instanceof ApiError &&
-        err.status === 401 &&
-        err.code === "YOUTUBE_REAUTH_REQUIRED"
-      ) {
-        setError("Your YouTube connection expired. Redirecting to sign in...");
-        window.location.href = getLoginUrl();
-        return;
-      }
-
-      setError(err instanceof Error ? err.message : "Failed to sync subscriptions"); 
-      console.log('setError', error)
+      if (redirectIfAuthError(err)) return;
+      setError(err instanceof Error ? err.message : "Failed to sync subscriptions");
     } finally {
       setBusy(false);
     }
@@ -131,6 +137,7 @@ export default function AllPage() {
       // Reload feed after toggle so ordering and watched state stay accurate
       await loadFeed();
     } catch (err) {
+      if (redirectIfAuthError(err)) return;
       setError(err instanceof Error ? err.message : "Failed to update watched state");
     }
   }
@@ -194,6 +201,7 @@ async function handleVideoEnded() {
       setCaughtUp(true);
     }
   } catch (err) {
+    if (redirectIfAuthError(err)) return;
     setError(err instanceof Error ? err.message : "Failed to advance queue");
   }
 }
