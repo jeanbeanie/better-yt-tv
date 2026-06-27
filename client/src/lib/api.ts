@@ -19,19 +19,21 @@ type ApiErrorPayload = {
   code?: string;
 };
 
+// type guard
 function isApiErrorPayload(value: unknown): value is ApiErrorPayload {
-  if (typeof value !== "object" || value === null) return false;
-  return true;
+  return typeof value == "object" || value !== null;
 }
 
 // try to extract something useful from error regardless of error shape
 async function parseApiError(resp: Response, fallback: string): Promise<ApiError> {
   let payload: unknown;
+
   try {
     payload = await resp.json();
   } catch {
     payload = null;
   }
+
   let message = `${fallback}: ${resp.status}`;
   let code: string | undefined;
 
@@ -50,6 +52,31 @@ async function parseApiError(resp: Response, fallback: string): Promise<ApiError
   return new ApiError(message, resp.status, code);
 }
 
+// reusable wrapper for endpoints
+async function apiFetch<T>(path: string, init: RequestInit, fallback: string): Promise<T> {
+  const resp = await fetch(`${API_BASE}${path}`, {
+    credentials: "include",
+    ...init, // method, headers, body, etc...
+  });
+
+  if (!resp.ok) {
+    throw await parseApiError(resp, fallback);
+  }
+
+  return (await resp.json()) as T;
+}
+
+export function getLoginUrl() {
+  return `${API_BASE}/api/auth/login`;
+}
+
+export function shouldRedirectToLogin(err: unknown): boolean {
+  return (
+    err instanceof ApiError &&
+    err.status === 401 &&
+    (err.code === "AUTH_REQUIRED" || err.code === "YOUTUBE_REAUTH_REQUIRED")
+  );
+}
 
 export async function refreshAllCache() {
   const resp = await fetch(`${API_BASE}/api/youtube/refresh-all-cache`, {
