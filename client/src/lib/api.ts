@@ -66,6 +66,7 @@ async function apiFetch<T>(path: string, init: RequestInit, fallback: string): P
   return (await resp.json()) as T;
 }
 
+// returns URL string users needs to login
 export function getLoginUrl() {
   return `${API_BASE}/api/auth/login`;
 }
@@ -132,22 +133,14 @@ export async function getSubscriptions() {
   return resp.json();
 }
 
-// returns URL string users needs to login
-export function getLoginUrl() {
-  return `${API_BASE}/api/auth/login`;
-}
 
 // Get current user's saved feed data from the backend
 export async function getAllFeed() {
-  const resp = await fetch(`${API_BASE}/api/feed/all`, {
-    credentials: "include",
-  });
-
-  if (!resp.ok) {
-    throw new Error(`all feed failed: ${resp.status}`);
-  }
-
-  return resp.json();
+  return apiFetch<{ items: unknown[] }>(
+    "/api/feed/all",
+    { method: "GET" },
+    "all feed failed",
+  );
 }
 
 // Do a one-time sync from YouTube into the DB
