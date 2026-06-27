@@ -24,6 +24,10 @@ function isApiErrorPayload(value: unknown): value is ApiErrorPayload {
   return typeof value == "object" || value !== null;
 }
 
+  //////////////////////////
+ //  HELPER FUNCTIONS    //
+//////////////////////////
+
 // try to extract something useful from error regardless of error shape
 async function parseApiError(resp: Response, fallback: string): Promise<ApiError> {
   let payload: unknown;
@@ -79,18 +83,10 @@ export function shouldRedirectToLogin(err: unknown): boolean {
   );
 }
 
-export async function refreshAllCache() {
-  const resp = await fetch(`${API_BASE}/api/youtube/refresh-all-cache`, {
-    method: "POST",
-    credentials: "include", // tells browser to send cookies with this request, necessary for auth
-  });
 
-  if (!resp.ok) {
-    throw await parseApiError(resp, "refresh all cache failed");
-  }
-
-  return resp.json
-}
+  ///////////////////////////////
+ //          AUTH             //
+///////////////////////////////
 
 
 // get current user profile details
@@ -120,6 +116,11 @@ export async function logout() {
   return resp.json();
 }
 
+
+  ///////////////////////////////
+ //          YOUTUBE          //
+///////////////////////////////
+
 // get user YouTube channel subscriptions
 export async function getSubscriptions() {
   const resp = await fetch(`${API_BASE}/api/youtube/subscriptions`, {
@@ -134,15 +135,6 @@ export async function getSubscriptions() {
 }
 
 
-// Get current user's saved feed data from the backend
-export async function getAllFeed() {
-  return apiFetch<{ items: unknown[] }>(
-    "/api/feed/all",
-    { method: "GET" },
-    "all feed failed",
-  );
-}
-
 // Do a one-time sync from YouTube into the DB
 export async function syncSubscriptions() {
   const resp = await fetch(`${API_BASE}/api/youtube/sync-subscriptions`, {
@@ -155,6 +147,34 @@ export async function syncSubscriptions() {
   }
 
   return resp.json();
+}
+
+export async function refreshAllCache() {
+  const resp = await fetch(`${API_BASE}/api/youtube/refresh-all-cache`, {
+    method: "POST",
+    credentials: "include", // tells browser to send cookies with this request, necessary for auth
+  });
+
+  if (!resp.ok) {
+    throw await parseApiError(resp, "refresh all cache failed");
+  }
+
+  return resp.json
+}
+
+
+  ///////////////////////////////
+ //          FEED             //
+///////////////////////////////
+
+
+// Get current user's saved feed data from the backend
+export async function getAllFeed() {
+  return apiFetch<{ items: unknown[] }>(
+    "/api/feed/all",
+    { method: "GET" },
+    "all feed failed",
+  );
 }
 
 // Mark a specific video as watched for the current user
@@ -184,6 +204,10 @@ export async function markVideoUnwatched(videoId: string) {
 
   return resp.json();
 }
+
+  ///////////////////////////////
+ //          CHANNELS         //
+///////////////////////////////
 
 
 // Fetch the current user's synced channels and their preferences
