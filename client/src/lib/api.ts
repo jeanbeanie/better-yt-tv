@@ -159,7 +159,7 @@ export async function refreshAllCache() {
     throw await parseApiError(resp, "refresh all cache failed");
   }
 
-  return resp.json
+  return resp.json();
 }
 
 
