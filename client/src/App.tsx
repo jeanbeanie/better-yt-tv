@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, Route, Routes } from "react-router-dom";
+import { Link, Route, Routes, useNavigate } from "react-router-dom";
 import { getLoginUrl, getWhoAmI, logout } from "./lib/api";
 import HomePage from "./pages/HomePage";
 import AllPage from "./pages/AllPage";
@@ -15,6 +15,7 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   async function loadUser() {
     try {
@@ -36,6 +37,8 @@ function App() {
       setUser(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Logout failed");
+    } finally {
+      navigate("/");
     }
   }
 
