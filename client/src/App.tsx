@@ -4,7 +4,7 @@ import { getLoginUrl, getWhoAmI, logout } from "./lib/api";
 import HomePage from "./pages/HomePage";
 import AllPage from "./pages/AllPage";
 
-type User = {
+export type User = {
   id: string;
   email: string | null;
   google_sub: string;

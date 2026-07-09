@@ -1,10 +1,6 @@
 import { Link } from "react-router-dom";
+import { type User } from "../App";
 
-type User = {
-  id: string;
-  email: string | null;
-  google_sub: string;
-};
 
 type homePageProps = {
   user: User | null;
