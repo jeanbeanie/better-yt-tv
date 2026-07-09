@@ -258,73 +258,14 @@ async function handleVideoEnded() {
 
   return (
     <main>
-      <nav style={{ marginBottom: "1rem" }}>
-        <Link to="/">← Back home</Link>
-      </nav>
-
       <h1>All Videos</h1>
 
       <p>
         A queue of recent videos from channels you follow.
       </p>
 
-      <button onClick={() => void handleInitialBuild()} disabled={busy}>
-        {busy ? "Building feed..." : "Build/Refresh Feed"}
-      </button>
-
-      {refreshResult && (
-        <p>
-          Refreshed {refreshResult.refreshedChannels} channels, skipped{" "}
-          {refreshResult.skippedChannels ?? 0}, cached {refreshResult.cachedVideos} videos.
-        </p>
-      )}
-    <div style={{ margin: "1rem 0" }}>
-      <label
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "0.5rem",
-          cursor: "pointer",
-        }}
-      >
-        <input
-          type="checkbox"
-          checked={catchUpMode}
-          onChange={(event) => setCatchUpMode(event.target.checked)}
-        />
-        <span>Catch-up mode</span>
-      </label>
-
-      <p style={{ margin: "0.35rem 0 0 1.5rem", color: "#666", fontSize: "0.9rem" }}>
-        Automatically play the next unwatched video when one ends.
-      </p>
-    </div>
-      <div style={{ margin: "1rem 0" }}>
-        <label
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            cursor: "pointer",
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={hideWatched}
-            onChange={(e) => setHideWatched(e.target.checked)}
-          />
-          <span>Hide watched</span>
-        </label>
-      </div>
-
       {selectedItem && (
         <section style={{ margin: "1.5rem 0" }}>
-          <h2>Now Playing</h2>
-          <p>
-            <strong>{selectedItem.title}</strong>
-            <br />
-            {selectedItem.channel_title}
-          </p>
 
           <YoutubePlayer
             videoId={selectedItem.video_id}
@@ -337,7 +278,16 @@ async function handleVideoEnded() {
           >
             <button onClick={goToPreviousVideo}>Previous</button>
             <button onClick={goToNextVideo}>Next</button>
+            
           </div>
+
+
+          <p style={{margin:"10px"}}>
+            <strong>{selectedItem.title} </strong>
+             -
+            <strong> {selectedItem.channel_title}</strong>
+          </p>
+
         </section>
       )}
 
@@ -352,16 +302,68 @@ async function handleVideoEnded() {
         <p>All videos are watched. Turn off “Hide watched” to see them again.</p>
       )}
 
-{caughtUp && (
-  <p style={{ color: "#555", marginTop: "0.75rem" }}>
-    You&apos;re caught up — no unwatched videos remain.
-  </p>
-)}
+      {caughtUp && (
+        <p style={{ color: "#555", marginTop: "0.75rem" }}>
+          You&apos;re caught up — no unwatched videos remain.
+        </p>
+      )}
+
+
+      <button onClick={() => void handleInitialBuild()} disabled={busy}>
+        {busy ? "Building feed..." : "Build/Refresh Feed"}
+      </button>
+
+      {refreshResult && (
+        <p>
+          Refreshed {refreshResult.refreshedChannels} channels, skipped{" "}
+          {refreshResult.skippedChannels ?? 0}, cached {refreshResult.cachedVideos} videos.
+        </p>
+      )}
+      <div style={{ margin: "1rem 0" }}>
+        <label
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            cursor: "pointer",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={catchUpMode}
+            onChange={(event) => setCatchUpMode(event.target.checked)}
+          />
+          <span>Catch-up mode</span>
+        </label>
+
+        <p style={{ margin: "0.35rem 0 0 1.5rem", color: "#666", fontSize: "0.9rem" }}>
+          Automatically play the next unwatched video when one ends.
+        </p>
+      </div>
+
 
      {!loading && !error && visibleItems.length > 0 && (
         <section>
           {/* TODO make this its own video queue component */}
           <h2 style={{ marginBottom: "1rem" }}>Queue</h2>
+
+          <div style={{ margin: "1rem 0" }}>
+            <label
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={hideWatched}
+                onChange={(e) => setHideWatched(e.target.checked)}
+              />
+              <span>Hide watched</span>
+            </label>
+          </div>
 
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {visibleItems.map((item) => {
