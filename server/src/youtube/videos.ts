@@ -10,6 +10,45 @@ export type CachedVideo = {
   thumbUrl: string | null;
 };
 
+// Resolve a channel's "uploads" playlist ID using YT API: channels.list
+// Every YouTube channel has a related uploads playlist
+async function fetchUploadsPlaylistId(args: {
+  accessToken: string;
+  channelId: string;
+}): Promise<string> {
+  const url = new URL("https://www.googleapis.com/youtube/v3/channels");
+
+  // We only need contentDetails since that contains relatedPlaylists.uploads
+  url.searchParams.set("part", "contentDetails");
+  url.searchParams.set("id", args.channelId);
+
+  const resp = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${args.accessToken}`,
+    },
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(
+      `YouTube uploads playlist lookup failed: ${resp.status} ${text}`,
+    );
+  }
+
+  const data: any = await resp.json();
+
+  const uploadsPlaylistId =
+    data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+
+  if (!uploadsPlaylistId) {
+    throw new Error(
+      `No uploads playlist found for channel ${args.channelId}`,
+    );
+  }
+
+  return uploadsPlaylistId;
+}
+
 // Fetch recent public videos for one channel from YouTube
 // Currently using search.list for the MVP 
 // might switch to uploads-playlist flow later
