@@ -49,6 +49,61 @@ async function fetchUploadsPlaylistId(args: {
   return uploadsPlaylistId;
 }
 
+
+// Fetch recent uploaded videos from a channel's uploads playlist
+async function fetchRecentVideosFromUploadsPlaylist(args: {
+  accessToken: string;
+  uploadsPlaylistId: string;
+  maxResults?: number;
+}): Promise<CachedVideo[]> {
+  const url = new URL("https://www.googleapis.com/youtube/v3/playlistItems");
+
+  // snippet contains the video title, publication date, thumbnails,
+  // channel metadata, and resourceId.videoId.
+  url.searchParams.set("part", "snippet");
+  url.searchParams.set("playlistId", args.uploadsPlaylistId);
+  url.searchParams.set("maxResults", String(args.maxResults ?? 10));
+
+  const resp = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${args.accessToken}`,
+    },
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(
+      `YouTube uploads playlist videos fetch failed: ${resp.status} ${text}`,
+    );
+  }
+
+  const data: any = await resp.json();
+
+  return (data.items ?? [])
+    .map((item: any) => ({
+      // In playlistItems.list are an [] of items => item.snippet.resourceId.videoId
+      videoId: item.snippet?.resourceId?.videoId,
+
+      // snippet.channelId should match the channel that owns the upload
+      channelId: item.snippet?.channelId,
+
+      title: item.snippet?.title,
+      publishedAt: item.snippet?.publishedAt,
+
+      // Prefer higher quality thumbnails if available, and then fall back safely
+      thumbUrl:
+        item.snippet?.thumbnails?.medium?.url ??
+        item.snippet?.thumbnails?.default?.url ??
+        null,
+    }))
+    .filter(
+      // drop any items missing required fields to avoid storing broken records
+      // incomplete items can come from deleted/privated uploads, etc
+      (item: CachedVideo) =>
+        Boolean(item.videoId && item.channelId && item.title && item.publishedAt),
+    );
+}
+
 // Fetch recent public videos for one channel from YouTube
 // Currently using search.list for the MVP 
 // might switch to uploads-playlist flow later
