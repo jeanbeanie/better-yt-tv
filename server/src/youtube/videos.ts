@@ -105,50 +105,23 @@ async function fetchRecentVideosFromUploadsPlaylist(args: {
 }
 
 // Fetch recent public videos for one channel from YouTube
-// Currently using search.list for the MVP 
-// might switch to uploads-playlist flow later
 export async function fetchRecentVideosForChannel(args: {
   accessToken: string;
   channelId: string;
   maxResults?: number;
 }): Promise<CachedVideo[]> {
-  const url = new URL("https://www.googleapis.com/youtube/v3/search");
-
-  // snippet gives us title / thumbnails / publishedAt
-  url.searchParams.set("part", "snippet");
-  url.searchParams.set("channelId", args.channelId);
-  url.searchParams.set("type", "video");
-  url.searchParams.set("order", "date");
-  url.searchParams.set("maxResults", String(args.maxResults ?? 10));
-
-  const resp = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${args.accessToken}`,
-    },
+// First fetch the hidden uploads playlist that belongs to this channel
+  const uploadsPlaylistId = await fetchUploadsPlaylistId({
+    accessToken: args.accessToken,
+    channelId: args.channelId,
   });
 
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`YouTube recent videos fetch failed: ${resp.status} ${text}`);
-  }
-
-  const data: any = await resp.json();
-
-  return (data.items ?? [])
-    .map((item: any) => ({
-      videoId: item.id?.videoId,
-      channelId: item.snippet?.channelId,
-      title: item.snippet?.title,
-      publishedAt: item.snippet?.publishedAt,
-      thumbUrl:
-        item.snippet?.thumbnails?.medium?.url ??
-        item.snippet?.thumbnails?.default?.url ??
-        null,
-    }))
-    .filter(
-      (item: CachedVideo) =>
-        Boolean(item.videoId && item.channelId && item.title && item.publishedAt),
-    );
+  // Then fetch and return recent uploaded videos from that playlist
+  return fetchRecentVideosFromUploadsPlaylist({
+    accessToken: args.accessToken,
+    uploadsPlaylistId,
+    maxResults: args.maxResults ?? 10,
+  });
 }
 
 // Save a batch of videos into videos_cache, upserting to avoid duplicates
