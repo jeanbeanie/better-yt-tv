@@ -3,6 +3,9 @@ import { Link, Route, Routes, useNavigate } from "react-router-dom";
 import { getLoginUrl, getWhoAmI, logout } from "./lib/api";
 import HomePage from "./pages/HomePage";
 import AllPage from "./pages/AllPage";
+import SettingsLayout from "./pages/Settings/SettingsLayout";
+import ChannelsSettingsPage from "./pages/Settings/ChannelsSettingsPage";
+import ListsSettingsPage from "./pages/Settings/ListsSettingsPage";
 
 export type User = {
   id: string;
@@ -69,8 +72,16 @@ function App() {
       </header>
 
       <Routes>
+        {/* TOP LEVEL ROUTES */}
         <Route path="/" element={<HomePage user={user} loading={loading} error={error} />} />
         <Route path="/all" element={<AllPage />} />
+        
+        {/*  SETTINGS ROUTES */}
+        <Route path="/settings" element={<SettingsLayout />}>
+          <Route index element={<ChannelsSettingsPage />} />
+          <Route path="channels" element={<ChannelsSettingsPage />} />
+          <Route path="lists" element={<ListsSettingsPage />} />
+        </Route>
       </Routes>
       
 
