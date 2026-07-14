@@ -63,9 +63,8 @@ function App() {
             <>
             <Link to="/all">All</Link>
             <Link to="/">Live</Link>
-            <Link to="/">Channel</Link>
             <Link to="/">Lists</Link>
-            <Link to="/">Settings</Link>
+            <Link to="/settings">Settings</Link>
             </>
           )}
         </nav>
