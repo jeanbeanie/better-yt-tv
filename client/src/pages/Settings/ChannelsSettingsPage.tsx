@@ -44,7 +44,52 @@ export default function ChannelsSettingsPage() {
     void loadChannels();
   }, []);
 
-  async function handleToggle(){
+  async function handleToggle(
+    channelId: string,
+    updates: {
+      enabledAll?: boolean;
+      enabledLive?: boolean;
+      excludedShorts?: boolean;
+    },
+  ) {
+    // Save the previous state so we can revert if the backend request fails
+    const previousChannels = channels;
+
+    // then optimistically update the UI immediately => flow feels uninterrupted when updating
+    setChannels((currentChannels) =>
+      currentChannels.map((channel) =>
+        // target passed in channelId and apply passed in updates                 
+        channel.channelId === channelId
+          ? { ...channel, ...updates }
+          : channel,
+      ),
+    );
+
+    // Mark this specific row as currently "saving"
+    setSavingByChannelId((current) => ({
+      ...current,
+      [channelId]: true,
+    }));
+
+    try {
+      setError(null);
+
+      // Persist the changed field(s) to the server
+      await updateChannel(channelId, updates);
+    } catch (err) {
+      // If the save fails, restore previous UI state
+      setChannels(previousChannels);
+
+      setError(
+        err instanceof Error ? err.message : "Failed to save channel settings",
+      );
+    } finally {
+      // Clear the row's currently saving state for both success/failure
+      setSavingByChannelId((current) => ({
+        ...current,
+        [channelId]: false,
+      }));
+    }
 
   }
 
@@ -165,11 +210,6 @@ export default function ChannelsSettingsPage() {
                   </label>
                 </div>
 
-                {isSaving && (
-                  <p style={{ margin: 0, color: "#666", fontSize: "0.9rem" }}>
-                    Saving…
-                  </p>
-                )}
               </article>
             );
           })}
