@@ -212,15 +212,22 @@ export async function markVideoUnwatched(videoId: string) {
 
 // Fetch the current user's synced channels and their preferences
 export async function getChannels() {
-  const resp = await fetch(`${API_BASE}/api/channels`, {
-    credentials: "include",
-  });
+  return apiFetch<{
+    // TODO make exportable types for reuse????
+    channels: Array<{
+      channelId: string;
+      title: string;
+      thumbUrl: string | null;
+      enabledAll: boolean;
+      enabledLive: boolean;
+      excludedShorts: boolean;
+    }>;
+  }>(
+    "/api/channels",
+    { method: "GET" },
+    "get channels failed",
+  );
 
-  if (!resp.ok) {
-    throw new Error(`get channels failed: ${resp.status}`);
-  }
-
-  return resp.json();
 }
 
 // TODO move types into their own file
@@ -235,18 +242,15 @@ export async function updateChannel(
   channelId: string,
   updates: UpdateChannelPreferencesInput,
 ) {
-  const resp = await fetch(`${API_BASE}/api/channels/${channelId}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
+  return apiFetch<{ ok?: boolean }>(
+    `/api/channels/${channelId}`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(updates),
     },
-    credentials: "include",
-    body: JSON.stringify(updates),
-  });
-
-  if (!resp.ok) {
-    throw new Error(`update channel failed: ${resp.status}`);
-  }
-
-  return resp.json();
+    "update channel failed",
+  );
 }
