@@ -6,6 +6,7 @@ import AllPage from "./pages/AllPage";
 import SettingsLayout from "./pages/Settings/SettingsLayout";
 import ChannelsSettingsPage from "./pages/Settings/ChannelsSettingsPage";
 import ListsSettingsPage from "./pages/Settings/ListsSettingsPage";
+import DevlogPage from "./pages/DevlogPage";
 
 export type User = {
   id: string;
@@ -74,7 +75,7 @@ function App() {
         {/* TOP LEVEL ROUTES */}
         <Route path="/" element={<HomePage user={user} loading={loading} error={error} />} />
         <Route path="/all" element={<AllPage />} />
-        
+        <Route path="/devlog" element={<DevlogPage />}/>
         {/*  SETTINGS ROUTES */}
         <Route path="/settings" element={<SettingsLayout />}>
           <Route index element={<ChannelsSettingsPage />} />
@@ -83,15 +84,15 @@ function App() {
         </Route>
       </Routes>
       
-
+      <hr style={{ borderColor:"black", marginTop:"3rem", opacity: ".3"}}/>
+      <div style={{ display: "flex", gap: "1rem", padding: "2rem 0"}}>
       {!loading && user && (
         <div>
-
-          <div style={{ display: "flex", gap: "1rem" }}>
-            <button onClick={() => void handleLogout()}>Logout</button>
-          </div>
+          <button onClick={() => void handleLogout()}>Logout</button>
         </div>
       )}
+      <Link to="/devlog">Devlog</Link>
+      </div>
 
     </div>
   );
