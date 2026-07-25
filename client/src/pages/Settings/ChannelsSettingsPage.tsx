@@ -192,7 +192,7 @@ export default function ChannelsSettingsPage() {
                         })
                       }
                     />
-                    Include live content
+                    Enable this channel in Live
                   </label>
 
                   <label style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
@@ -206,7 +206,7 @@ export default function ChannelsSettingsPage() {
                         })
                       }
                     />
-                    Exclude Shorts
+                    Exclude Shorts from All
                   </label>
                 </div>
 
