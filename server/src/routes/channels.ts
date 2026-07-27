@@ -44,6 +44,80 @@ channelsRouter.get("/", requireAuth, async (req, res, next) => {
   }
 });
 
+
+// PATCH /api/channels/bulk
+// Update one or more preference flags for many channels at once
+channelsRouter.patch("/bulk", requireAuth, async (req, res, next) => {
+  try {
+    const userId = (req as AuthedRequest).userId;
+
+    const { channelIds, enabledAll, enabledLive, excludedShorts } = req.body as {
+      channelIds?: string[];
+      enabledAll?: boolean;
+      enabledLive?: boolean;
+      excludedShorts?: boolean;
+    };
+
+    // Validate that we got at least one channel ID
+    if (!Array.isArray(channelIds) || channelIds.length === 0) {
+      return res.status(400).json({ error: "channelIds is required" });
+    }
+
+    // Build the partial SET clause dynamically, like the single channel route
+    const updates: string[] = [];
+    const values: unknown[] = [];
+    let paramIndex = 1;
+
+    if (typeof enabledAll === "boolean") {
+      updates.push(`enabled_all = $${paramIndex}`);
+      values.push(enabledAll);
+      paramIndex += 1;
+    }
+
+    if (typeof enabledLive === "boolean") {
+      updates.push(`enabled_live = $${paramIndex}`);
+      values.push(enabledLive);
+      paramIndex += 1;
+    }
+
+    if (typeof excludedShorts === "boolean") {
+      updates.push(`excluded_shorts = $${paramIndex}`);
+      values.push(excludedShorts);
+      paramIndex += 1;
+    }
+
+    // Reject requests that do not actually specify a field to update
+    if (updates.length === 0) {
+      return res.status(400).json({ error: "No valid fields to update" });
+    }
+
+    // bump updated_at when preferences change
+    updates.push(`updated_at = now()`);
+
+    // Add WHERE parameters at the end
+    values.push(userId);
+    values.push(channelIds);
+
+    const result = await pool.query(
+      `
+      update channel_preferences
+      set ${updates.join(", ")}
+      where user_id = $${paramIndex}
+        and channel_id = any($${paramIndex + 1}::text[])
+      `,
+      values,
+    );
+
+    return res.json({
+      ok: true,
+      updatedCount: result.rowCount ?? 0,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+
 // PATCH /api/channels/:channelId
 // Update one or more preference flags for a single channel
 channelsRouter.patch("/:channelId", requireAuth, async (req, res, next) => {
