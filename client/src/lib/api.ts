@@ -231,7 +231,7 @@ export async function getChannels() {
 }
 
 // TODO move types into their own file
-type UpdateChannelPreferencesInput = {
+type ChannelPreferencePatch = {
   enabledAll?: boolean;
   enabledLive?: boolean;
   excludedShorts?: boolean;
@@ -240,7 +240,7 @@ type UpdateChannelPreferencesInput = {
 // Update current user preferences for one channel
 export async function updateChannel(
   channelId: string,
-  updates: UpdateChannelPreferencesInput,
+  updates: ChannelPreferencePatch,
 ) {
   return apiFetch<{ ok?: boolean }>(
     `/api/channels/${channelId}`,
