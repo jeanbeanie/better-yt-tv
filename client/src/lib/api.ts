@@ -254,3 +254,22 @@ export async function updateChannel(
     "update channel failed",
   );
 }
+
+type BulkChannelPreferencePatch = ChannelPreferencePatch & {
+  channelIds: string[];
+};
+
+// Update one preference field across many channels in a single request
+export async function bulkUpdateChannels(updates: BulkChannelPreferencePatch) {
+  return apiFetch<{ ok: boolean; updatedCount: number }>(
+    "/api/channels/bulk",
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(updates),
+    },
+    "bulk update channels failed",
+  );
+}
