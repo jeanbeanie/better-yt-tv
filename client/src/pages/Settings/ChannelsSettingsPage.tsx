@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { getChannels, updateChannel } from "../../lib/api";
+import { useEffect, useState, useMemo, useRef } from "react";
+import { getChannels, updateChannel, bulkUpdateChannels } from "../../lib/api";
 
 
 type ChannelItem = {
@@ -14,6 +14,11 @@ type ChannelItem = {
 // an object where the key:strings, and value is boolean
 type SavingMap = Record<string, boolean>;
 
+type BulkPreferenceState = {
+  checked: boolean;
+  indeterminate: boolean;
+}
+
 export default function ChannelsSettingsPage() {
   // full set of channels loaded from backend
   const [channels, setChannels] = useState<ChannelItem[]>([]);
@@ -21,8 +26,78 @@ export default function ChannelsSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // track which individual channel row is saving for ui disabling
+  // track which individual channel row is saving for UI disabling
   const [savingByChannelId, setSavingByChannelId] = useState<SavingMap>({});
+  
+  // BULK SETTINGS
+  const [bulkSaving, setBulkSaving] = useState(false);
+  
+  // Derive the aggregate state for each bulk checkbox from the loaded channel rows
+  const bulkAllState = useMemo(
+    () => getBulkPreferenceState(channels, (channel) => channel.enabledAll),
+    [channels],
+  );
+
+  const bulkLiveState = useMemo(
+    () => getBulkPreferenceState(channels, (channel) => channel.enabledLive),
+    [channels],
+  );
+
+  const bulkShortsState = useMemo(
+    () => getBulkPreferenceState(channels, (channel) => channel.excludedShorts),
+    [channels],
+  );
+
+  // indeterminate is a dom property (rather than react prop)
+  // so we need to manually set the real checkbox element
+  const allCheckboxRef = useRef<HTMLInputElement | null>(null);
+  const liveCheckboxRef = useRef<HTMLInputElement | null>(null);
+  const shortsCheckboxRef = useRef<HTMLInputElement | null>(null);
+
+
+  // Derive the visual state of a bulk checkbox from all channel row values
+  // - checked = every row is true
+  // - unchecked = every row is false
+  // - indeterminate = mixed true/false values
+  function getBulkPreferenceState(
+    channels: ChannelItem[],
+    getValue: (channel: ChannelItem) => boolean,
+  ): BulkPreferenceState {
+    if (channels.length === 0) {
+      return {
+        checked: false,
+        indeterminate: false,
+      };
+    }
+
+    const allTrue = channels.every((channel) => getValue(channel) === true);
+    const allFalse = channels.every((channel) => getValue(channel) === false);
+
+    return {
+      checked: allTrue,
+      indeterminate: !allTrue && !allFalse,
+    };
+  }
+
+  // Sync the DOM-only indeterminate property for each bulk checkbox
+  // React controls checked, but indeterminate must still be set imperatively
+  useEffect(() => {
+    if (allCheckboxRef.current) {
+      allCheckboxRef.current.indeterminate = bulkAllState.indeterminate;
+    }
+
+    if (liveCheckboxRef.current) {
+      liveCheckboxRef.current.indeterminate = bulkLiveState.indeterminate;
+    }
+
+    if (shortsCheckboxRef.current) {
+      shortsCheckboxRef.current.indeterminate = bulkShortsState.indeterminate;
+    }
+  }, [
+    bulkAllState.indeterminate,
+    bulkLiveState.indeterminate,
+    bulkShortsState.indeterminate,
+  ]);
 
   async function loadChannels() {
     try {
@@ -93,8 +168,54 @@ export default function ChannelsSettingsPage() {
 
   }
 
+  async function handleBulkToggle(updates: {
+    enabledAll?: boolean;
+    enabledLive?: boolean;
+    excludedShorts?: boolean;
+  }) {
+    // Save full prev state in case we need to roll back after a failed request
+    const previousChannels = channels;
+
+    const channelIds = channels.map((channel) => channel.channelId);
+
+    if (channelIds.length === 0) {
+      return;
+    }
+
+    // apply the new value to every loaded channel row
+    setChannels((currentChannels) =>
+      currentChannels.map((channel) => ({
+        ...channel,
+        ...updates,
+      })),
+    );
+
+    setBulkSaving(true);
+
+    try {
+      setError(null);
+
+      await bulkUpdateChannels({
+        channelIds,
+        ...updates,
+      });
+    } catch (err) {
+      // Restore previous state if the bulk update fails
+      setChannels(previousChannels);
+
+      setError(
+        err instanceof Error ? err.message : "Failed to save bulk channel settings",
+      );
+    } finally {
+      setBulkSaving(false);
+    }
+  }
+
+  // check state, if any individual row is saving, disable bulk toggles to avoid overlapping mutations
+  const anyRowSaving = Object.values(savingByChannelId).some(Boolean);
+
   return(
-<div style={{ display: "grid", gap: "1rem" }}>
+    <div style={{ display: "grid", gap: "1rem" }}>
       <header>
         <h2 style={{ marginBottom: "0.5rem" }}>Channel settings</h2>
         <p style={{ margin: 0, color: "#666" }}>
