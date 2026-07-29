@@ -223,6 +223,58 @@ export default function ChannelsSettingsPage() {
         </p>
       </header>
 
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "1rem",
+          alignItems: "center",
+          padding: "0.75rem 1rem",
+          border: "1px solid #333",
+          borderRadius: "12px",
+        }}
+      >
+        Bulk Channel Settings (Affects All Loaded Channels!): 
+        <label style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <input
+            ref={allCheckboxRef}
+            type="checkbox"
+            checked={bulkAllState.checked}
+            disabled={bulkSaving || anyRowSaving || loading || channels.length === 0}
+            onChange={(event) =>
+              void handleBulkToggle({ enabledAll: event.target.checked })
+            }
+          />
+          Include in All
+        </label>
+
+        <label style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <input
+            ref={liveCheckboxRef}
+            type="checkbox"
+            checked={bulkLiveState.checked}
+            disabled={bulkSaving || anyRowSaving || loading || channels.length === 0}
+            onChange={(event) =>
+              void handleBulkToggle({ enabledLive: event.target.checked })
+            }
+          />
+          Include in Live
+        </label>
+
+        <label style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <input
+            ref={shortsCheckboxRef}
+            type="checkbox"
+            checked={bulkShortsState.checked}
+            disabled={bulkSaving || anyRowSaving || loading || channels.length === 0}
+            onChange={(event) =>
+              void handleBulkToggle({ excludedShorts: event.target.checked })
+            }
+          />
+          Exclude Shorts
+        </label>
+      </div>
+
       {loading && <p>Loading channels...</p>}
 
       {error && <p style={{ color: "crimson", margin: 0 }}>{error}</p>}
@@ -292,35 +344,35 @@ export default function ChannelsSettingsPage() {
                     <input
                       type="checkbox"
                       checked={channel.enabledAll}
-                      disabled={isSaving}
+                      disabled={isSaving || bulkSaving}
                       onChange={(event) =>
                         void handleToggle(channel.channelId, {
                           enabledAll: event.target.checked,
                         })
                       }
                     />
-                    Enable this channel in All
+                    Enable in All
                   </label>
 
                   <label style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
                     <input
                       type="checkbox"
                       checked={channel.enabledLive}
-                      disabled={isSaving}
+                      disabled={isSaving || bulkSaving}
                       onChange={(event) =>
                         void handleToggle(channel.channelId, {
                           enabledLive: event.target.checked,
                         })
                       }
                     />
-                    Enable this channel in Live
+                    Enable in Live
                   </label>
 
                   <label style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
                     <input
                       type="checkbox"
                       checked={channel.excludedShorts}
-                      disabled={isSaving}
+                      disabled={isSaving || bulkSaving}
                       onChange={(event) =>
                         void handleToggle(channel.channelId, {
                           excludedShorts: event.target.checked,
