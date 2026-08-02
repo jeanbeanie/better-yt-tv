@@ -1,5 +1,10 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { getChannels, updateChannel, bulkUpdateChannels } from "../../lib/api";
+import { 
+  getChannels, 
+  updateChannel, 
+  bulkUpdateChannels,
+  refreshAllCache
+} from "../../lib/api";
 
 
 type ChannelItem = {
@@ -19,12 +24,24 @@ type BulkPreferenceState = {
   indeterminate: boolean;
 }
 
+type RefreshResult = {
+  ok: boolean;
+  refreshedChannels: number;
+  skippedChannels?: number;
+  cachedVideos: number;
+};
+
 export default function ChannelsSettingsPage() {
   // full set of channels loaded from backend
   const [channels, setChannels] = useState<ChannelItem[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Refresh feed
+  const [refreshing, setRefreshing] = useState(false);
+  // Holds the latest successful refresh summary so we can show feedback to the user
+  const [refreshResult, setRefreshResult] = useState<RefreshResult | null>(null);
 
   // track which individual channel row is saving for UI disabling
   const [savingByChannelId, setSavingByChannelId] = useState<SavingMap>({});
@@ -118,6 +135,31 @@ export default function ChannelsSettingsPage() {
   useEffect(() => {
     void loadChannels();
   }, []);
+
+
+  // HANDLER FUNCTIONS
+
+  async function handleRefreshFeed() {
+    try {
+      setRefreshing(true);
+      setError(null);
+
+      // Clear the previous result so the user only sees the newest refresh summary
+      setRefreshResult(null);
+
+      // Call the API helper that refreshes cached uploads/feed data
+      const result = await refreshAllCache();
+
+      setRefreshResult(result);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to refresh feed",
+      );
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
 
   async function handleToggle(
     channelId: string,
@@ -223,6 +265,48 @@ export default function ChannelsSettingsPage() {
         </p>
       </header>
 
+      {loading && <p>Loading channels...</p>}
+
+      {error && <p style={{ color: "crimson", margin: 0 }}>{error}</p>}
+
+    <section
+      style={{
+        display: "grid",
+        gap: "0.75rem",
+        border: "1px solid #333",
+        borderRadius: "12px",
+        padding: "1rem",
+      }}
+    >
+      <div style={{ display:"flex", gap:"1rem"}}>
+        Feed actions :
+        <div style={{ opacity:".6" }}>
+          Manually refresh cached uploads for your subscribed channels.
+        </div>
+        <button
+          type="button"
+          disabled={refreshing}
+          onClick={() => void handleRefreshFeed()}
+        >
+          {refreshing ? "Refreshing..." : "Refresh feed"}
+        </button>
+      </div>
+
+
+      {refreshResult && (
+        <p style={{ margin: 0, color: "#666" }}>
+          Refreshed {refreshResult.refreshedChannels} channel
+          {refreshResult.refreshedChannels === 1 ? "" : "s"}
+          {typeof refreshResult.skippedChannels === "number"
+            ? `, skipped ${refreshResult.skippedChannels}`
+            : ""}
+          , cached {refreshResult.cachedVideos} video
+          {refreshResult.cachedVideos === 1 ? "" : "s"}.
+        </p>
+      )}
+    </section>
+
+
       <div
         style={{
           display: "flex",
@@ -234,7 +318,7 @@ export default function ChannelsSettingsPage() {
           borderRadius: "12px",
         }}
       >
-        Bulk Channel Settings (Affects All Loaded Channels!): 
+        Bulk Channel Settings (Affects ALL Channels!): 
         <label style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
           <input
             ref={allCheckboxRef}
@@ -274,10 +358,6 @@ export default function ChannelsSettingsPage() {
           Exclude Shorts
         </label>
       </div>
-
-      {loading && <p>Loading channels...</p>}
-
-      {error && <p style={{ color: "crimson", margin: 0 }}>{error}</p>}
 
       {!loading && !error && channels.length === 0 && (
         <p>No synced channels yet. Sync subscriptions first.</p>
