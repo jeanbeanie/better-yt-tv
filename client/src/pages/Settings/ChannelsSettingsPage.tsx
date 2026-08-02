@@ -285,7 +285,7 @@ export default function ChannelsSettingsPage() {
         </div>
         <button
           type="button"
-          disabled={refreshing}
+          disabled={refreshing || bulkSaving || anyRowSaving}
           onClick={() => void handleRefreshFeed()}
         >
           {refreshing ? "Refreshing..." : "Refresh feed"}
