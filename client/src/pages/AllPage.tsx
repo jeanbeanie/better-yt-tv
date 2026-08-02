@@ -1,8 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { 
   getAllFeed, 
-  syncSubscriptions, 
-  refreshAllCache,
   markVideoWatched,
   markVideoUnwatched,
   getLoginUrl,
@@ -21,20 +19,12 @@ type FeedItem = {
   is_watched: boolean;
 };
 
-type RefreshResult = {
-  ok: boolean;
-  refreshedChannels: number;
-  skippedChannels?: number;
-  cachedVideos: number;
-};
-
 export default function AllPage() {
   const [items, setItems] = useState<FeedItem[]>([]);
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [refreshResult, setRefreshResult] = useState<RefreshResult | null>(null);
   const [hideWatched, setHideWatched] = useState(false);
   const [catchUpMode, setCatchUpMode] = useState(true);
   const [caughtUp, setCaughtUp] = useState(false);
@@ -101,29 +91,6 @@ export default function AllPage() {
     window.localStorage.setItem("betterYtTv.catchUpMode", String(catchUpMode));
   }, [catchUpMode]);
 
-  async function handleInitialBuild() {
-    try {
-      setBusy(true);
-      setError(null);
-      setRefreshResult(null);
-
-      // Pull subscriptions from YouTube into DB
-      await syncSubscriptions();
-
-      // pull recent videos for those channels into DB
-      const refresh = await refreshAllCache();
-      // TODO timeout back to null after a few seconds
-      setRefreshResult(refresh);
-
-      // then reload the page data from our own backend
-      await loadFeed();
-    } catch (err) {
-      if (redirectIfAuthError(err)) return;
-      setError(err instanceof Error ? err.message : "Failed to sync subscriptions");
-    } finally {
-      setBusy(false);
-    }
-  }
 
  async function handleToggleWatched(item: FeedItem) {
     try {
@@ -308,60 +275,49 @@ async function handleVideoEnded() {
       )}
 
 
-      <button onClick={() => void handleInitialBuild()} disabled={busy}>
-        {busy ? "Building feed..." : "Build/Refresh Feed"}
-      </button>
-
-      {refreshResult && (
-        <p>
-          Refreshed {refreshResult.refreshedChannels} channels, skipped{" "}
-          {refreshResult.skippedChannels ?? 0}, cached {refreshResult.cachedVideos} videos.
-        </p>
-      )}
-      <div style={{ margin: "1rem 0" }}>
-        <label
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            cursor: "pointer",
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={catchUpMode}
-            onChange={(event) => setCatchUpMode(event.target.checked)}
-          />
-          <span>Catch-up mode</span>
-        </label>
-
-        <p style={{ margin: "0.35rem 0 0 1.5rem", color: "#666", fontSize: "0.9rem" }}>
-          Automatically play the next unwatched video when one ends.
-        </p>
-      </div>
-
 
      {!loading && !error && visibleItems.length > 0 && (
         <section>
           {/* TODO make this its own video queue component */}
           <h2 style={{ marginBottom: "1rem" }}>Queue</h2>
 
-          <div style={{ margin: "1rem 0" }}>
-            <label
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                cursor: "pointer",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={hideWatched}
-                onChange={(e) => setHideWatched(e.target.checked)}
-              />
-              <span>Hide watched</span>
-            </label>
+          <div style={{ display: "flex", margin:"1rem 0", gap:"1rem", justifyContent:"center"}}>
+            <div>
+              <label
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: "pointer",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={hideWatched}
+                  onChange={(e) => setHideWatched(e.target.checked)}
+                />
+                <span>Hide watched</span>
+              </label>
+            </div>
+
+            <div>
+              <label
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  cursor: "pointer",
+                }}
+                title="Automatically play the next unwatched video when one ends."
+              >
+                <input
+                  type="checkbox"
+                  checked={catchUpMode}
+                  onChange={(event) => setCatchUpMode(event.target.checked)}
+                />
+                <span>Catch-up mode</span>
+              </label>
+            </div>
           </div>
 
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
