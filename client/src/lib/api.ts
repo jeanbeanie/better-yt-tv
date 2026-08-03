@@ -136,7 +136,7 @@ export async function getSubscriptions() {
 
 
 // Do a one-time sync from YouTube into the DB
-export async function syncSubscriptions() {
+export async function syncSubscriptions(): Promise<{ ok: boolean; syncedCount: number }> {
   const resp = await fetch(`${API_BASE}/api/youtube/sync-subscriptions`, {
     method: "POST",
     credentials: "include",
