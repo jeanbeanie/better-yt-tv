@@ -1,9 +1,10 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { 
-  getChannels, 
-  updateChannel, 
+import {
+  getChannels,
+  updateChannel,
   bulkUpdateChannels,
-  refreshAllCache
+  refreshAllCache,
+  syncSubscriptions
 } from "../../lib/api";
 
 
@@ -31,6 +32,11 @@ type RefreshResult = {
   cachedVideos: number;
 };
 
+type SyncResult = {
+  ok: boolean;
+  syncedCount: number;
+};
+
 export default function ChannelsSettingsPage() {
   // full set of channels loaded from backend
   const [channels, setChannels] = useState<ChannelItem[]>([]);
@@ -42,6 +48,11 @@ export default function ChannelsSettingsPage() {
   const [refreshing, setRefreshing] = useState(false);
   // Holds the latest successful refresh summary so we can show feedback to the user
   const [refreshResult, setRefreshResult] = useState<RefreshResult | null>(null);
+
+  // Sync subscriptions
+  const [syncing, setSyncing] = useState(false);
+  // Holds the latest successful sync summary so we can show feedback to the user
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
 
   // track which individual channel row is saving for UI disabling
   const [savingByChannelId, setSavingByChannelId] = useState<SavingMap>({});
@@ -157,6 +168,30 @@ export default function ChannelsSettingsPage() {
       );
     } finally {
       setRefreshing(false);
+    }
+  }
+
+  async function handleSyncSubscriptions() {
+    try {
+      setSyncing(true);
+      setError(null);
+
+      // Clear the previous result so the user only sees the newest sync summary
+      setSyncResult(null);
+
+      // Call the API helper that imports/updates the user's YouTube subscriptions
+      const result = await syncSubscriptions();
+
+      setSyncResult(result);
+
+      // Pick up any newly-synced channels in the visible list
+      await loadChannels();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to sync subscriptions",
+      );
+    } finally {
+      setSyncing(false);
     }
   }
 
@@ -279,17 +314,26 @@ export default function ChannelsSettingsPage() {
       }}
     >
       <div style={{ display:"flex", gap:"1rem"}}>
-        Feed actions :
-        <div style={{ opacity:".6" }}>
-          Manually refresh cached uploads for your subscribed channels.
+        YouTube Actions:
+        <div style={{ display: "flex", flex: 1, gap: "1rem", justifyContent: "center" }}>
+          <button
+            type="button"
+            title="Manually refresh cached uploads for your subscribed channels."
+            disabled={refreshing || syncing || bulkSaving || anyRowSaving}
+            onClick={() => void handleRefreshFeed()}
+          >
+            {refreshing ? "Refreshing..." : "Refresh feed"}
+          </button>
+
+          <button
+            type="button"
+            title="Import/update your subscriptions from YouTube."
+            disabled={syncing || refreshing || bulkSaving || anyRowSaving}
+            onClick={() => void handleSyncSubscriptions()}
+          >
+            {syncing ? "Syncing..." : "Sync subscriptions"}
+          </button>
         </div>
-        <button
-          type="button"
-          disabled={refreshing || bulkSaving || anyRowSaving}
-          onClick={() => void handleRefreshFeed()}
-        >
-          {refreshing ? "Refreshing..." : "Refresh feed"}
-        </button>
       </div>
 
 
@@ -302,6 +346,13 @@ export default function ChannelsSettingsPage() {
             : ""}
           , cached {refreshResult.cachedVideos} video
           {refreshResult.cachedVideos === 1 ? "" : "s"}.
+        </p>
+      )}
+
+      {syncResult && (
+        <p style={{ margin: 0, color: "#666" }}>
+          Synced {syncResult.syncedCount} channel
+          {syncResult.syncedCount === 1 ? "" : "s"}.
         </p>
       )}
     </section>
@@ -324,7 +375,7 @@ export default function ChannelsSettingsPage() {
             ref={allCheckboxRef}
             type="checkbox"
             checked={bulkAllState.checked}
-            disabled={bulkSaving || anyRowSaving || loading || channels.length === 0}
+            disabled={bulkSaving || anyRowSaving || syncing || loading || channels.length === 0}
             onChange={(event) =>
               void handleBulkToggle({ enabledAll: event.target.checked })
             }
@@ -337,7 +388,7 @@ export default function ChannelsSettingsPage() {
             ref={liveCheckboxRef}
             type="checkbox"
             checked={bulkLiveState.checked}
-            disabled={bulkSaving || anyRowSaving || loading || channels.length === 0}
+            disabled={bulkSaving || anyRowSaving || syncing || loading || channels.length === 0}
             onChange={(event) =>
               void handleBulkToggle({ enabledLive: event.target.checked })
             }
@@ -350,7 +401,7 @@ export default function ChannelsSettingsPage() {
             ref={shortsCheckboxRef}
             type="checkbox"
             checked={bulkShortsState.checked}
-            disabled={bulkSaving || anyRowSaving || loading || channels.length === 0}
+            disabled={bulkSaving || anyRowSaving || syncing || loading || channels.length === 0}
             onChange={(event) =>
               void handleBulkToggle({ excludedShorts: event.target.checked })
             }
@@ -424,7 +475,7 @@ export default function ChannelsSettingsPage() {
                     <input
                       type="checkbox"
                       checked={channel.enabledAll}
-                      disabled={isSaving || bulkSaving}
+                      disabled={isSaving || bulkSaving || syncing}
                       onChange={(event) =>
                         void handleToggle(channel.channelId, {
                           enabledAll: event.target.checked,
@@ -438,7 +489,7 @@ export default function ChannelsSettingsPage() {
                     <input
                       type="checkbox"
                       checked={channel.enabledLive}
-                      disabled={isSaving || bulkSaving}
+                      disabled={isSaving || bulkSaving || syncing}
                       onChange={(event) =>
                         void handleToggle(channel.channelId, {
                           enabledLive: event.target.checked,
@@ -452,7 +503,7 @@ export default function ChannelsSettingsPage() {
                     <input
                       type="checkbox"
                       checked={channel.excludedShorts}
-                      disabled={isSaving || bulkSaving}
+                      disabled={isSaving || bulkSaving || syncing}
                       onChange={(event) =>
                         void handleToggle(channel.channelId, {
                           excludedShorts: event.target.checked,
