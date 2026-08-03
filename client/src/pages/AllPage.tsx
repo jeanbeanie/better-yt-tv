@@ -1,29 +1,18 @@
 import { useEffect, useState, useMemo } from "react";
-import { 
-  getAllFeed, 
+import {
+  getAllFeed,
   markVideoWatched,
   markVideoUnwatched,
   getLoginUrl,
   shouldRedirectToLogin,
+  type FeedItem,
 } from "../lib/api";
 import YoutubePlayer from "../components/Player/YoutubePlayer";
-
-type FeedItem = {
-  video_id: string;
-  channel_id: string;
-  channel_title: string;
-  title: string;
-  published_at: string;
-  thumb_url: string | null;
-  watched_at: string | null;
-  is_watched: boolean;
-};
 
 export default function AllPage() {
   const [items, setItems] = useState<FeedItem[]>([]);
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hideWatched, setHideWatched] = useState(false);
   const [catchUpMode, setCatchUpMode] = useState(true);

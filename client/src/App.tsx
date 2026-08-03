@@ -30,7 +30,6 @@ function App() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load user");
     } finally {
-      console.log('IN APP', 'user:', user, loading, error)
       setLoading(false);
     }
   }

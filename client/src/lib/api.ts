@@ -168,9 +168,20 @@ export async function refreshAllCache() {
 ///////////////////////////////
 
 
+export type FeedItem = {
+  video_id: string;
+  channel_id: string;
+  channel_title: string;
+  title: string;
+  published_at: string;
+  thumb_url: string | null;
+  watched_at: string | null;
+  is_watched: boolean;
+};
+
 // Get current user's saved feed data from the backend
 export async function getAllFeed() {
-  return apiFetch<{ items: unknown[] }>(
+  return apiFetch<{ items: FeedItem[] }>(
     "/api/feed/all",
     { method: "GET" },
     "all feed failed",
