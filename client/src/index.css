@@ -91,3 +91,13 @@ p {
   margin: 0;
 }
 
+.devlog-article {
+  p {
+    margin: 2rem 0;
+  }
+
+  hr {
+    opacity: 0.1;
+  }
+}
+

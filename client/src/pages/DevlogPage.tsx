@@ -57,6 +57,7 @@ export default function DevlogPage() {
 
       {!loading && !error && (
         <article
+          className="devlog-article"
           style={{
             lineHeight: 1.6,
           }}
