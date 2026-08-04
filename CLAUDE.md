@@ -48,6 +48,10 @@ Postgres itself runs via `docker-compose.yml` (`better-yt-tv-db` service, port 5
 
 Server config is validated with zod in `server/src/config/env.ts` and loaded from a repo-root `.env` (see `.env.example`). Required vars include `DATABASE_URL`, `SESSION_SECRET`, `TOKEN_ENCRYPTION_KEY`, `GOOGLE_CLIENT_ID`/`SECRET`, `OAUTH_CALLBACK_URL`, `CLIENT_ORIGIN`, `YOUTUBE_CACHE_TTL_MINUTES`. Docker/dbmate config is separate, in `.env.dbmate` (see `.env.dbmate.example`).
 
+## Commit messages
+
+Imperative subject line under 50 chars, blank line, then bulleted body — one bullet per change, with the reason in parentheses at the end of each bullet.
+
 ## Architecture
 
 ### Auth flow (cookie sessions, not JWTs)
