@@ -6,6 +6,59 @@ export const listsRouter = express.Router();
 
 const MAX_NAME_LENGTH = 100;
 
+// Shared by GET /:listId and PUT /:listId: load a list (scoped to the owning
+// user) plus its current channel membership, joined through
+// user_subscriptions so channels the user has since unsubscribed from
+// silently drop out of the result. Returns null if the list doesn't exist
+// or isn't owned by this user.
+async function fetchListDetail(userId: string, listId: string) {
+  const listResult = await pool.query(
+    `
+    select id, name, created_at, updated_at
+    from lists
+    where id = $1 and user_id = $2
+    `,
+    [listId, userId],
+  );
+
+  if (listResult.rowCount === 0) {
+    return null;
+  }
+
+  const listRow = listResult.rows[0];
+
+  const channelsResult = await pool.query(
+    `
+    select us.channel_id, us.channel_title, us.channel_thumb_url
+    from list_channels lc
+    join lists l
+      on l.id = lc.list_id
+     and l.user_id = $1
+    join user_subscriptions us
+      on us.user_id = l.user_id
+     and us.channel_id = lc.channel_id
+    where lc.list_id = $2
+    order by us.channel_title asc
+    `,
+    [userId, listId],
+  );
+
+  const channels = channelsResult.rows.map((row) => ({
+    channelId: row.channel_id,
+    title: row.channel_title,
+    thumbUrl: row.channel_thumb_url,
+  }));
+
+  return {
+    id: listRow.id,
+    name: listRow.name,
+    createdAt: listRow.created_at,
+    updatedAt: listRow.updated_at,
+    channelIds: channels.map((c) => c.channelId),
+    channels,
+  };
+}
+
 // GET /api/lists
 // Return all lists for the current user, with a channel count for each
 listsRouter.get("/", requireAuth, async (req, res, next) => {
@@ -85,6 +138,25 @@ listsRouter.post("/", requireAuth, async (req, res, next) => {
     if (err?.code === "23505") {
       return res.status(409).json({ error: "You already have a list with this name." });
     }
+    next(err);
+  }
+});
+
+// GET /api/lists/:listId
+// Load one list and its current channel membership, for the editor page
+listsRouter.get("/:listId", requireAuth, async (req, res, next) => {
+  try {
+    const userId = (req as AuthedRequest).userId;
+    const { listId } = req.params;
+
+    const list = await fetchListDetail(userId, listId);
+
+    if (!list) {
+      return res.status(404).json({ error: "List not found" });
+    }
+
+    return res.json({ list });
+  } catch (err) {
     next(err);
   }
 });

@@ -61,6 +61,7 @@ app.use("/api/channels", channelsRouter);
 
 // - GET /api/lists
 // - POST /api/lists
+// - GET /api/lists/:listId
 app.use("/api/lists", listsRouter);
 
 // error handler
