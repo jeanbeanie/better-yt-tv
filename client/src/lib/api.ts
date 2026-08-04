@@ -344,3 +344,24 @@ export async function getList(listId: string) {
     "get list failed",
   );
 }
+
+export type SaveListInput = {
+  name: string;
+  channelIds: string[];
+};
+
+// Save the full editor state in one request: rename the list and replace
+// its channel membership
+export async function saveList(listId: string, input: SaveListInput) {
+  return apiFetch<{ list: ListDetail }>(
+    `/api/lists/${listId}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+    },
+    "save list failed",
+  );
+}
