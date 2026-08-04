@@ -1,11 +1,20 @@
 import { useEffect, useState } from "react";
-import { getLists, getLoginUrl, shouldRedirectToLogin, type ListSummary } from "../../lib/api";
+import {
+  getLists,
+  createList,
+  getLoginUrl,
+  shouldRedirectToLogin,
+  type ListSummary,
+} from "../../lib/api";
 
 export default function ListsSettingsPage() {
   const [lists, setLists] = useState<ListSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingLoginRedirect, setPendingLoginRedirect] = useState(false);
+  const [newListName, setNewListName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!pendingLoginRedirect) return;
@@ -40,11 +49,48 @@ export default function ListsSettingsPage() {
     void loadLists();
   }, []);
 
+  async function handleCreateList(event: React.FormEvent) {
+    event.preventDefault();
+
+    const trimmedName = newListName.trim();
+    if (!trimmedName) return;
+
+    try {
+      setCreating(true);
+      setCreateError(null);
+
+      await createList(trimmedName);
+
+      setNewListName("");
+      // Refresh from server so the new list (and any server-side trimming) is reflected
+      await loadLists();
+    } catch (err) {
+      if (redirectIfAuthError(err)) return;
+      setCreateError(err instanceof Error ? err.message : "Failed to create list");
+    } finally {
+      setCreating(false);
+    }
+  }
+
   return (
     <div>
       <header>
         <p>Create and manage your Lists: custom video queues curated by you.</p>
       </header>
+
+      <form onSubmit={(event) => void handleCreateList(event)} style={{ margin: "1rem 0" }}>
+        <input
+          type="text"
+          value={newListName}
+          onChange={(event) => setNewListName(event.target.value)}
+          placeholder="New list name"
+          disabled={creating}
+        />
+        <button type="submit" disabled={creating || !newListName.trim()}>
+          {creating ? "Creating..." : "Create new list"}
+        </button>
+        {createError && <p style={{ color: "crimson" }}>{createError}</p>}
+      </form>
 
       {loading && <p>Loading lists...</p>}
       {error && <p style={{ color: "crimson" }}>{error}</p>}
