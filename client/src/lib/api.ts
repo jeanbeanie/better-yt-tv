@@ -335,3 +335,12 @@ export async function createList(name: string) {
     "create list failed",
   );
 }
+
+// Load one list and its current channel membership, for the editor page
+export async function getList(listId: string) {
+  return apiFetch<{ list: ListDetail }>(
+    `/api/lists/${listId}`,
+    { method: "GET" },
+    "get list failed",
+  );
+}
