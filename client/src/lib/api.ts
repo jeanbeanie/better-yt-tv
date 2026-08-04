@@ -284,3 +284,24 @@ export async function bulkUpdateChannels(updates: BulkChannelPreferencePatch) {
     "bulk update channels failed",
   );
 }
+
+  ///////////////////////////////
+ //          LISTS            //
+///////////////////////////////
+
+export type ListSummary = {
+  id: string;
+  name: string;
+  channelCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// Fetch all lists for the current user, with a channel count for each
+export async function getLists() {
+  return apiFetch<{ lists: ListSummary[] }>(
+    "/api/lists",
+    { method: "GET" },
+    "get lists failed",
+  );
+}
