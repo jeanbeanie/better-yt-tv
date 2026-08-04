@@ -27,7 +27,7 @@ feedRouter.get("/all", requireAuth, async (req, res, next) => {
         uvs.watched_at,
         (uvs.watched_at is not null) as is_watched
       from user_subscriptions us
-      join channel_preferences cp
+      left join channel_preferences cp
         on cp.user_id = us.user_id
        and cp.channel_id = us.channel_id
       join videos_cache v
@@ -36,10 +36,13 @@ feedRouter.get("/all", requireAuth, async (req, res, next) => {
         on uvs.user_id = us.user_id
        and uvs.video_id = v.video_id
       where us.user_id = $1
-        and cp.enabled_all = true
+        -- If preferences are missing entirely (see TODO in youtube.ts sync
+        -- flow), fail open rather than silently excluding the channel
+        and coalesce(cp.enabled_all, true) = true
         and (
-          -- If Shorts are allowed for this channel, include all videos
-          cp.excluded_shorts = false
+          -- If Shorts are allowed for this channel (or preferences are
+          -- missing, same fail-open reasoning as above), include all
+          coalesce(cp.excluded_shorts, false) = false
 
           -- If duration is unknown, keep the video for now rather than
           -- risk hiding a normal upload before metadata hydration completes
