@@ -83,6 +83,30 @@ CREATE TABLE public.entitlements (
 
 
 --
+-- Name: list_channels; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.list_channels (
+    list_id uuid NOT NULL,
+    channel_id text NOT NULL,
+    added_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: lists; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.lists (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    name text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: oauth_tokens; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -112,6 +136,19 @@ CREATE TABLE public.schema_meta (
 
 CREATE TABLE public.schema_migrations (
     version character varying NOT NULL
+);
+
+
+--
+-- Name: sessions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.sessions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    revoked_at timestamp with time zone
 );
 
 
@@ -210,6 +247,30 @@ ALTER TABLE ONLY public.entitlements
 
 
 --
+-- Name: list_channels list_channels_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.list_channels
+    ADD CONSTRAINT list_channels_pkey PRIMARY KEY (list_id, channel_id);
+
+
+--
+-- Name: lists lists_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lists
+    ADD CONSTRAINT lists_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: lists lists_user_id_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lists
+    ADD CONSTRAINT lists_user_id_name_key UNIQUE (user_id, name);
+
+
+--
 -- Name: oauth_tokens oauth_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -231,6 +292,14 @@ ALTER TABLE ONLY public.schema_meta
 
 ALTER TABLE ONLY public.schema_migrations
     ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (version);
+
+
+--
+-- Name: sessions sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sessions
+    ADD CONSTRAINT sessions_pkey PRIMARY KEY (id);
 
 
 --
@@ -281,6 +350,27 @@ CREATE INDEX channel_preferences_user_enabled_all_idx ON public.channel_preferen
 
 
 --
+-- Name: lists_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX lists_user_id_idx ON public.lists USING btree (user_id);
+
+
+--
+-- Name: sessions_expires_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sessions_expires_at_idx ON public.sessions USING btree (expires_at);
+
+
+--
+-- Name: sessions_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX sessions_user_id_idx ON public.sessions USING btree (user_id);
+
+
+--
 -- Name: user_subscriptions_user_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -326,11 +416,35 @@ ALTER TABLE ONLY public.entitlements
 
 
 --
+-- Name: list_channels list_channels_list_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.list_channels
+    ADD CONSTRAINT list_channels_list_id_fkey FOREIGN KEY (list_id) REFERENCES public.lists(id) ON DELETE CASCADE;
+
+
+--
+-- Name: lists lists_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.lists
+    ADD CONSTRAINT lists_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: oauth_tokens oauth_tokens_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.oauth_tokens
     ADD CONSTRAINT oauth_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: sessions sessions_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.sessions
+    ADD CONSTRAINT sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
@@ -362,4 +476,6 @@ ALTER TABLE ONLY public.user_video_state
 
 INSERT INTO public.schema_migrations (version) VALUES
     ('20260517051252'),
-    ('20260517192315');
+    ('20260517192315'),
+    ('20260521154720'),
+    ('20260804175339');
