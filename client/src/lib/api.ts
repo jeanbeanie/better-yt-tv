@@ -305,3 +305,33 @@ export async function getLists() {
     "get lists failed",
   );
 }
+
+export type ListChannel = {
+  channelId: string;
+  title: string;
+  thumbUrl: string | null;
+};
+
+export type ListDetail = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  channelIds: string[];
+  channels: ListChannel[];
+};
+
+// Create a new empty list
+export async function createList(name: string) {
+  return apiFetch<{ list: ListDetail }>(
+    "/api/lists",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ name }),
+    },
+    "create list failed",
+  );
+}
