@@ -7,6 +7,7 @@ import { authRouter } from "./routes/auth.js";
 import { youtubeRouter } from "./routes/youtube.js";
 import { feedRouter } from "./routes/feed.js";
 import { channelsRouter } from "./routes/channels.js";
+import { listsRouter } from "./routes/lists.js";
 
 const app = express();
 
@@ -57,6 +58,9 @@ app.use("/api/feed", feedRouter);
 // - GET /api/channels
 // - PATCH /api/channels/:channelId
 app.use("/api/channels", channelsRouter);
+
+// - POST /api/lists
+app.use("/api/lists", listsRouter);
 
 // error handler
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
