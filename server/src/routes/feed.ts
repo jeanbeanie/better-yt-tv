@@ -66,6 +66,88 @@ feedRouter.get("/all", requireAuth, async (req, res, next) => {
   }
 });
 
+// GET /api/feed/lists/:listId
+// Return recent cached videos for channels in a specific list.
+// Ignores channel_preferences.enabled_all (a channel can be off in the All
+// feed but still deliberately in a list) but still respects excluded_shorts,
+// and reuses watched state, same as /all.
+feedRouter.get("/lists/:listId", requireAuth, async (req, res, next) => {
+  try {
+    const userId = (req as AuthedRequest).userId;
+    const { listId } = req.params;
+
+    const listResult = await pool.query(
+      `select id, name from lists where id = $1 and user_id = $2`,
+      [listId, userId],
+    );
+
+    if (listResult.rowCount === 0) {
+      return res.status(404).json({ error: "List not found" });
+    }
+
+    // Join list_channels -> user_subscriptions (not straight to videos_cache)
+    // so a channel the user has since unsubscribed from silently drops out,
+    // same mechanism as fetchListDetail() in lists.ts
+    const result = await pool.query(
+      `
+      select
+        v.video_id,
+        v.channel_id,
+        us.channel_title,
+        v.title,
+        v.published_at,
+        v.thumb_url,
+        uvs.watched_at,
+        (uvs.watched_at is not null) as is_watched
+      from list_channels lc
+      join lists l
+        on l.id = lc.list_id
+       and l.user_id = $1
+      join user_subscriptions us
+        on us.user_id = l.user_id
+       and us.channel_id = lc.channel_id
+      left join channel_preferences cp
+        on cp.user_id = us.user_id
+       and cp.channel_id = us.channel_id
+      join videos_cache v
+        on v.channel_id = lc.channel_id
+      left join user_video_state uvs
+        on uvs.user_id = l.user_id
+       and uvs.video_id = v.video_id
+      where lc.list_id = $2
+        and (
+          -- If Shorts are allowed for this channel (or preferences are
+          -- missing entirely, fail open rather than silently excluding),
+          -- include all videos. enabled_all is deliberately never
+          -- referenced here -- list feeds ignore it by design.
+          coalesce(cp.excluded_shorts, false) = false
+
+          -- If duration is unknown, keep the video for now rather than
+          -- risk hiding a normal upload before metadata hydration completes
+          or v.duration_seconds is null
+
+          -- If duration is known and greater than 60 seconds,
+          -- treat it as NOT a short, and include it
+          or v.duration_seconds > 60
+        )
+      order by v.published_at desc
+      limit 200
+      `,
+      [userId, listId],
+    );
+
+    return res.json({
+      list: {
+        id: listResult.rows[0].id,
+        name: listResult.rows[0].name,
+      },
+      items: result.rows,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/feed/videos/:videoId/watch
 // Mark a video as watched for the current user
 feedRouter.post("/videos/:videoId/watch", requireAuth, async (req, res, next) => {

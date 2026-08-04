@@ -53,6 +53,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/youtube", youtubeRouter);
 
 // - GET /api/feed/all
+// - GET /api/feed/lists/:listId
 app.use("/api/feed", feedRouter);
 
 // - GET /api/channels
