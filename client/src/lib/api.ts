@@ -365,3 +365,13 @@ export async function saveList(listId: string, input: SaveListInput) {
     "save list failed",
   );
 }
+
+// Get the video feed for a specific list (ignores enabled_all, respects
+// excluded_shorts and watched state, same as getAllFeed)
+export async function getListFeed(listId: string) {
+  return apiFetch<{ list: { id: string; name: string }; items: FeedItem[] }>(
+    `/api/feed/lists/${listId}`,
+    { method: "GET" },
+    "get list feed failed",
+  );
+}
