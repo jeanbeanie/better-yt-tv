@@ -128,6 +128,12 @@ youtubeRouter.post(
     const items = await fetchYoutubeSubscriptions(accessToken);
 
     // save into DB user_subscriptions so feed logic can use our own data model
+    // TODO: these two inserts aren't wrapped in a transaction, so a crash/dropped
+    // connection between them could leave a user_subscriptions row without its
+    // matching channel_preferences row. Self-heals on the next successful sync
+    // (channel_preferences insert is `on conflict do nothing`), but should be
+    // wrapped in a pool.connect()/BEGIN.../COMMIT transaction like
+    // PUT /api/lists/:listId for real atomicity.
     for (const item of items) {
       // if sub already exists, update instead of duplicating
       await pool.query(
