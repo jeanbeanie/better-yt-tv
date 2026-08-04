@@ -6,6 +6,44 @@ export const listsRouter = express.Router();
 
 const MAX_NAME_LENGTH = 100;
 
+// GET /api/lists
+// Return all lists for the current user, with a channel count for each
+listsRouter.get("/", requireAuth, async (req, res, next) => {
+  try {
+    const userId = (req as AuthedRequest).userId;
+
+    const result = await pool.query(
+      `
+      select
+        l.id,
+        l.name,
+        l.created_at,
+        l.updated_at,
+        count(lc.channel_id) as channel_count
+      from lists l
+      left join list_channels lc
+        on lc.list_id = l.id
+      where l.user_id = $1
+      group by l.id, l.name, l.created_at, l.updated_at
+      order by l.created_at asc
+      `,
+      [userId],
+    );
+
+    return res.json({
+      lists: result.rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        channelCount: Number(row.channel_count),
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/lists
 // Create a new empty list
 listsRouter.post("/", requireAuth, async (req, res, next) => {

@@ -59,6 +59,7 @@ app.use("/api/feed", feedRouter);
 // - PATCH /api/channels/:channelId
 app.use("/api/channels", channelsRouter);
 
+// - GET /api/lists
 // - POST /api/lists
 app.use("/api/lists", listsRouter);
 
