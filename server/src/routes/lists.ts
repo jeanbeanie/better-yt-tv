@@ -160,3 +160,92 @@ listsRouter.get("/:listId", requireAuth, async (req, res, next) => {
     next(err);
   }
 });
+
+// PUT /api/lists/:listId
+// Save the full editor state in one request: rename the list and replace
+// its channel membership
+listsRouter.put("/:listId", requireAuth, async (req, res, next) => {
+  const userId = (req as AuthedRequest).userId;
+  const { listId } = req.params;
+
+  const { name, channelIds } = req.body as { name?: string; channelIds?: unknown };
+  const trimmedName = typeof name === "string" ? name.trim() : "";
+
+  if (!trimmedName) {
+    return res.status(400).json({ error: "Name is required" });
+  }
+
+  if (trimmedName.length > MAX_NAME_LENGTH) {
+    return res.status(400).json({ error: `Name must be ${MAX_NAME_LENGTH} characters or fewer` });
+  }
+
+  if (!Array.isArray(channelIds)) {
+    return res.status(400).json({ error: "channelIds must be an array" });
+  }
+
+  // dedupe in memory before it ever reaches the DB
+  const uniqueChannelIds = [...new Set(channelIds)];
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const ownerResult = await client.query(
+      `select id from lists where id = $1 and user_id = $2`,
+      [listId, userId],
+    );
+
+    if (ownerResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "List not found" });
+    }
+
+    await client.query(
+      `update lists set name = $1, updated_at = now() where id = $2`,
+      [trimmedName, listId],
+    );
+
+    // silently drop any channelIds not present in this user's subscriptions
+    const validChannelsResult = await client.query(
+      `
+      select channel_id
+      from user_subscriptions
+      where user_id = $1
+        and channel_id = any($2::text[])
+      `,
+      [userId, uniqueChannelIds],
+    );
+    const validChannelIds = validChannelsResult.rows.map((row) => row.channel_id as string);
+
+    await client.query(`delete from list_channels where list_id = $1`, [listId]);
+
+    if (validChannelIds.length > 0) {
+      await client.query(
+        `
+        insert into list_channels (list_id, channel_id)
+        select $1, unnest($2::text[])
+        on conflict do nothing
+        `,
+        [listId, validChannelIds],
+      );
+    }
+
+    await client.query("COMMIT");
+  } catch (err: any) {
+    await client.query("ROLLBACK");
+    if (err?.code === "23505") {
+      return res.status(409).json({ error: "You already have a list with this name." });
+    }
+    return next(err);
+  } finally {
+    client.release();
+  }
+
+  try {
+    const list = await fetchListDetail(userId, listId);
+    return res.json({ list });
+  } catch (err) {
+    next(err);
+  }
+});
