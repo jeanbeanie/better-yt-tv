@@ -121,8 +121,6 @@ export default function ListsPage() {
     }
   }
 
-  const selectedList = lists.find((list) => list.id === selectedListId) ?? null;
-
   return (
     <main>
       <h1>Lists</h1>
@@ -154,8 +152,6 @@ export default function ListsPage() {
               </select>
             </label>
           </div>
-
-          {selectedList && <h2>{selectedList.name}</h2>}
 
           {loadingFeed && <p>Loading feed...</p>}
 

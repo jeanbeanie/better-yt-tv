@@ -84,7 +84,7 @@ describe("ListsPage", () => {
     expect(getListFeed).not.toHaveBeenCalled();
   });
 
-  it("defaults to the first list and shows its name and feed", async () => {
+  it("defaults to the first list and shows its feed", async () => {
     vi.mocked(getLists).mockResolvedValue({ lists: [NEWS_LIST, MUSIC_LIST] });
     vi.mocked(getListFeed).mockResolvedValue({
       list: { id: "l1", name: "News" },
@@ -93,9 +93,9 @@ describe("ListsPage", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "News" })).toBeInTheDocument();
-    expect(getListFeed).toHaveBeenCalledWith("l1");
     expect((await screen.findAllByText("First Video")).length).toBeGreaterThanOrEqual(1);
+    expect(getListFeed).toHaveBeenCalledWith("l1");
+    expect(await screen.findByLabelText("Select list:")).toHaveValue("l1");
   });
 
   it("shows a manage-list CTA when the selected list's feed is empty", async () => {
@@ -126,8 +126,11 @@ describe("ListsPage", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "Music" })).toBeInTheDocument();
+    expect(
+      await screen.findByText("No videos available for this list right now."),
+    ).toBeInTheDocument();
     expect(getListFeed).toHaveBeenCalledWith("l2");
+    expect(screen.getByLabelText("Select list:")).toHaveValue("l2");
   });
 
   it("falls back to the first list if the stored id no longer exists", async () => {
@@ -140,7 +143,11 @@ describe("ListsPage", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "News" })).toBeInTheDocument();
+    expect(
+      await screen.findByText("No videos available for this list right now."),
+    ).toBeInTheDocument();
+    expect(getListFeed).toHaveBeenCalledWith("l1");
+    expect(screen.getByLabelText("Select list:")).toHaveValue("l1");
   });
 
   it("switching the dropdown loads the new list's feed and persists the choice", async () => {
@@ -156,11 +163,13 @@ describe("ListsPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByRole("heading", { name: "News" });
+    await screen.findAllByText("First Video");
 
     await user.selectOptions(screen.getByLabelText("Select list:"), "l2");
 
-    expect(await screen.findByRole("heading", { name: "Music" })).toBeInTheDocument();
+    expect(
+      await screen.findByText("No videos available for this list right now."),
+    ).toBeInTheDocument();
     expect(getListFeed).toHaveBeenCalledWith("l2");
     expect(window.localStorage.getItem("betterYtTv.selectedListId")).toBe("l2");
   });
