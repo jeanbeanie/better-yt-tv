@@ -61,36 +61,51 @@ async function getGoogleAccessToken(userId:string) {
 
 async function fetchYoutubeSubscriptions(accessToken: string): Promise<YoutubeSubscription[]> {
     // YouTube Data API: subscriptions.list
-    const url = new URL("https://www.googleapis.com/youtube/v3/subscriptions");
-    url.searchParams.set("part", "snippet");
-    url.searchParams.set("mine", "true");
-    url.searchParams.set("maxResults", "50");
+    // Follow nextPageToken until YouTube stops returning one, so accounts
+    // with more than 50 subscriptions (the max per page) are fully synced.
+    const results: YoutubeSubscription[] = [];
+    let pageToken: string | undefined;
 
-    const ytResponse = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    do {
+      const url = new URL("https://www.googleapis.com/youtube/v3/subscriptions");
+      url.searchParams.set("part", "snippet");
+      url.searchParams.set("mine", "true");
+      url.searchParams.set("maxResults", "50");
+      if (pageToken) {
+        url.searchParams.set("pageToken", pageToken);
+      }
 
-    if (!ytResponse.ok) {
-      const text = await ytResponse.text();
-      throw new Error(`YouTube API error: ${ytResponse.status} ${text}`);
-    }
+      const ytResponse = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
 
-    const data:any = await ytResponse.json();
+      if (!ytResponse.ok) {
+        const text = await ytResponse.text();
+        throw new Error(`YouTube API error: ${ytResponse.status} ${text}`);
+      }
 
-    // return response shaped into our YoutubeSubscription type
-    return (data.items ?? [])
-     .map((item: any) => ({
-        channelId: item.snippet?.resourceId?.channelId,
-        title: item.snippet?.title,
-        thumbUrl:
-          item.snippet?.thumbnails?.medium?.url ??
-          item.snippet?.thumbnails?.default?.url ??
-          null,
-      }))
-      .filter((item: YoutubeSubscription) => Boolean(
-        // Filter out malformed items so one bad row doesn't break everything
-        item.channelId && item.title
-      ));
+      const data: any = await ytResponse.json();
+
+      // shape this page's items into our YoutubeSubscription type
+      const pageItems = (data.items ?? [])
+        .map((item: any) => ({
+          channelId: item.snippet?.resourceId?.channelId,
+          title: item.snippet?.title,
+          thumbUrl:
+            item.snippet?.thumbnails?.medium?.url ??
+            item.snippet?.thumbnails?.default?.url ??
+            null,
+        }))
+        .filter((item: YoutubeSubscription) => Boolean(
+          // Filter out malformed items so one bad row doesn't break everything
+          item.channelId && item.title
+        ));
+
+      results.push(...pageItems);
+      pageToken = data.nextPageToken;
+    } while (pageToken);
+
+    return results;
 }
 
 /* YOUTUBE ROUTE HANDLERS */
