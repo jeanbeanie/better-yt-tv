@@ -77,3 +77,52 @@ Tables (see `db/schema.sql`): `users`, `oauth_tokens`, `sessions`, `user_subscri
 - `shouldRedirectToLogin(err)` centralizes the check for `401` + `AUTH_REQUIRED`/`YOUTUBE_REAUTH_REQUIRED` — use it wherever a fetch might fail due to auth rather than re-checking status codes inline.
 - `App.tsx` loads the current user via `whoami` on mount and drives nav/auth UI; routes are plain `react-router-dom` under `App.tsx`, with `/settings` as a nested layout (`SettingsLayout` + `ChannelsSettingsPage`/`ListsSettingsPage`).
 - `components/Player/YoutubePlayer.tsx` wraps the YouTube IFrame API and is the piece responsible for autoplay/watched-state side effects during playback (as opposed to the manual watch/unwatch toggle in the feed UI).
+
+## Working preferences (Jeane)
+
+These apply to real feature/development work in this repo — not to quick
+one-off questions, casual exploration, or "just explain this" asks.
+
+### Git & commits
+- Never run `git add` or `git commit` yourself. When a meaningful chunk of
+  work is complete (a phase, a bug fix, a feature slice — not every single
+  tool call), show the diff and propose a commit message; I commit it myself.
+- Commit message format: short imperative subject line (under 50 chars),
+  blank line, then a bulleted body — one bullet per distinct change, with
+  the reason it mattered stated directly in the bullet (parentheses are
+  fine for the reason). Explain *why*, not just *what*.
+- If you find and fix something unrelated to the current task while working
+  (e.g. a pre-existing bug, drift, or fragility you notice along the way),
+  give it its own separate commit — don't bundle it into the feature commit.
+
+### Workflow / pacing
+- For anything nontrivial or multi-file, start in Plan Mode and let me
+  review the plan before writing code.
+- Work one phase/task at a time. Stop after each one, show me what changed,
+  and wait for explicit approval before continuing to the next.
+- If a single answer or instruction I gave could reasonably apply to more
+  than one open question, don't assume it covers both — ask me to confirm
+  it applies to each, rather than guessing.
+
+### Testing
+- Write tests alongside the feature that needs them, not deferred to a
+  separate "add tests" pass at the end.
+- Before showing me a diff, run the full existing test suite (not just new
+  tests) so regressions in earlier work get caught immediately.
+- Delete any scratch/temporary test files and test-only DB rows created
+  purely for manual verification before showing me the diff or commit
+  message — confirm via `git status` that nothing stray is left staged or
+  untracked.
+
+### Data safety
+- Never write real secrets, session IDs, tokens, or credentials into any
+  file, even temporarily or in a file meant to be deleted later. Use
+  environment variables for anything sensitive, even in throwaway scripts.
+
+### Defensive DB/code patterns
+- When a relationship between two tables is only guaranteed by application
+  code (not a DB foreign key, NOT NULL constraint, or transaction), prefer
+  a left join + `coalesce(...)` with a sensible default over an inner join
+  — fail open (missing data gets a default) rather than fail closed
+  (missing data silently disappears), unless there's a specific reason the
+  opposite is correct.
