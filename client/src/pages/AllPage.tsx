@@ -229,11 +229,11 @@ async function handleVideoEnded() {
             }}
           />
           <div
-            style={{display: "flex", gap: "50%", justifyContent:"center"}}
+            style={{display: "flex", justifyContent:"space-between"}}
           >
-            <button onClick={goToPreviousVideo}>Previous</button>
-            <button onClick={goToNextVideo}>Next</button>
-            
+            <button onClick={goToPreviousVideo} disabled={getSelectedIndex(items, selectedVideoId) <= 0}>Previous</button>
+            <button onClick={goToNextVideo} disabled={getSelectedIndex(items, selectedVideoId) === -1 || getSelectedIndex(items, selectedVideoId) >= items.length - 1}>Next</button>
+
           </div>
 
 

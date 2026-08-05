@@ -87,7 +87,7 @@ function App() {
         </Route>
       </Routes>
       
-      <hr style={{ borderColor:"black", marginTop:"3rem", opacity: ".3"}}/>
+      <hr style={{ borderColor: "var(--border)", marginTop:"3rem", opacity: ".3"}}/>
       <div style={{ display: "flex", gap: "1rem", padding: "2rem 0"}}>
       {!loading && user && (
         <div>
