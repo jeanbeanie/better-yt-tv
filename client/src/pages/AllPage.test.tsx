@@ -3,15 +3,21 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import AllPage from "./AllPage";
-import { getAllFeed } from "../lib/api";
+import { getAllFeed, markVideoWatched, markVideoUnwatched } from "../lib/api";
 
 vi.mock("../lib/api", () => ({
   getAllFeed: vi.fn(),
+  markVideoWatched: vi.fn(),
+  markVideoUnwatched: vi.fn(),
+  getLoginUrl: vi.fn(() => "http://localhost:5179/api/auth/login"),
+  shouldRedirectToLogin: vi.fn(() => false),
 }));
 
 describe("AllPage", () => {
   beforeEach(() => {
     vi.mocked(getAllFeed).mockReset();
+    vi.mocked(markVideoWatched).mockReset();
+    vi.mocked(markVideoUnwatched).mockReset();
   });
 
   it("renders queue items from API", async () => {
@@ -138,5 +144,42 @@ describe("AllPage", () => {
 
     expect(screen.getAllByText("First Video").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("Second Video").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("does not show the full-page loading state when marking a video watched", async () => {
+    vi.mocked(getAllFeed).mockResolvedValue({
+      items: [
+        {
+          video_id: "v1",
+          channel_id: "c1",
+          channel_title: "Channel One",
+          title: "First Video",
+          thumb_url: "",
+          published_at: "2026-07-01T00:00:00Z",
+          watched_at: null,
+          is_watched: false,
+        },
+      ],
+    });
+    vi.mocked(markVideoWatched).mockResolvedValue({ ok: true });
+
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <AllPage />
+      </MemoryRouter>
+    );
+
+    await screen.findAllByText("First Video");
+    expect(screen.queryByText("Loading feed...")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Watch" }));
+
+    // The page should never flash back to the full-page loading state on a
+    // watch/unwatch toggle -- only the initial mount shows it
+    expect(screen.queryByText("Loading feed...")).not.toBeInTheDocument();
+    expect(markVideoWatched).toHaveBeenCalledWith("v1");
+    expect(getAllFeed).toHaveBeenCalledTimes(2);
   });
 });
