@@ -7,6 +7,7 @@ import {
   syncSubscriptions
 } from "../../lib/api";
 import ErrorText from "../../components/ErrorText";
+import MutedText from "../../components/MutedText";
 
 
 type ChannelItem = {
@@ -317,9 +318,9 @@ export default function ChannelsSettingsPage() {
     <div style={{ display: "grid", gap: "1rem" }}>
       <header>
         <h2 style={{ marginBottom: "0.5rem" }}>Channel settings</h2>
-        <p style={{ margin: 0, color: "#666" }}>
+        <MutedText>
           Choose which channels participate in your queue and how their uploads behave.
-        </p>
+        </MutedText>
       </header>
 
       {loading && <p>Loading channels...</p>}
@@ -360,7 +361,7 @@ export default function ChannelsSettingsPage() {
 
 
       {refreshResult && (
-        <p style={{ margin: 0, color: "#666" }}>
+        <MutedText>
           Refreshed {refreshResult.refreshedChannels} channel
           {refreshResult.refreshedChannels === 1 ? "" : "s"}
           {typeof refreshResult.skippedChannels === "number"
@@ -368,14 +369,14 @@ export default function ChannelsSettingsPage() {
             : ""}
           , cached {refreshResult.cachedVideos} video
           {refreshResult.cachedVideos === 1 ? "" : "s"}.
-        </p>
+        </MutedText>
       )}
 
       {syncResult && (
-        <p style={{ margin: 0, color: "#666" }}>
+        <MutedText>
           Synced {syncResult.syncedCount} channel
           {syncResult.syncedCount === 1 ? "" : "s"}.
-        </p>
+        </MutedText>
       )}
     </section>
 
@@ -444,10 +445,10 @@ export default function ChannelsSettingsPage() {
             onChange={(event) => handleSearchChange(event.target.value)}
             placeholder="Search your channels"
           />
-          <p style={{ margin: 0, color: "#666", fontSize: "smaller" }}>
+          <MutedText style={{ fontSize: "smaller" }}>
             Showing {visibleChannels.length} of {filteredChannels.length}
             {searchText.trim() ? " matching channels" : " channels"}
-          </p>
+          </MutedText>
         </div>
       )}
 
@@ -505,9 +506,9 @@ export default function ChannelsSettingsPage() {
 
                   <div>
                     <h3 style={{ margin: 0 }}>{channel.title}</h3>
-                    <p style={{ margin: 0, color: "#666", fontSize: "smaller" }}>
+                    <MutedText style={{ fontSize: "smaller" }}>
                       {channel.channelId}
-                    </p>
+                    </MutedText>
                   </div>
                 </div>
 

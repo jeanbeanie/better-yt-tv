@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { type FeedItem } from "../lib/api";
 import YoutubePlayer from "./Player/YoutubePlayer";
+import MutedText from "./MutedText";
 
 type FeedViewProps = {
   items: FeedItem[];
@@ -271,10 +272,10 @@ export default function FeedView({ items, onSetWatched, emptyState }: FeedViewPr
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: isSelected ? 700 : 500 }}>{item.title}</div>
 
-                      <div style={{ fontSize: "0.8rem", color: "#666" }}>
+                      <MutedText style={{ fontSize: "0.8rem" }}>
                         {item.channel_title} ·{" "}
                         {new Date(item.published_at).toLocaleString()}
-                      </div>
+                      </MutedText>
                     </div>
 
                     <div

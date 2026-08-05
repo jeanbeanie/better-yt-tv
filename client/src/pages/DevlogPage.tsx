@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import ErrorText from "../components/ErrorText";
+import MutedText from "../components/MutedText";
 
 export default function DevlogPage() {
   // raw markdown text fetched from /devlog.md
@@ -47,9 +48,9 @@ export default function DevlogPage() {
       <header>
         <h1 style={{ marginBottom: "0.5rem" }}>YT Catchup Devlog</h1>
       </header>
-        <p style={{ margin: 0, color: "#666" }}>
+        <MutedText>
           Notes, decisions, and progress updates while building YT Catchup.
-        </p>
+        </MutedText>
 
       {loading && <p>Loading devlog...</p>}
 

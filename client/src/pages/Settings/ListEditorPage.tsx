@@ -11,6 +11,7 @@ import {
   type ListChannel,
 } from "../../lib/api";
 import ErrorText from "../../components/ErrorText";
+import MutedText from "../../components/MutedText";
 
 const SEARCH_RESULT_LIMIT = 25;
 
@@ -248,10 +249,10 @@ export default function ListEditorPage() {
               placeholder="Search your subscribed channels"
             />
             {searchResults.length > SEARCH_RESULT_LIMIT && (
-              <p style={{ margin: "0.5rem 0 0", color: "#666", fontSize: "smaller" }}>
+              <MutedText style={{ margin: "0.5rem 0 0", fontSize: "smaller" }}>
                 Showing {SEARCH_RESULT_LIMIT} of {searchResults.length} matches -- refine your
                 search to narrow results
-              </p>
+              </MutedText>
             )}
             <ul style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}>
               {visibleSearchResults.map((channel) => (

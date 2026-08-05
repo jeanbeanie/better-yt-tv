@@ -9,6 +9,7 @@ import {
   type ListSummary,
 } from "../../lib/api";
 import ErrorText from "../../components/ErrorText";
+import MutedText from "../../components/MutedText";
 
 export default function ListsSettingsPage() {
   const [lists, setLists] = useState<ListSummary[]>([]);
@@ -139,9 +140,9 @@ export default function ListsSettingsPage() {
                 <Link to={`/settings/lists/${list.id}`} style={{ fontWeight: 500 }}>
                   {list.name}
                 </Link>
-                <div style={{ fontSize: "0.8rem", color: "#666" }}>
+                <MutedText style={{ fontSize: "0.8rem" }}>
                   {list.channelCount} {list.channelCount === 1 ? "channel" : "channels"}
-                </div>
+                </MutedText>
               </div>
               <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
                 <Link to={`/settings/lists/${list.id}`}>Edit</Link>
