@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   getLists,
@@ -10,7 +10,7 @@ import {
   type ListSummary,
   type FeedItem,
 } from "../lib/api";
-import YoutubePlayer from "../components/Player/YoutubePlayer";
+import FeedView from "../components/FeedView";
 
 const SELECTED_LIST_STORAGE_KEY = "betterYtTv.selectedListId";
 
@@ -18,13 +18,9 @@ export default function ListsPage() {
   const [lists, setLists] = useState<ListSummary[]>([]);
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
   const [items, setItems] = useState<FeedItem[]>([]);
-  const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   const [loadingLists, setLoadingLists] = useState(true);
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hideWatched, setHideWatched] = useState(false);
-  const [catchUpMode, setCatchUpMode] = useState(true);
-  const [caughtUp, setCaughtUp] = useState(false);
   const [pendingLoginRedirect, setPendingLoginRedirect] = useState(false);
 
   useEffect(() => {
@@ -74,45 +70,15 @@ export default function ListsPage() {
     window.localStorage.setItem(SELECTED_LIST_STORAGE_KEY, selectedListId);
   }, [selectedListId]);
 
-  useEffect(() => {
-    // Share the same catch-up preference as /all -- it's a general playback
-    // preference, not something worth asking the user to set separately
-    // per page.
-    const saved = window.localStorage.getItem("betterYtTv.catchUpMode");
-    if (saved !== null) {
-      setCatchUpMode(saved === "true");
-    }
-  }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem("betterYtTv.catchUpMode", String(catchUpMode));
-  }, [catchUpMode]);
-
   async function loadFeed() {
     if (!selectedListId) return;
 
     try {
       setLoadingFeed(true);
       setError(null);
-      setCaughtUp(false);
 
       const data = await getListFeed(selectedListId);
-      const nextItems = data.items ?? [];
-      setItems(nextItems);
-
-      // If nothing is selected yet, default to the first item in the queue
-      if (!selectedVideoId && nextItems.length > 0) {
-        setSelectedVideoId(nextItems[0].video_id);
-      }
-
-      // If the currently selected video isn't in this list (e.g. we just
-      // switched lists, or it disappeared), fall back to the first item
-      if (
-        selectedVideoId &&
-        !nextItems.some((item) => item.video_id === selectedVideoId)
-      ) {
-        setSelectedVideoId(nextItems[0]?.video_id ?? null);
-      }
+      setItems(data.items ?? []);
     } catch (err) {
       if (redirectIfAuthError(err)) return;
       setError(err instanceof Error ? err.message : "Failed to load list feed");
@@ -125,112 +91,37 @@ export default function ListsPage() {
     void loadFeed();
   }, [selectedListId]);
 
-  async function handleToggleWatched(item: FeedItem) {
+  // Re-fetch items without touching loadingFeed -- same reasoning as
+  // AllPage.tsx: avoids unmounting FeedView (and the player) on every
+  // watch/unwatch click.
+  async function refreshItems() {
+    if (!selectedListId) return;
+
     try {
-      if (item.is_watched) {
-        await markVideoUnwatched(item.video_id);
+      const data = await getListFeed(selectedListId);
+      setItems(data.items ?? []);
+    } catch (err) {
+      if (redirectIfAuthError(err)) return;
+      setError(err instanceof Error ? err.message : "Failed to load list feed");
+    }
+  }
+
+  async function handleSetWatched(videoId: string, watched: boolean) {
+    try {
+      if (watched) {
+        await markVideoWatched(videoId);
       } else {
-        await markVideoWatched(item.video_id);
+        await markVideoUnwatched(videoId);
       }
 
-      // Reload feed after toggle so ordering and watched state stay accurate
-      await loadFeed();
+      await refreshItems();
     } catch (err) {
       if (redirectIfAuthError(err)) return;
       setError(err instanceof Error ? err.message : "Failed to update watched state");
     }
   }
 
-  function findNextUnwatchedVideo(items: FeedItem[], currentVideoId: string) {
-    const currentIndex = items.findIndex((item) => item.video_id === currentVideoId);
-
-    if (currentIndex === -1) {
-      return items.find((item) => !item.is_watched) ?? null;
-    }
-
-    for (let i = currentIndex + 1; i < items.length; i += 1) {
-      if (!items[i].is_watched) {
-        return items[i];
-      }
-    }
-
-    return null;
-  }
-
-  async function handleVideoEnded() {
-    if (!selectedItem) {
-      return;
-    }
-
-    try {
-      setError(null);
-      setCaughtUp(false);
-
-      await markVideoWatched(selectedItem.video_id);
-
-      const updatedItems = items.map((item) =>
-        item.video_id === selectedItem.video_id
-          ? {
-              ...item,
-              is_watched: true,
-              watched_at: new Date().toISOString(),
-            }
-          : item,
-      );
-
-      setItems(updatedItems);
-
-      if (!catchUpMode) {
-        return;
-      }
-
-      const nextItem = findNextUnwatchedVideo(updatedItems, selectedItem.video_id);
-
-      if (nextItem) {
-        setSelectedVideoId(nextItem.video_id);
-      } else {
-        setCaughtUp(true);
-      }
-    } catch (err) {
-      if (redirectIfAuthError(err)) return;
-      setError(err instanceof Error ? err.message : "Failed to advance queue");
-    }
-  }
-
   const selectedList = lists.find((list) => list.id === selectedListId) ?? null;
-  const selectedItem = items.find((item) => item.video_id === selectedVideoId) ?? null;
-
-  const visibleItems = useMemo(() => {
-    if (!hideWatched) {
-      return items;
-    }
-    return items.filter((item) => !item.is_watched);
-  }, [items, hideWatched]);
-
-  function getSelectedIndex(items: FeedItem[], selectedVideoId: string | null) {
-    if (!selectedVideoId) {
-      return -1;
-    }
-    return items.findIndex((item) => item.video_id === selectedVideoId);
-  }
-
-  function goToPreviousVideo() {
-    const currentIndex = getSelectedIndex(items, selectedVideoId);
-    if (currentIndex <= 0) {
-      return;
-    }
-    setSelectedVideoId(items[currentIndex - 1].video_id);
-    setCaughtUp(false);
-  }
-
-  function goToNextVideo() {
-    const currentIndex = getSelectedIndex(items, selectedVideoId);
-    if (currentIndex === -1 || currentIndex >= items.length - 1) {
-      return;
-    }
-    setSelectedVideoId(items[currentIndex + 1].video_id);
-    setCaughtUp(false);
-  }
 
   return (
     <main>
@@ -253,10 +144,7 @@ export default function ListsPage() {
               Select list:{" "}
               <select
                 value={selectedListId ?? ""}
-                onChange={(event) => {
-                  setSelectedListId(event.target.value);
-                  setSelectedVideoId(null);
-                }}
+                onChange={(event) => setSelectedListId(event.target.value)}
               >
                 {lists.map((list) => (
                   <option key={list.id} value={list.id}>
@@ -269,171 +157,19 @@ export default function ListsPage() {
 
           {selectedList && <h2>{selectedList.name}</h2>}
 
-          {selectedItem && (
-            <section style={{ margin: "1.5rem 0" }}>
-              <YoutubePlayer
-                videoId={selectedItem.video_id}
-                onEnded={() => {
-                  void handleVideoEnded();
-                }}
-              />
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <button onClick={goToPreviousVideo} disabled={getSelectedIndex(items, selectedVideoId) <= 0}>Previous</button>
-                <button onClick={goToNextVideo} disabled={getSelectedIndex(items, selectedVideoId) === -1 || getSelectedIndex(items, selectedVideoId) >= items.length - 1}>Next</button>
-              </div>
-
-              <p style={{ margin: "10px" }}>
-                <strong>{selectedItem.title} </strong>-
-                <strong> {selectedItem.channel_title}</strong>
-              </p>
-            </section>
-          )}
-
           {loadingFeed && <p>Loading feed...</p>}
 
-          {!loadingFeed && items.length === 0 && (
-            <p>
-              No videos available for this list right now.{" "}
-              <Link to={`/settings/lists/${selectedListId}`}>Manage this list</Link>
-            </p>
-          )}
-
-          {caughtUp && (
-            <p style={{ color: "#555", marginTop: "0.75rem" }}>
-              You&apos;re caught up, no unwatched videos remain.
-            </p>
-          )}
-
-          {!loadingFeed && items.length > 0 && (
-            <section>
-              <h2 style={{ marginBottom: "1rem" }}>Queue</h2>
-
-              <div
-                style={{
-                  display: "flex",
-                  margin: "1rem 0",
-                  gap: "1rem",
-                  justifyContent: "center",
-                }}
-              >
-                <div>
-                  <label
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={hideWatched}
-                      onChange={(e) => setHideWatched(e.target.checked)}
-                    />
-                    <span>Hide watched</span>
-                  </label>
-                </div>
-
-                <div>
-                  <label
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                      cursor: "pointer",
-                    }}
-                    title="Automatically play the next unwatched video when one ends."
-                  >
-                    <input
-                      type="checkbox"
-                      checked={catchUpMode}
-                      onChange={(event) => setCatchUpMode(event.target.checked)}
-                    />
-                    <span>Catch-up mode</span>
-                  </label>
-                </div>
-              </div>
-
-              {visibleItems.length === 0 && (
-                <p>All videos are watched. Turn off "Hide watched" to see them again.</p>
-              )}
-
-              {visibleItems.length > 0 && (
-              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                {visibleItems.map((item) => {
-                  const isSelected = item.video_id === selectedVideoId;
-
-                  return (
-                    <li
-                      key={item.video_id}
-                      onClick={() => setSelectedVideoId(item.video_id)}
-                      style={{
-                        display: "flex",
-                        gap: "1rem",
-                        alignItems: "center",
-                        padding: "0.5rem 0",
-                        borderTop: "1px solid #2e303a",
-                        cursor: "pointer",
-                        opacity: item.is_watched ? 0.5 : 1,
-                        backgroundColor: isSelected ? "#333" : "transparent",
-                      }}
-                    >
-                      {item.thumb_url && (
-                        <img
-                          src={item.thumb_url}
-                          alt={item.title}
-                          width={120}
-                          style={{
-                            borderRadius: "8px",
-                            flexShrink: 0,
-                          }}
-                        />
-                      )}
-
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: isSelected ? 700 : 500 }}>{item.title}</div>
-
-                        <div style={{ fontSize: "0.8rem", color: "#666" }}>
-                          {item.channel_title} ·{" "}
-                          {new Date(item.published_at).toLocaleString()}
-                        </div>
-                      </div>
-
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "flex-end",
-                          gap: "0.5rem",
-                          flexShrink: 0,
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: "0.8rem",
-                            color: item.is_watched ? "#777" : "#111",
-                            paddingRight: ".5rem",
-                          }}
-                        >
-                          {item.is_watched ? "Watched" : "Unwatched"}
-                        </span>
-
-                        <button
-                          style={{ marginRight: ".5rem" }}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void handleToggleWatched(item);
-                          }}
-                        >
-                          {item.is_watched ? "Unwatch" : "Watch"}
-                        </button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-              )}
-            </section>
+          {!loadingFeed && (
+            <FeedView
+              items={items}
+              onSetWatched={handleSetWatched}
+              emptyState={
+                <p>
+                  No videos available for this list right now.{" "}
+                  <Link to={`/settings/lists/${selectedListId}`}>Manage this list</Link>
+                </p>
+              }
+            />
           )}
         </>
       )}

@@ -200,7 +200,7 @@ describe("ListsPage", () => {
     // Everything is now watched and hidden -- the checkbox must still be
     // present so the user isn't locked out of turning it back off
     expect(
-      await screen.findByText("All videos are watched. Turn off \"Hide watched\" to see them again."),
+      await screen.findByText("All videos are watched. Turn off “Hide watched” to see them again."),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/hide watched/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/catch-up mode/i)).toBeInTheDocument();
@@ -225,6 +225,29 @@ describe("ListsPage", () => {
     await screen.findAllByText("First Video");
     await user.click(screen.getByRole("button", { name: "Watch" }));
 
+    expect(markVideoWatched).toHaveBeenCalledWith("v1");
+    expect(getListFeed).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not show the full-page loading state when marking a video watched", async () => {
+    vi.mocked(getLists).mockResolvedValue({ lists: [NEWS_LIST] });
+    vi.mocked(getListFeed).mockResolvedValue({
+      list: { id: "l1", name: "News" },
+      items: [VIDEO_1],
+    });
+    vi.mocked(markVideoWatched).mockResolvedValue({ ok: true });
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findAllByText("First Video");
+    expect(screen.queryByText("Loading feed...")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Watch" }));
+
+    // The page should never flash back to the full-page loading state on a
+    // watch/unwatch toggle -- only the initial load shows it
+    expect(screen.queryByText("Loading feed...")).not.toBeInTheDocument();
     expect(markVideoWatched).toHaveBeenCalledWith("v1");
     expect(getListFeed).toHaveBeenCalledTimes(2);
   });
