@@ -88,4 +88,55 @@ describe("AllPage", () => {
     // Unwatched video should still remain visible
     expect(screen.getAllByText("Unwatched Video").length).toBeGreaterThanOrEqual(1);
   });
+
+  it("keeps the Hide watched checkbox visible (and usable) when every video is watched", async () => {
+    vi.mocked(getAllFeed).mockResolvedValue({
+      items: [
+        {
+          video_id: "v1",
+          channel_id: "c1",
+          channel_title: "Channel One",
+          title: "First Video",
+          thumb_url: "",
+          published_at: "2026-07-01T00:00:00Z",
+          watched_at: "2026-07-02T00:00:00Z",
+          is_watched: true,
+        },
+        {
+          video_id: "v2",
+          channel_id: "c1",
+          channel_title: "Channel One",
+          title: "Second Video",
+          thumb_url: "",
+          published_at: "2026-07-02T00:00:00Z",
+          watched_at: "2026-07-03T00:00:00Z",
+          is_watched: true,
+        },
+      ],
+    });
+
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <AllPage />
+      </MemoryRouter>
+    );
+
+    const hideWatchedCheckbox = await screen.findByLabelText(/hide watched/i);
+    await user.click(hideWatchedCheckbox);
+
+    // Everything is now watched and hidden -- the checkbox must still be
+    // present so the user isn't locked out of turning it back off
+    expect(
+      await screen.findByText("All videos are watched. Turn off “Hide watched” to see them again."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/hide watched/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/catch-up mode/i)).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText(/hide watched/i));
+
+    expect(screen.getAllByText("First Video").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Second Video").length).toBeGreaterThanOrEqual(1);
+  });
 });

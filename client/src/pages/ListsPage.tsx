@@ -298,17 +298,13 @@ export default function ListsPage() {
             </p>
           )}
 
-          {!loadingFeed && items.length > 0 && visibleItems.length === 0 && (
-            <p>All videos are watched. Turn off "Hide watched" to see them again.</p>
-          )}
-
           {caughtUp && (
             <p style={{ color: "#555", marginTop: "0.75rem" }}>
               You&apos;re caught up, no unwatched videos remain.
             </p>
           )}
 
-          {!loadingFeed && visibleItems.length > 0 && (
+          {!loadingFeed && items.length > 0 && (
             <section>
               <h2 style={{ marginBottom: "1rem" }}>Queue</h2>
 
@@ -358,6 +354,11 @@ export default function ListsPage() {
                 </div>
               </div>
 
+              {visibleItems.length === 0 && (
+                <p>All videos are watched. Turn off "Hide watched" to see them again.</p>
+              )}
+
+              {visibleItems.length > 0 && (
               <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
                 {visibleItems.map((item) => {
                   const isSelected = item.video_id === selectedVideoId;
@@ -431,6 +432,7 @@ export default function ListsPage() {
                   );
                 })}
               </ul>
+              )}
             </section>
           )}
         </>

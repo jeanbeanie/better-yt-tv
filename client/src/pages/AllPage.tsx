@@ -253,19 +253,13 @@ async function handleVideoEnded() {
         <p>No videos yet. Try building the feed.</p>
       )}
 
-      {!loading && !error && items.length > 0 && visibleItems.length === 0 && (
-        <p>All videos are watched. Turn off “Hide watched” to see them again.</p>
-      )}
-
       {caughtUp && (
         <p style={{ color: "#555", marginTop: "0.75rem" }}>
           You&apos;re caught up — no unwatched videos remain.
         </p>
       )}
 
-
-
-     {!loading && !error && visibleItems.length > 0 && (
+     {!loading && !error && items.length > 0 && (
         <section>
           {/* TODO make this its own video queue component */}
           <h2 style={{ marginBottom: "1rem" }}>Queue</h2>
@@ -309,6 +303,11 @@ async function handleVideoEnded() {
             </div>
           </div>
 
+          {visibleItems.length === 0 && (
+            <p>All videos are watched. Turn off “Hide watched” to see them again.</p>
+          )}
+
+          {visibleItems.length > 0 && (
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {visibleItems.map((item) => {
               const isSelected = item.video_id === selectedVideoId;
@@ -398,6 +397,7 @@ async function handleVideoEnded() {
               );
             })}
           </ul>
+          )}
         </section>
       )}    </main>
   );

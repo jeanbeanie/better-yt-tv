@@ -184,6 +184,33 @@ describe("ListsPage", () => {
     expect(screen.getAllByText("First Video").length).toBeGreaterThanOrEqual(1);
   });
 
+  it("keeps the Hide watched checkbox visible (and usable) when every video is watched", async () => {
+    vi.mocked(getLists).mockResolvedValue({ lists: [NEWS_LIST] });
+    vi.mocked(getListFeed).mockResolvedValue({
+      list: { id: "l1", name: "News" },
+      items: [{ ...VIDEO_1, is_watched: true }, VIDEO_2],
+    });
+
+    const user = userEvent.setup();
+    renderPage();
+
+    const hideWatchedCheckbox = await screen.findByLabelText(/hide watched/i);
+    await user.click(hideWatchedCheckbox);
+
+    // Everything is now watched and hidden -- the checkbox must still be
+    // present so the user isn't locked out of turning it back off
+    expect(
+      await screen.findByText("All videos are watched. Turn off \"Hide watched\" to see them again."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/hide watched/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/catch-up mode/i)).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText(/hide watched/i));
+
+    expect(screen.getAllByText("First Video").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Second Video").length).toBeGreaterThanOrEqual(1);
+  });
+
   it("marks a video watched from the queue", async () => {
     vi.mocked(getLists).mockResolvedValue({ lists: [NEWS_LIST] });
     vi.mocked(getListFeed).mockResolvedValue({
