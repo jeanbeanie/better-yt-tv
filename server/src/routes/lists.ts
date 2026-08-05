@@ -249,3 +249,26 @@ listsRouter.put("/:listId", requireAuth, async (req, res, next) => {
     next(err);
   }
 });
+
+// DELETE /api/lists/:listId
+// Delete a list. list_channels rows are removed automatically via the
+// on delete cascade FK, no manual cleanup needed.
+listsRouter.delete("/:listId", requireAuth, async (req, res, next) => {
+  try {
+    const userId = (req as AuthedRequest).userId;
+    const { listId } = req.params;
+
+    const result = await pool.query(
+      `delete from lists where id = $1 and user_id = $2 returning id`,
+      [listId, userId],
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "List not found" });
+    }
+
+    return res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});

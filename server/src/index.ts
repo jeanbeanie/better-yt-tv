@@ -64,6 +64,7 @@ app.use("/api/channels", channelsRouter);
 // - POST /api/lists
 // - GET /api/lists/:listId
 // - PUT /api/lists/:listId
+// - DELETE /api/lists/:listId
 app.use("/api/lists", listsRouter);
 
 // error handler
