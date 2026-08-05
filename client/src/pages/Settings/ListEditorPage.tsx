@@ -9,6 +9,8 @@ import {
   type ListChannel,
 } from "../../lib/api";
 
+const SEARCH_RESULT_LIMIT = 25;
+
 export default function ListEditorPage() {
   const { listId } = useParams<{ listId: string }>();
 
@@ -80,6 +82,8 @@ export default function ListEditorPage() {
       .sort((a, b) => a.title.localeCompare(b.title));
   }, [allChannels, selectedChannels, searchText]);
 
+  const visibleSearchResults = searchResults.slice(0, SEARCH_RESULT_LIMIT);
+
   function addChannel(channel: ListChannel) {
     setSelectedChannels((prev) => [...prev, channel]);
   }
@@ -122,6 +126,7 @@ export default function ListEditorPage() {
                       src={channel.thumbUrl}
                       alt={channel.title}
                       width={40}
+                      loading="lazy"
                       style={{ borderRadius: "50%" }}
                     />
                   )}
@@ -140,8 +145,14 @@ export default function ListEditorPage() {
               onChange={(event) => setSearchText(event.target.value)}
               placeholder="Search your subscribed channels"
             />
+            {searchResults.length > SEARCH_RESULT_LIMIT && (
+              <p style={{ margin: "0.5rem 0 0", color: "#666", fontSize: "smaller" }}>
+                Showing {SEARCH_RESULT_LIMIT} of {searchResults.length} matches -- refine your
+                search to narrow results
+              </p>
+            )}
             <ul style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}>
-              {searchResults.map((channel) => (
+              {visibleSearchResults.map((channel) => (
                 <li
                   key={channel.channelId}
                   onClick={() => addChannel(channel)}
@@ -160,6 +171,7 @@ export default function ListEditorPage() {
                       src={channel.thumbUrl}
                       alt={channel.title}
                       width={32}
+                      loading="lazy"
                       style={{ borderRadius: "50%" }}
                     />
                   )}

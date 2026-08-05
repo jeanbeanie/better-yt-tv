@@ -205,4 +205,69 @@ describe("ListEditorPage", () => {
     expect(screen.queryByText("Adam Ragusea")).not.toBeInTheDocument();
     expect(screen.getByText("Veritasium")).toBeInTheDocument();
   });
+
+  it("caps search results at 25 and shows a truncation hint", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+    vi.mocked(getChannels).mockResolvedValue({
+      channels: Array.from({ length: 30 }, (_, i) => ({
+        channelId: `c${i + 1}`,
+        title: `Channel ${String(i + 1).padStart(2, "0")}`,
+        thumbUrl: null,
+        enabledAll: true,
+        enabledLive: true,
+        excludedShorts: false,
+      })),
+    });
+
+    renderPage("l1");
+
+    await screen.findByText("Channel 01");
+
+    expect(
+      screen.getByText("Showing 25 of 30 matches -- refine your search to narrow results"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Channel 25")).toBeInTheDocument();
+    expect(screen.queryByText("Channel 26")).not.toBeInTheDocument();
+    expect(screen.queryByText("Channel 30")).not.toBeInTheDocument();
+  });
+
+  it("does not show the truncation hint when results are under the cap", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+    vi.mocked(getChannels).mockResolvedValue({
+      channels: [
+        {
+          channelId: "c1",
+          title: "Adam Ragusea",
+          thumbUrl: null,
+          enabledAll: true,
+          enabledLive: true,
+          excludedShorts: false,
+        },
+      ],
+    });
+
+    renderPage("l1");
+
+    await screen.findByText("Adam Ragusea");
+
+    expect(screen.queryByText(/refine your search to narrow results/)).not.toBeInTheDocument();
+  });
 });

@@ -37,12 +37,33 @@ type SyncResult = {
   syncedCount: number;
 };
 
+const PAGE_SIZE = 30;
+
 export default function ChannelsSettingsPage() {
   // full set of channels loaded from backend
   const [channels, setChannels] = useState<ChannelItem[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // search + how many of the (possibly filtered) channels are currently rendered
+  const [searchText, setSearchText] = useState("");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  function handleSearchChange(value: string) {
+    setSearchText(value);
+    // start a fresh search at the first page, rather than wherever
+    // "Load more" had gotten to before typing
+    setVisibleCount(PAGE_SIZE);
+  }
+
+  const filteredChannels = useMemo(() => {
+    const query = searchText.trim().toLowerCase();
+    if (!query) return channels;
+    return channels.filter((channel) => channel.title.toLowerCase().includes(query));
+  }, [channels, searchText]);
+
+  const visibleChannels = filteredChannels.slice(0, visibleCount);
 
   // Refresh feed
   const [refreshing, setRefreshing] = useState(false);
@@ -415,8 +436,27 @@ export default function ChannelsSettingsPage() {
       )}
 
       {!loading && channels.length > 0 && (
+        <div style={{ display: "grid", gap: "0.5rem" }}>
+          <input
+            type="text"
+            value={searchText}
+            onChange={(event) => handleSearchChange(event.target.value)}
+            placeholder="Search your channels"
+          />
+          <p style={{ margin: 0, color: "#666", fontSize: "smaller" }}>
+            Showing {visibleChannels.length} of {filteredChannels.length}
+            {searchText.trim() ? " matching channels" : " channels"}
+          </p>
+        </div>
+      )}
+
+      {!loading && channels.length > 0 && filteredChannels.length === 0 && (
+        <p>No channels match your search.</p>
+      )}
+
+      {!loading && filteredChannels.length > 0 && (
         <div style={{ display: "grid", gap: "0.75rem" }}>
-          {channels.map((channel) => {
+          {visibleChannels.map((channel) => {
             const isSaving = savingByChannelId[channel.channelId] === true;
 
             return (
@@ -445,6 +485,7 @@ export default function ChannelsSettingsPage() {
                       alt=""
                       width={48}
                       height={48}
+                      loading="lazy"
                       style={{
                         borderRadius: "999px",
                         objectFit: "cover",
@@ -517,6 +558,16 @@ export default function ChannelsSettingsPage() {
               </article>
             );
           })}
+
+          {visibleCount < filteredChannels.length && (
+            <button
+              type="button"
+              onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
+              style={{ justifySelf: "center" }}
+            >
+              Load more
+            </button>
+          )}
         </div>
       )}
     </div>
