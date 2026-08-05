@@ -93,6 +93,23 @@ feedRouter.get("/all", requireAuth, async (req, res, next) => {
   }
 });
 
+// GET /api/feed/live
+// Return recent cached videos for channels the user has flagged with
+// "Enable in Live" in channel settings. Same shape as /all, just filtered
+// by enabled_live instead of enabled_all.
+feedRouter.get("/live", requireAuth, async (req, res, next) => {
+  try {
+    const userId = (req as AuthedRequest).userId;
+    const result = await fetchFeedForPreference(userId, "enabled_live");
+
+    return res.json({
+      items: result.rows,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/feed/lists/:listId
 // Return recent cached videos for channels in a specific list.
 // Ignores channel_preferences.enabled_all (a channel can be off in the All
