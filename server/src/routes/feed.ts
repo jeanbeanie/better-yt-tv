@@ -15,59 +15,75 @@ feedRouter.param("listId", (req, res, next, value) => {
   next();
 });
 
+// Shared by GET /all and GET /live: both return recent cached videos for
+// channels this user is subscribed to, filtered by a single per-channel
+// boolean preference (enabled_all or enabled_live) plus excluded_shorts.
+// preferenceColumn is interpolated directly (not a $N placeholder, since
+// placeholders are for values, not identifiers) -- safe because it's a
+// TypeScript union restricted to two literal, code-controlled values,
+// never user input. Same trust model as the dynamic column names already
+// built in channels.ts's partial-update queries.
+//
+// Extracted here rather than duplicated per route because this exact query
+// shape has already produced one real bug from copy-paste drift: the
+// coalesce()/fail-open handling below was missing from the original /all
+// query until an orphaned channel_preferences row surfaced it. One copy
+// means that fix (and any future one) only has to happen once.
+async function fetchFeedForPreference(
+  userId: string,
+  preferenceColumn: "enabled_all" | "enabled_live",
+) {
+  return pool.query(
+    `
+    select
+      v.video_id,
+      v.channel_id,
+      us.channel_title,
+      v.title,
+      v.published_at,
+      v.thumb_url,
+      uvs.watched_at,
+      (uvs.watched_at is not null) as is_watched
+    from user_subscriptions us
+    left join channel_preferences cp
+      on cp.user_id = us.user_id
+     and cp.channel_id = us.channel_id
+    join videos_cache v
+      on v.channel_id = us.channel_id
+    left join user_video_state uvs
+      on uvs.user_id = us.user_id
+     and uvs.video_id = v.video_id
+    where us.user_id = $1
+      -- If preferences are missing entirely (see TODO in youtube.ts sync
+      -- flow), fail open rather than silently excluding the channel
+      and coalesce(cp.${preferenceColumn}, true) = true
+      and (
+        -- If Shorts are allowed for this channel (or preferences are
+        -- missing, same fail-open reasoning as above), include all
+        coalesce(cp.excluded_shorts, false) = false
+
+        -- If duration is unknown, keep the video for now rather than
+        -- risk hiding a normal upload before metadata hydration completes
+        or v.duration_seconds is null
+
+        -- If duration is known and greater than 60 seconds,
+        -- treat it as NOT a short, and include it
+        or v.duration_seconds > 60
+      )
+    order by v.published_at desc
+    limit 200
+    `,
+    [userId],
+  );
+}
+
 // GET /api/feed/all
 // Return recent cached videos for channels this user is subscribed to
 // Apply per-channel user preferences : enabled_all, excluded_shorts
-
 feedRouter.get("/all", requireAuth, async (req, res, next) => {
   try {
     const userId = (req as AuthedRequest).userId;
-
-    // Join user_subscriptions with videos_cache so we only return
-    // videos from channels the current user follows
-    // calc user's is_watched state per video
-    const result = await pool.query(
-       `
-      select
-        v.video_id,
-        v.channel_id,
-        us.channel_title,
-        v.title,
-        v.published_at,
-        v.thumb_url,
-        uvs.watched_at,
-        (uvs.watched_at is not null) as is_watched
-      from user_subscriptions us
-      left join channel_preferences cp
-        on cp.user_id = us.user_id
-       and cp.channel_id = us.channel_id
-      join videos_cache v
-        on v.channel_id = us.channel_id
-      left join user_video_state uvs
-        on uvs.user_id = us.user_id
-       and uvs.video_id = v.video_id
-      where us.user_id = $1
-        -- If preferences are missing entirely (see TODO in youtube.ts sync
-        -- flow), fail open rather than silently excluding the channel
-        and coalesce(cp.enabled_all, true) = true
-        and (
-          -- If Shorts are allowed for this channel (or preferences are
-          -- missing, same fail-open reasoning as above), include all
-          coalesce(cp.excluded_shorts, false) = false
-
-          -- If duration is unknown, keep the video for now rather than
-          -- risk hiding a normal upload before metadata hydration completes
-          or v.duration_seconds is null
-
-          -- If duration is known and greater than 60 seconds,
-          -- treat it as NOT a short, and include it
-          or v.duration_seconds > 60
-        )
-      order by v.published_at desc
-      limit 200
-      `,
-      [userId],
-    );
+    const result = await fetchFeedForPreference(userId, "enabled_all");
 
     return res.json({
       items: result.rows,
