@@ -3,11 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import ListsPage from "./ListsPage";
-import { getLists, getListFeed } from "../lib/api";
+import { getLists, getListFeed, markVideoWatched, markVideoUnwatched } from "../lib/api";
 
 vi.mock("../lib/api", () => ({
   getLists: vi.fn(),
   getListFeed: vi.fn(),
+  markVideoWatched: vi.fn(),
+  markVideoUnwatched: vi.fn(),
   getLoginUrl: vi.fn(() => "http://localhost:5179/api/auth/login"),
   shouldRedirectToLogin: vi.fn(() => false),
 }));
@@ -47,10 +49,23 @@ const VIDEO_1 = {
   is_watched: false,
 };
 
+const VIDEO_2 = {
+  video_id: "v2",
+  channel_id: "c1",
+  channel_title: "Channel One",
+  title: "Second Video",
+  thumb_url: "",
+  published_at: "2026-08-02T00:00:00Z",
+  watched_at: "2026-08-03T00:00:00Z",
+  is_watched: true,
+};
+
 describe("ListsPage", () => {
   beforeEach(() => {
     vi.mocked(getLists).mockReset();
     vi.mocked(getListFeed).mockReset();
+    vi.mocked(markVideoWatched).mockReset();
+    vi.mocked(markVideoUnwatched).mockReset();
     window.localStorage.clear();
   });
 
@@ -80,7 +95,7 @@ describe("ListsPage", () => {
 
     expect(await screen.findByRole("heading", { name: "News" })).toBeInTheDocument();
     expect(getListFeed).toHaveBeenCalledWith("l1");
-    expect(await screen.findByText("1 video loaded.")).toBeInTheDocument();
+    expect((await screen.findAllByText("First Video")).length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows a manage-list CTA when the selected list's feed is empty", async () => {
@@ -148,5 +163,75 @@ describe("ListsPage", () => {
     expect(await screen.findByRole("heading", { name: "Music" })).toBeInTheDocument();
     expect(getListFeed).toHaveBeenCalledWith("l2");
     expect(window.localStorage.getItem("betterYtTv.selectedListId")).toBe("l2");
+  });
+
+  it("hides watched videos from the queue when 'Hide watched' is checked", async () => {
+    vi.mocked(getLists).mockResolvedValue({ lists: [NEWS_LIST] });
+    vi.mocked(getListFeed).mockResolvedValue({
+      list: { id: "l1", name: "News" },
+      items: [VIDEO_1, VIDEO_2],
+    });
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("Second Video");
+    expect(screen.getAllByText("First Video").length).toBeGreaterThanOrEqual(1);
+
+    await user.click(screen.getByLabelText(/hide watched/i));
+
+    expect(screen.queryByText("Second Video")).not.toBeInTheDocument();
+    expect(screen.getAllByText("First Video").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("marks a video watched from the queue", async () => {
+    vi.mocked(getLists).mockResolvedValue({ lists: [NEWS_LIST] });
+    vi.mocked(getListFeed).mockResolvedValue({
+      list: { id: "l1", name: "News" },
+      items: [VIDEO_1],
+    });
+    vi.mocked(markVideoWatched).mockResolvedValue({ ok: true });
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findAllByText("First Video");
+    await user.click(screen.getByRole("button", { name: "Watch" }));
+
+    expect(markVideoWatched).toHaveBeenCalledWith("v1");
+    expect(getListFeed).toHaveBeenCalledTimes(2);
+  });
+
+  it("navigates to the next and previous video in the queue", async () => {
+    vi.mocked(getLists).mockResolvedValue({ lists: [NEWS_LIST] });
+    vi.mocked(getListFeed).mockResolvedValue({
+      list: { id: "l1", name: "News" },
+      items: [VIDEO_1, { ...VIDEO_2, is_watched: false }],
+    });
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findAllByText("First Video");
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getAllByText("Second Video").length).toBeGreaterThanOrEqual(1);
+
+    await user.click(screen.getByRole("button", { name: "Previous" }));
+    expect(screen.getAllByText("First Video").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("shares the catch-up mode preference with /all via the same localStorage key", async () => {
+    window.localStorage.setItem("betterYtTv.catchUpMode", "false");
+    vi.mocked(getLists).mockResolvedValue({ lists: [NEWS_LIST] });
+    vi.mocked(getListFeed).mockResolvedValue({
+      list: { id: "l1", name: "News" },
+      items: [VIDEO_1],
+    });
+
+    renderPage();
+
+    const catchUpCheckbox = await screen.findByLabelText(/catch-up mode/i);
+    expect(catchUpCheckbox).not.toBeChecked();
   });
 });
