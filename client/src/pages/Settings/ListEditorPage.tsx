@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import {
   getList,
   getChannels,
+  saveList,
   getLoginUrl,
   shouldRedirectToLogin,
   ApiError,
@@ -22,6 +23,9 @@ export default function ListEditorPage() {
   const [allChannels, setAllChannels] = useState<ListChannel[]>([]);
   const [selectedChannels, setSelectedChannels] = useState<ListChannel[]>([]);
   const [searchText, setSearchText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!pendingLoginRedirect) return;
@@ -92,6 +96,47 @@ export default function ListEditorPage() {
     setSelectedChannels((prev) => prev.filter((c) => c.channelId !== channelId));
   }
 
+  // Re-fetch just the list data after a successful save, to reflect
+  // server-validated truth (trimmed name, silently-dropped invalid channel
+  // ids), without touching the page-level loading/error/notFound state
+  // that loadList() controls (that would flash the whole page back to
+  // "Loading list..." and hide the "Saved" message on every save).
+  async function reconcileAfterSave() {
+    if (!listId) return;
+    try {
+      const data = await getList(listId);
+      setName(data.list.name);
+      setSelectedChannels(data.list.channels);
+    } catch {
+      // best-effort, the save itself already succeeded, so a reconcile
+      // failure shouldn't surface as a save error
+    }
+  }
+
+  async function handleSave() {
+    const trimmedName = name.trim();
+    if (!trimmedName || !listId) return;
+
+    try {
+      setSaving(true);
+      setSaveError(null);
+      setSaveMessage(null);
+
+      await saveList(listId, {
+        name: trimmedName,
+        channelIds: selectedChannels.map((c) => c.channelId),
+      });
+
+      setSaveMessage("Saved");
+      await reconcileAfterSave();
+    } catch (err) {
+      if (redirectIfAuthError(err)) return;
+      setSaveError(err instanceof Error ? err.message : "Failed to save list");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div>
       <p>
@@ -104,7 +149,27 @@ export default function ListEditorPage() {
 
       {!listLoading && !error && !notFound && (
         <>
-          <h1>{name}</h1>
+          <input
+            type="text"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            aria-label="List name"
+            style={{ fontSize: "1.5rem", fontWeight: 700, padding: "0.25rem 0" }}
+          />
+
+          <div style={{ margin: "1rem 0" }}>
+            <button
+              type="button"
+              onClick={() => void handleSave()}
+              disabled={saving || !name.trim()}
+            >
+              {saving ? "Saving..." : "Save list"}
+            </button>
+            {saveMessage && <span style={{ marginLeft: "0.75rem" }}>{saveMessage}</span>}
+            {saveError && (
+              <p style={{ color: "crimson", margin: "0.5rem 0 0" }}>{saveError}</p>
+            )}
+          </div>
 
           <section style={{ margin: "1rem 0" }}>
             <h2>Channels in this list</h2>

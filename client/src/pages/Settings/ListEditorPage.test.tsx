@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import ListEditorPage from "./ListEditorPage";
-import { getList, getChannels, ApiError } from "../../lib/api";
+import { getList, getChannels, saveList, ApiError } from "../../lib/api";
 
 vi.mock("../../lib/api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/api")>("../../lib/api");
@@ -11,6 +11,7 @@ vi.mock("../../lib/api", async () => {
     ...actual,
     getList: vi.fn(),
     getChannels: vi.fn(),
+    saveList: vi.fn(),
     getLoginUrl: vi.fn(() => "http://localhost:5179/api/auth/login"),
     shouldRedirectToLogin: vi.fn(() => false),
   };
@@ -31,6 +32,7 @@ describe("ListEditorPage", () => {
     vi.mocked(getList).mockReset();
     vi.mocked(getChannels).mockReset();
     vi.mocked(getChannels).mockResolvedValue({ channels: [] });
+    vi.mocked(saveList).mockReset();
   });
 
   it("loads and displays the list name", async () => {
@@ -48,7 +50,7 @@ describe("ListEditorPage", () => {
     renderPage("l1");
 
     expect(getList).toHaveBeenCalledWith("l1");
-    expect(await screen.findByText("News")).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("News")).toBeInTheDocument();
   });
 
   it("shows a not-found message for a 404", async () => {
@@ -112,7 +114,7 @@ describe("ListEditorPage", () => {
     const user = userEvent.setup();
     renderPage("l1");
 
-    await screen.findByText("News");
+    await screen.findByDisplayValue("News");
     const result = await screen.findByText("Adam Ragusea");
 
     expect(screen.getByText("No channels selected yet.")).toBeInTheDocument();
@@ -151,7 +153,7 @@ describe("ListEditorPage", () => {
     const user = userEvent.setup();
     renderPage("l1");
 
-    await screen.findByText("News");
+    await screen.findByDisplayValue("News");
     const removeButton = await screen.findByRole("button", { name: "Remove" });
     expect(screen.getByText("Adam Ragusea")).toBeInTheDocument();
 
@@ -269,5 +271,127 @@ describe("ListEditorPage", () => {
     await screen.findByText("Adam Ragusea");
 
     expect(screen.queryByText(/refine your search to narrow results/)).not.toBeInTheDocument();
+  });
+
+  it("lets you type a new name", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+
+    const user = userEvent.setup();
+    renderPage("l1");
+
+    const nameInput = await screen.findByDisplayValue("News");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Music");
+
+    expect(screen.getByDisplayValue("Music")).toBeInTheDocument();
+  });
+
+  it("saves the trimmed name and current channel selection, then reconciles from the server", async () => {
+    vi.mocked(getList)
+      .mockResolvedValueOnce({
+        list: {
+          id: "l1",
+          name: "News",
+          createdAt: "2026-08-01T00:00:00Z",
+          updatedAt: "2026-08-01T00:00:00Z",
+          channelIds: ["c1"],
+          channels: [{ channelId: "c1", title: "Adam Ragusea", thumbUrl: null }],
+        },
+      })
+      .mockResolvedValueOnce({
+        list: {
+          id: "l1",
+          name: "Music",
+          createdAt: "2026-08-01T00:00:00Z",
+          updatedAt: "2026-08-02T00:00:00Z",
+          channelIds: ["c1"],
+          channels: [{ channelId: "c1", title: "Adam Ragusea", thumbUrl: null }],
+        },
+      });
+    vi.mocked(saveList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "Music",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-02T00:00:00Z",
+        channelIds: ["c1"],
+        channels: [{ channelId: "c1", title: "Adam Ragusea", thumbUrl: null }],
+      },
+    });
+
+    const user = userEvent.setup();
+    renderPage("l1");
+
+    const nameInput = await screen.findByDisplayValue("News");
+    await user.clear(nameInput);
+    await user.type(nameInput, "  Music  ");
+    await user.click(screen.getByRole("button", { name: "Save list" }));
+
+    expect(saveList).toHaveBeenCalledWith("l1", { name: "Music", channelIds: ["c1"] });
+    expect(await screen.findByText("Saved")).toBeInTheDocument();
+    expect(getList).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows a clean error and keeps current edits when save fails (e.g. duplicate name)", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+    vi.mocked(saveList).mockRejectedValue(
+      new Error("You already have a list with this name."),
+    );
+
+    const user = userEvent.setup();
+    renderPage("l1");
+
+    const nameInput = await screen.findByDisplayValue("News");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Music");
+    await user.click(screen.getByRole("button", { name: "Save list" }));
+
+    expect(
+      await screen.findByText("You already have a list with this name."),
+    ).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Music")).toBeInTheDocument();
+    expect(getList).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables the Save button when the name is empty or whitespace-only", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+
+    const user = userEvent.setup();
+    renderPage("l1");
+
+    const nameInput = await screen.findByDisplayValue("News");
+    const saveButton = screen.getByRole("button", { name: "Save list" });
+    expect(saveButton).not.toBeDisabled();
+
+    await user.clear(nameInput);
+    await user.type(nameInput, "   ");
+    expect(saveButton).toBeDisabled();
   });
 });
