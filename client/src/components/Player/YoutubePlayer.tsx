@@ -186,7 +186,7 @@ export default function YoutubePlayer({
   }, [videoId, autoplay]);
 
   return (
-    <div>
+    <div className="yt-player">
       {/* The YouTube API replaces this div with an iframe player */}
       <div ref={containerRef} />
     </div>
