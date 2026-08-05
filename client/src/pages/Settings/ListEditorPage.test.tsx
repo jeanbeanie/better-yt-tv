@@ -1,14 +1,16 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import ListEditorPage from "./ListEditorPage";
-import { getList, ApiError } from "../../lib/api";
+import { getList, getChannels, ApiError } from "../../lib/api";
 
 vi.mock("../../lib/api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/api")>("../../lib/api");
   return {
     ...actual,
     getList: vi.fn(),
+    getChannels: vi.fn(),
     getLoginUrl: vi.fn(() => "http://localhost:5179/api/auth/login"),
     shouldRedirectToLogin: vi.fn(() => false),
   };
@@ -27,6 +29,8 @@ function renderPage(listId = "l1") {
 describe("ListEditorPage", () => {
   beforeEach(() => {
     vi.mocked(getList).mockReset();
+    vi.mocked(getChannels).mockReset();
+    vi.mocked(getChannels).mockResolvedValue({ channels: [] });
   });
 
   it("loads and displays the list name", async () => {
@@ -61,5 +65,144 @@ describe("ListEditorPage", () => {
     renderPage("l1");
 
     expect(await screen.findByText("get list failed: 500")).toBeInTheDocument();
+  });
+
+  it("seeds selected channels from the loaded list and shows them with a Remove button", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: ["c1"],
+        channels: [{ channelId: "c1", title: "Existing Channel", thumbUrl: null }],
+      },
+    });
+
+    renderPage("l1");
+
+    expect(await screen.findByText("Existing Channel")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
+  });
+
+  it("adds a channel from search results and it moves out of the results list", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+    vi.mocked(getChannels).mockResolvedValue({
+      channels: [
+        {
+          channelId: "c1",
+          title: "Adam Ragusea",
+          thumbUrl: null,
+          enabledAll: true,
+          enabledLive: true,
+          excludedShorts: false,
+        },
+      ],
+    });
+
+    const user = userEvent.setup();
+    renderPage("l1");
+
+    await screen.findByText("News");
+    const result = await screen.findByText("Adam Ragusea");
+
+    expect(screen.getByText("No channels selected yet.")).toBeInTheDocument();
+
+    await user.click(result);
+
+    expect(screen.queryByText("No channels selected yet.")).not.toBeInTheDocument();
+    // Now appears in the selected list (with a Remove button)
+    expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
+  });
+
+  it("removing a selected channel returns it to the search results", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: ["c1"],
+        channels: [{ channelId: "c1", title: "Adam Ragusea", thumbUrl: null }],
+      },
+    });
+    vi.mocked(getChannels).mockResolvedValue({
+      channels: [
+        {
+          channelId: "c1",
+          title: "Adam Ragusea",
+          thumbUrl: null,
+          enabledAll: true,
+          enabledLive: true,
+          excludedShorts: false,
+        },
+      ],
+    });
+
+    const user = userEvent.setup();
+    renderPage("l1");
+
+    await screen.findByText("News");
+    const removeButton = await screen.findByRole("button", { name: "Remove" });
+    expect(screen.getByText("Adam Ragusea")).toBeInTheDocument();
+
+    await user.click(removeButton);
+
+    expect(screen.getByText("No channels selected yet.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
+    expect(screen.getByText("Adam Ragusea")).toBeInTheDocument();
+  });
+
+  it("filters search results by the search text", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+    vi.mocked(getChannels).mockResolvedValue({
+      channels: [
+        {
+          channelId: "c1",
+          title: "Adam Ragusea",
+          thumbUrl: null,
+          enabledAll: true,
+          enabledLive: true,
+          excludedShorts: false,
+        },
+        {
+          channelId: "c2",
+          title: "Veritasium",
+          thumbUrl: null,
+          enabledAll: true,
+          enabledLive: true,
+          excludedShorts: false,
+        },
+      ],
+    });
+
+    const user = userEvent.setup();
+    renderPage("l1");
+
+    await screen.findByText("Adam Ragusea");
+    expect(screen.getByText("Veritasium")).toBeInTheDocument();
+
+    await user.type(screen.getByPlaceholderText("Search your subscribed channels"), "veri");
+
+    expect(screen.queryByText("Adam Ragusea")).not.toBeInTheDocument();
+    expect(screen.getByText("Veritasium")).toBeInTheDocument();
   });
 });
