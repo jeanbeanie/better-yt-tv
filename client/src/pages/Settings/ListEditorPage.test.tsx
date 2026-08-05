@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import ListEditorPage from "./ListEditorPage";
-import { getList, getChannels, saveList, ApiError } from "../../lib/api";
+import { getList, getChannels, saveList, deleteList, ApiError } from "../../lib/api";
 
 vi.mock("../../lib/api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/api")>("../../lib/api");
@@ -12,6 +12,7 @@ vi.mock("../../lib/api", async () => {
     getList: vi.fn(),
     getChannels: vi.fn(),
     saveList: vi.fn(),
+    deleteList: vi.fn(),
     getLoginUrl: vi.fn(() => "http://localhost:5179/api/auth/login"),
     shouldRedirectToLogin: vi.fn(() => false),
   };
@@ -22,6 +23,7 @@ function renderPage(listId = "l1") {
     <MemoryRouter initialEntries={[`/settings/lists/${listId}`]}>
       <Routes>
         <Route path="/settings/lists/:listId" element={<ListEditorPage />} />
+        <Route path="/settings/lists" element={<div>Lists overview page</div>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -33,6 +35,7 @@ describe("ListEditorPage", () => {
     vi.mocked(getChannels).mockReset();
     vi.mocked(getChannels).mockResolvedValue({ channels: [] });
     vi.mocked(saveList).mockReset();
+    vi.mocked(deleteList).mockReset();
   });
 
   it("loads and displays the list name", async () => {
@@ -393,5 +396,85 @@ describe("ListEditorPage", () => {
     await user.clear(nameInput);
     await user.type(nameInput, "   ");
     expect(saveButton).toBeDisabled();
+  });
+
+  it("confirms, deletes, and navigates back to the lists overview on success", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+    vi.mocked(deleteList).mockResolvedValue({ ok: true });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    const user = userEvent.setup();
+    renderPage("l1");
+
+    await screen.findByDisplayValue("News");
+    await user.click(screen.getByRole("button", { name: "Delete list" }));
+
+    expect(confirmSpy).toHaveBeenCalledWith("Delete this list? This can't be undone.");
+    expect(deleteList).toHaveBeenCalledWith("l1");
+    expect(await screen.findByText("Lists overview page")).toBeInTheDocument();
+
+    confirmSpy.mockRestore();
+  });
+
+  it("does nothing if the delete confirmation is cancelled", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    const user = userEvent.setup();
+    renderPage("l1");
+
+    await screen.findByDisplayValue("News");
+    await user.click(screen.getByRole("button", { name: "Delete list" }));
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(deleteList).not.toHaveBeenCalled();
+    expect(screen.getByDisplayValue("News")).toBeInTheDocument();
+
+    confirmSpy.mockRestore();
+  });
+
+  it("shows an error and stays on the page when delete fails", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+    vi.mocked(deleteList).mockRejectedValue(new Error("delete list failed: 500"));
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    const user = userEvent.setup();
+    renderPage("l1");
+
+    await screen.findByDisplayValue("News");
+    await user.click(screen.getByRole("button", { name: "Delete list" }));
+
+    expect(await screen.findByText("delete list failed: 500")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("News")).toBeInTheDocument();
+    expect(screen.queryByText("Lists overview page")).not.toBeInTheDocument();
+
+    confirmSpy.mockRestore();
   });
 });

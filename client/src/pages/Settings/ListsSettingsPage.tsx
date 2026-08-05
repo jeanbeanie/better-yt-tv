@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import {
   getLists,
   createList,
+  deleteList,
   getLoginUrl,
   shouldRedirectToLogin,
   type ListSummary,
@@ -16,6 +17,8 @@ export default function ListsSettingsPage() {
   const [newListName, setNewListName] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!pendingLoginRedirect) return;
@@ -73,6 +76,23 @@ export default function ListsSettingsPage() {
     }
   }
 
+  async function handleDeleteList(listId: string) {
+    if (!window.confirm("Delete this list? This can't be undone.")) return;
+
+    try {
+      setDeletingId(listId);
+      setDeleteError(null);
+
+      await deleteList(listId);
+      await loadLists();
+    } catch (err) {
+      if (redirectIfAuthError(err)) return;
+      setDeleteError(err instanceof Error ? err.message : "Failed to delete list");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <div>
       <header>
@@ -95,6 +115,7 @@ export default function ListsSettingsPage() {
 
       {loading && <p>Loading lists...</p>}
       {error && <p style={{ color: "crimson" }}>{error}</p>}
+      {deleteError && <p style={{ color: "crimson" }}>{deleteError}</p>}
 
       {!loading && !error && lists.length === 0 && (
         <p>You don&apos;t have any lists yet.</p>
@@ -114,12 +135,23 @@ export default function ListsSettingsPage() {
               }}
             >
               <div>
-                <div style={{ fontWeight: 500 }}>{list.name}</div>
+                <Link to={`/settings/lists/${list.id}`} style={{ fontWeight: 500 }}>
+                  {list.name}
+                </Link>
                 <div style={{ fontSize: "0.8rem", color: "#666" }}>
                   {list.channelCount} {list.channelCount === 1 ? "channel" : "channels"}
                 </div>
               </div>
-              <Link to={`/settings/lists/${list.id}`}>Edit</Link>
+              <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+                <Link to={`/settings/lists/${list.id}`}>Edit</Link>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteList(list.id)}
+                  disabled={deletingId === list.id}
+                >
+                  {deletingId === list.id ? "Deleting..." : "Delete"}
+                </button>
+              </div>
             </li>
           ))}
         </ul>

@@ -3,11 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import ListsSettingsPage from "./ListsSettingsPage";
-import { getLists, createList } from "../../lib/api";
+import { getLists, createList, deleteList } from "../../lib/api";
 
 vi.mock("../../lib/api", () => ({
   getLists: vi.fn(),
   createList: vi.fn(),
+  deleteList: vi.fn(),
   getLoginUrl: vi.fn(() => "http://localhost:5179/api/auth/login"),
   shouldRedirectToLogin: vi.fn(() => false),
 }));
@@ -24,6 +25,7 @@ describe("ListsSettingsPage", () => {
   beforeEach(() => {
     vi.mocked(getLists).mockReset();
     vi.mocked(createList).mockReset();
+    vi.mocked(deleteList).mockReset();
   });
 
   it("renders lists from the API", async () => {
@@ -154,7 +156,7 @@ describe("ListsSettingsPage", () => {
     expect(button).toBeDisabled();
   });
 
-  it("links each list row to its editor route", async () => {
+  it("links each list row to its editor route, from both the name and Edit", async () => {
     vi.mocked(getLists).mockResolvedValue({
       lists: [
         {
@@ -171,9 +173,99 @@ describe("ListsSettingsPage", () => {
 
     await screen.findByText("News");
 
+    expect(screen.getByRole("link", { name: "News" })).toHaveAttribute(
+      "href",
+      "/settings/lists/l1",
+    );
     expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute(
       "href",
       "/settings/lists/l1",
     );
+  });
+
+  it("confirms, deletes, and refetches the list on success", async () => {
+    vi.mocked(getLists)
+      .mockResolvedValueOnce({
+        lists: [
+          {
+            id: "l1",
+            name: "News",
+            channelCount: 3,
+            createdAt: "2026-08-01T00:00:00Z",
+            updatedAt: "2026-08-01T00:00:00Z",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ lists: [] });
+    vi.mocked(deleteList).mockResolvedValue({ ok: true });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("News");
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(confirmSpy).toHaveBeenCalledWith("Delete this list? This can't be undone.");
+    expect(deleteList).toHaveBeenCalledWith("l1");
+    expect(await screen.findByText("You don't have any lists yet.")).toBeInTheDocument();
+    expect(getLists).toHaveBeenCalledTimes(2);
+
+    confirmSpy.mockRestore();
+  });
+
+  it("does nothing if the delete confirmation is cancelled", async () => {
+    vi.mocked(getLists).mockResolvedValue({
+      lists: [
+        {
+          id: "l1",
+          name: "News",
+          channelCount: 3,
+          createdAt: "2026-08-01T00:00:00Z",
+          updatedAt: "2026-08-01T00:00:00Z",
+        },
+      ],
+    });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("News");
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(deleteList).not.toHaveBeenCalled();
+    expect(screen.getByText("News")).toBeInTheDocument();
+
+    confirmSpy.mockRestore();
+  });
+
+  it("shows an error and keeps the list when delete fails", async () => {
+    vi.mocked(getLists).mockResolvedValue({
+      lists: [
+        {
+          id: "l1",
+          name: "News",
+          channelCount: 3,
+          createdAt: "2026-08-01T00:00:00Z",
+          updatedAt: "2026-08-01T00:00:00Z",
+        },
+      ],
+    });
+    vi.mocked(deleteList).mockRejectedValue(new Error("delete list failed: 500"));
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("News");
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(await screen.findByText("delete list failed: 500")).toBeInTheDocument();
+    expect(screen.getByText("News")).toBeInTheDocument();
+    expect(getLists).toHaveBeenCalledTimes(1);
+
+    confirmSpy.mockRestore();
   });
 });

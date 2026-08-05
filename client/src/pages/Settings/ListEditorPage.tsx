@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   getList,
   getChannels,
   saveList,
+  deleteList,
   getLoginUrl,
   shouldRedirectToLogin,
   ApiError,
@@ -14,6 +15,7 @@ const SEARCH_RESULT_LIMIT = 25;
 
 export default function ListEditorPage() {
   const { listId } = useParams<{ listId: string }>();
+  const navigate = useNavigate();
 
   const [listLoading, setListLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +28,8 @@ export default function ListEditorPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!pendingLoginRedirect) return;
@@ -137,6 +141,25 @@ export default function ListEditorPage() {
     }
   }
 
+  async function handleDelete() {
+    if (!listId) return;
+    if (!window.confirm("Delete this list? This can't be undone.")) return;
+
+    try {
+      setDeleting(true);
+      setDeleteError(null);
+
+      await deleteList(listId);
+
+      navigate("/settings/lists");
+    } catch (err) {
+      if (redirectIfAuthError(err)) return;
+      setDeleteError(err instanceof Error ? err.message : "Failed to delete list");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div>
       <p>
@@ -166,8 +189,21 @@ export default function ListEditorPage() {
               {saving ? "Saving..." : "Save list"}
             </button>
             {saveMessage && <span style={{ marginLeft: "0.75rem" }}>{saveMessage}</span>}
+
+            <button
+              type="button"
+              onClick={() => void handleDelete()}
+              disabled={deleting}
+              style={{ marginLeft: "0.75rem" }}
+            >
+              {deleting ? "Deleting..." : "Delete list"}
+            </button>
+
             {saveError && (
               <p style={{ color: "crimson", margin: "0.5rem 0 0" }}>{saveError}</p>
+            )}
+            {deleteError && (
+              <p style={{ color: "crimson", margin: "0.5rem 0 0" }}>{deleteError}</p>
             )}
           </div>
 
