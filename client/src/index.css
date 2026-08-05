@@ -121,3 +121,7 @@ p {
   color: var(--danger);
 }
 
+.text-muted {
+  color: var(--text);
+}
+
