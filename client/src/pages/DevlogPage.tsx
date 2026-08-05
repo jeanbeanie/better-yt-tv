@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import ErrorText from "../components/ErrorText";
 
 export default function DevlogPage() {
   // raw markdown text fetched from /devlog.md
@@ -52,7 +53,7 @@ export default function DevlogPage() {
 
       {loading && <p>Loading devlog...</p>}
 
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
+      {error && <ErrorText>{error}</ErrorText>}
 
       {!loading && !error && (
         <article

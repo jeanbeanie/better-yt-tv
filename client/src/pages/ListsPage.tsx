@@ -11,6 +11,7 @@ import {
   type FeedItem,
 } from "../lib/api";
 import FeedView from "../components/FeedView";
+import ErrorText from "../components/ErrorText";
 
 const SELECTED_LIST_STORAGE_KEY = "betterYtTv.selectedListId";
 
@@ -127,7 +128,7 @@ export default function ListsPage() {
       <p>Pick a list to watch a queue of its videos.</p>
 
       {loadingLists && <p>Loading lists...</p>}
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
+      {error && <ErrorText>{error}</ErrorText>}
 
       {!loadingLists && !error && lists.length === 0 && (
         <p>

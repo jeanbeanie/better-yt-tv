@@ -6,6 +6,7 @@ import {
   refreshAllCache,
   syncSubscriptions
 } from "../../lib/api";
+import ErrorText from "../../components/ErrorText";
 
 
 type ChannelItem = {
@@ -323,7 +324,7 @@ export default function ChannelsSettingsPage() {
 
       {loading && <p>Loading channels...</p>}
 
-      {error && <p style={{ color: "crimson", margin: 0 }}>{error}</p>}
+      {error && <ErrorText>{error}</ErrorText>}
 
     <section
       style={{

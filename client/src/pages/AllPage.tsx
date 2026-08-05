@@ -8,6 +8,7 @@ import {
   type FeedItem,
 } from "../lib/api";
 import FeedView from "../components/FeedView";
+import ErrorText from "../components/ErrorText";
 
 export default function AllPage() {
   const [items, setItems] = useState<FeedItem[]>([]);
@@ -86,7 +87,7 @@ export default function AllPage() {
       <p>A queue of recent videos from channels you follow.</p>
 
       {loading && <p>Loading feed...</p>}
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {error && <ErrorText>{error}</ErrorText>}
 
       {!loading && !error && (
         <FeedView

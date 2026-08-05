@@ -10,6 +10,7 @@ import {
   ApiError,
   type ListChannel,
 } from "../../lib/api";
+import ErrorText from "../../components/ErrorText";
 
 const SEARCH_RESULT_LIMIT = 25;
 
@@ -167,7 +168,7 @@ export default function ListEditorPage() {
       </p>
 
       {listLoading && <p>Loading list...</p>}
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
+      {error && <ErrorText>{error}</ErrorText>}
       {notFound && <p>List not found.</p>}
 
       {!listLoading && !error && !notFound && (
@@ -200,10 +201,10 @@ export default function ListEditorPage() {
             </button>
 
             {saveError && (
-              <p style={{ color: "crimson", margin: "0.5rem 0 0" }}>{saveError}</p>
+              <ErrorText style={{ margin: "0.5rem 0 0" }}>{saveError}</ErrorText>
             )}
             {deleteError && (
-              <p style={{ color: "crimson", margin: "0.5rem 0 0" }}>{deleteError}</p>
+              <ErrorText style={{ margin: "0.5rem 0 0" }}>{deleteError}</ErrorText>
             )}
           </div>
 

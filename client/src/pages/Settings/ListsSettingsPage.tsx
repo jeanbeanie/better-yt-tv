@@ -8,6 +8,7 @@ import {
   shouldRedirectToLogin,
   type ListSummary,
 } from "../../lib/api";
+import ErrorText from "../../components/ErrorText";
 
 export default function ListsSettingsPage() {
   const [lists, setLists] = useState<ListSummary[]>([]);
@@ -110,12 +111,12 @@ export default function ListsSettingsPage() {
         <button type="submit" disabled={creating || !newListName.trim()}>
           {creating ? "Creating..." : "Create new list"}
         </button>
-        {createError && <p style={{ color: "crimson" }}>{createError}</p>}
+        {createError && <ErrorText>{createError}</ErrorText>}
       </form>
 
       {loading && <p>Loading lists...</p>}
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
-      {deleteError && <p style={{ color: "crimson" }}>{deleteError}</p>}
+      {error && <ErrorText>{error}</ErrorText>}
+      {deleteError && <ErrorText>{deleteError}</ErrorText>}
 
       {!loading && !error && lists.length === 0 && (
         <p>You don&apos;t have any lists yet.</p>

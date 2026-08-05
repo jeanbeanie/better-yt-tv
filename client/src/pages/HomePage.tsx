@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { type User } from "../App";
+import ErrorText from "../components/ErrorText";
 
 
 type homePageProps = {
@@ -18,7 +19,7 @@ export default function HomePage(props:homePageProps) {
 
       {loading && <p>Loading user...</p>}
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {error && <ErrorText>{error}</ErrorText>}
 
       {!loading && user && (
         <div>
