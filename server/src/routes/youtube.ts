@@ -18,9 +18,7 @@ export const youtubeRouter = express.Router();
 type YoutubeSubscription = {
   channelId: string;
   title: string;
-  thumbnails?: { url: string };
-  medium?: { url: string };
-  high?: { url: string };
+  thumbUrl: string | null;
 }
 
 /* HELPER FUNCTIONS */
@@ -84,7 +82,10 @@ async function fetchYoutubeSubscriptions(accessToken: string): Promise<YoutubeSu
      .map((item: any) => ({
         channelId: item.snippet?.resourceId?.channelId,
         title: item.snippet?.title,
-        thumbnails: item.snippet?.thumbnails,
+        thumbUrl:
+          item.snippet?.thumbnails?.medium?.url ??
+          item.snippet?.thumbnails?.default?.url ??
+          null,
       }))
       .filter((item: YoutubeSubscription) => Boolean(
         // Filter out malformed items so one bad row doesn't break everything
@@ -138,12 +139,13 @@ youtubeRouter.post(
       // if sub already exists, update instead of duplicating
       await pool.query(
         `
-        insert into user_subscriptions (user_id, channel_id, channel_title)
-        values ($1, $2, $3)
+        insert into user_subscriptions (user_id, channel_id, channel_title, channel_thumb_url)
+        values ($1, $2, $3, $4)
         on conflict (user_id, channel_id) do update
-          set channel_title = excluded.channel_title
+          set channel_title = excluded.channel_title,
+              channel_thumb_url = excluded.channel_thumb_url
         `,
-        [userId, item.channelId, item.title],
+        [userId, item.channelId, item.title, item.thumbUrl],
       );
       // Ensure this synced channel has a default preference row
       // Only create it if it does not already exist
