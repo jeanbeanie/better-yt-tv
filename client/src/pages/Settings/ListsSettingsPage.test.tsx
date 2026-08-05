@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import ListsSettingsPage from "./ListsSettingsPage";
 import { getLists, createList } from "../../lib/api";
@@ -10,6 +11,14 @@ vi.mock("../../lib/api", () => ({
   getLoginUrl: vi.fn(() => "http://localhost:5179/api/auth/login"),
   shouldRedirectToLogin: vi.fn(() => false),
 }));
+
+function renderPage() {
+  return render(
+    <MemoryRouter>
+      <ListsSettingsPage />
+    </MemoryRouter>,
+  );
+}
 
 describe("ListsSettingsPage", () => {
   beforeEach(() => {
@@ -30,7 +39,7 @@ describe("ListsSettingsPage", () => {
       ],
     });
 
-    render(<ListsSettingsPage />);
+    renderPage();
 
     expect(await screen.findByText("News")).toBeInTheDocument();
     expect(screen.getByText("3 channels")).toBeInTheDocument();
@@ -49,7 +58,7 @@ describe("ListsSettingsPage", () => {
       ],
     });
 
-    render(<ListsSettingsPage />);
+    renderPage();
 
     expect(await screen.findByText("1 channel")).toBeInTheDocument();
   });
@@ -57,7 +66,7 @@ describe("ListsSettingsPage", () => {
   it("shows the empty state when there are no lists", async () => {
     vi.mocked(getLists).mockResolvedValue({ lists: [] });
 
-    render(<ListsSettingsPage />);
+    renderPage();
 
     expect(await screen.findByText("You don't have any lists yet.")).toBeInTheDocument();
   });
@@ -65,7 +74,7 @@ describe("ListsSettingsPage", () => {
   it("shows an error message when getLists fails", async () => {
     vi.mocked(getLists).mockRejectedValue(new Error("get lists failed: 500"));
 
-    render(<ListsSettingsPage />);
+    renderPage();
 
     expect(await screen.findByText("get lists failed: 500")).toBeInTheDocument();
   });
@@ -95,7 +104,7 @@ describe("ListsSettingsPage", () => {
     });
 
     const user = userEvent.setup();
-    render(<ListsSettingsPage />);
+    renderPage();
 
     await screen.findByText("You don't have any lists yet.");
 
@@ -116,7 +125,7 @@ describe("ListsSettingsPage", () => {
     );
 
     const user = userEvent.setup();
-    render(<ListsSettingsPage />);
+    renderPage();
 
     await screen.findByText("You don't have any lists yet.");
 
@@ -134,7 +143,7 @@ describe("ListsSettingsPage", () => {
     vi.mocked(getLists).mockResolvedValue({ lists: [] });
 
     const user = userEvent.setup();
-    render(<ListsSettingsPage />);
+    renderPage();
 
     await screen.findByText("You don't have any lists yet.");
 
@@ -143,5 +152,28 @@ describe("ListsSettingsPage", () => {
 
     await user.type(screen.getByPlaceholderText("New list name"), "   ");
     expect(button).toBeDisabled();
+  });
+
+  it("links each list row to its editor route", async () => {
+    vi.mocked(getLists).mockResolvedValue({
+      lists: [
+        {
+          id: "l1",
+          name: "News",
+          channelCount: 3,
+          createdAt: "2026-08-01T00:00:00Z",
+          updatedAt: "2026-08-01T00:00:00Z",
+        },
+      ],
+    });
+
+    renderPage();
+
+    await screen.findByText("News");
+
+    expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute(
+      "href",
+      "/settings/lists/l1",
+    );
   });
 });

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   getLists,
   createList,
@@ -118,6 +119,7 @@ export default function ListsSettingsPage() {
                   {list.channelCount} {list.channelCount === 1 ? "channel" : "channels"}
                 </div>
               </div>
+              <Link to={`/settings/lists/${list.id}`}>Edit</Link>
             </li>
           ))}
         </ul>
