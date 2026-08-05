@@ -6,6 +6,7 @@ import AllPage from "./pages/AllPage";
 import SettingsLayout from "./pages/Settings/SettingsLayout";
 import ChannelsSettingsPage from "./pages/Settings/ChannelsSettingsPage";
 import ListsSettingsPage from "./pages/Settings/ListsSettingsPage";
+import ListEditorPage from "./pages/Settings/ListEditorPage";
 import DevlogPage from "./pages/DevlogPage";
 
 export type User = {
@@ -80,6 +81,7 @@ function App() {
           <Route index element={<ChannelsSettingsPage />} />
           <Route path="channels" element={<ChannelsSettingsPage />} />
           <Route path="lists" element={<ListsSettingsPage />} />
+          <Route path="lists/:listId" element={<ListEditorPage />} />
         </Route>
       </Routes>
       
