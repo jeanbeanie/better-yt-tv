@@ -1,8 +1,21 @@
 import express from "express";
 import { pool } from "../db/pool.js";
 import { requireAuth, type AuthedRequest } from "../auth/requireAuth.js";
+import { isValidUuid } from "../lib/uuid.js";
 
 export const listsRouter = express.Router();
+
+// Reject a malformed listId before it ever reaches a query -- lists.id is a
+// uuid column, so an invalid value would otherwise throw a raw Postgres
+// error (22P02) that surfaces as a 500. 404 (not 400) to stay consistent
+// with this file's existing stance of never distinguishing "malformed id"
+// from "well-formed but nonexistent/not-yours id".
+listsRouter.param("listId", (req, res, next, value) => {
+  if (!isValidUuid(value)) {
+    return res.status(404).json({ error: "List not found" });
+  }
+  next();
+});
 
 const MAX_NAME_LENGTH = 100;
 
