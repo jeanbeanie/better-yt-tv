@@ -1,6 +1,18 @@
 
 ---
 
+## 08-05-2026 - The Great Thumbnail Rabbit Hole
+
+Channel thumbnails had been quietly broken since the very beginning. The sync route was pulling thumbnails off the YouTube API response but storing nothing, and the type describing that data didn't even match what YouTube actually sends back. Easy, fix the expected data shapes so "null" wasn't being saved to the database.
+
+Not so fast, fixing the thumbnail persistence bug meant running a real sync, and the sync itself had never been paginating past YouTube's first page of fifty results. The account behind this app has just under a thousand subscriptions. A sync that thought there were fifty channels had been quietly rerunning against the same fifty for who knows how long, meaning the other nine hundred and some had simply never been in the local database at all. Fixing the pagination surfaced all of them at once, thumbnails included.
+
+That's when things got interesting. Loading roughly a thousand avatar images on one page is not something either the channels settings screen or the new list editor had ever been built to handle, since neither had ever seen more than a hundred or so rows. Thumbnails started rendering as broken little slivers, a thin strip of color on the left and nothing else. Claude Code's guess was GPU compositing pressure: too many rounded, clipped images fighting for space on the same page. After checking devtools I found the real error: net::ERR_BLOCKED_BY_ORB. Chrome was refusing the image responses outright, most likely because YouTube's own CDN was rate limiting a page hammering it with a thousand near simultaneous requests.
+
+The fix wasn't really about rendering at all, it was about not sending that many requests in the first place. Lazy loading images helped some but not enough, since a look ahead margin beyond the visible viewport still pulled in far more than the CDN was willing to tolerate. What actually closed the gap was bounding how many rows ever render at once: a search box and "Load more" pagination on the channels settings page, and a capped, already alphabetized result list on the "Add channels" search in the list editor. Thumbnails are now loaded instantly and perfectly, case closed.
+
+---
+
 ## 08-04-2026 - Lists feature: wiring up PUT /api/lists/:listId
 
 Wrapped up the last of the four core list management routes today: GET /api/lists, POST /api/lists, GET /api/lists/:listId, and now PUT /api/lists/:listId, which saves a list's name and its full channel membership in one request from the (eventual) editor page.
