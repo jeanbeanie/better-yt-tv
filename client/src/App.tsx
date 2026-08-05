@@ -3,6 +3,7 @@ import { Link, Route, Routes, useNavigate } from "react-router-dom";
 import { getLoginUrl, getWhoAmI, logout } from "./lib/api";
 import HomePage from "./pages/HomePage";
 import AllPage from "./pages/AllPage";
+import ListsPage from "./pages/ListsPage";
 import SettingsLayout from "./pages/Settings/SettingsLayout";
 import ChannelsSettingsPage from "./pages/Settings/ChannelsSettingsPage";
 import ListsSettingsPage from "./pages/Settings/ListsSettingsPage";
@@ -64,7 +65,7 @@ function App() {
             <>
             <Link to="/all">All</Link>
             <Link to="/">Live</Link>
-            <Link to="/">Lists</Link>
+            <Link to="/lists">Lists</Link>
             <Link to="/settings">Settings</Link>
             </>
           )}
@@ -75,6 +76,7 @@ function App() {
         {/* TOP LEVEL ROUTES */}
         <Route path="/" element={<HomePage user={user} loading={loading} error={error} />} />
         <Route path="/all" element={<AllPage />} />
+        <Route path="/lists" element={<ListsPage />} />
         <Route path="/devlog" element={<DevlogPage />}/>
         {/*  SETTINGS ROUTES */}
         <Route path="/settings" element={<SettingsLayout />}>
