@@ -1,8 +1,19 @@
 import express from "express";
 import { pool } from "../db/pool.js";
 import { requireAuth, type AuthedRequest } from "../auth/requireAuth.js";
+import { isValidUuid } from "../lib/uuid.js";
 
 export const feedRouter = express.Router();
+
+// Reject a malformed listId before it ever reaches a query -- same fix as
+// listsRouter.param("listId", ...) in routes/lists.ts, needed separately
+// here since Express param hooks are per-router, not global.
+feedRouter.param("listId", (req, res, next, value) => {
+  if (!isValidUuid(value)) {
+    return res.status(404).json({ error: "List not found" });
+  }
+  next();
+});
 
 // GET /api/feed/all
 // Return recent cached videos for channels this user is subscribed to
