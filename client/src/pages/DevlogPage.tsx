@@ -44,10 +44,10 @@ export default function DevlogPage() {
       }}
     >
       <header>
-        <h1 style={{ marginBottom: "0.5rem" }}>Better YT TV Devlog</h1>
+        <h1 style={{ marginBottom: "0.5rem" }}>YT Catchup Devlog</h1>
       </header>
         <p style={{ margin: 0, color: "#666" }}>
-          Notes, decisions, and progress updates while building Better YT TV.
+          Notes, decisions, and progress updates while building YT Catchup.
         </p>
 
       {loading && <p>Loading devlog...</p>}

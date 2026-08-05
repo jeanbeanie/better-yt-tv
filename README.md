@@ -1,4 +1,4 @@
-# better-yt-tv
+# YT Catchup
 
 A personal YouTube viewing dashboard that lets you watch the most recent uploads from only the channels you're subscribed to. Think of it as a TV queue for your subscriptions.
 

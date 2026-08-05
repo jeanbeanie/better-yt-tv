@@ -13,7 +13,7 @@ export default function HomePage(props:homePageProps) {
 
   return (
     <main>
-      <h1>Better YT TV</h1>
+      <h1>YT Catchup</h1>
       <p>A better way to browse your YouTube subscriptions.</p>
 
       {loading && <p>Loading user...</p>}
