@@ -366,6 +366,15 @@ export async function saveList(listId: string, input: SaveListInput) {
   );
 }
 
+// Delete a list
+export async function deleteList(listId: string) {
+  return apiFetch<{ ok: boolean }>(
+    `/api/lists/${listId}`,
+    { method: "DELETE" },
+    "delete list failed",
+  );
+}
+
 // Get the video feed for a specific list (ignores enabled_all, respects
 // excluded_shorts and watched state, same as getAllFeed)
 export async function getListFeed(listId: string) {
