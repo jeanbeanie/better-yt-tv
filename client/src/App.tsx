@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Route, Routes, useNavigate } from "react-router-dom";
 import { getLoginUrl, getWhoAmI, logout } from "./lib/api";
+import Button from "./components/Button";
 import HomePage from "./pages/HomePage";
 import AllPage from "./pages/AllPage";
 import LivePage from "./pages/LivePage";
@@ -90,10 +91,10 @@ function App() {
       </Routes>
       
       <hr style={{ borderColor: "var(--border)", marginTop:"3rem", opacity: ".3"}}/>
-      <div style={{ display: "flex", gap: "1rem", padding: "2rem 0"}}>
+      <div style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "2rem 0"}}>
       {!loading && user && (
         <div>
-          <button onClick={() => void handleLogout()}>Logout</button>
+          <Button onClick={() => void handleLogout()}>Logout</Button>
         </div>
       )}
       <Link to="/devlog">Devlog</Link>

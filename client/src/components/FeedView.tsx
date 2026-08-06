@@ -3,6 +3,7 @@ import { type FeedItem } from "../lib/api";
 import YoutubePlayer from "./Player/YoutubePlayer";
 import MutedText from "./MutedText";
 import Row from "./Row";
+import Button from "./Button";
 
 type FeedViewProps = {
   items: FeedItem[];
@@ -157,13 +158,13 @@ export default function FeedView({ items, onSetWatched, emptyState }: FeedViewPr
             }}
           />
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <button
+            <Button
               onClick={goToPreviousVideo}
               disabled={getSelectedIndex(items, selectedVideoId) <= 0}
             >
               Previous
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={goToNextVideo}
               disabled={
                 getSelectedIndex(items, selectedVideoId) === -1 ||
@@ -171,7 +172,7 @@ export default function FeedView({ items, onSetWatched, emptyState }: FeedViewPr
               }
             >
               Next
-            </button>
+            </Button>
           </div>
 
           <p style={{ margin: "10px" }}>
@@ -287,14 +288,14 @@ export default function FeedView({ items, onSetWatched, emptyState }: FeedViewPr
                       <span
                         style={{
                           fontSize: "0.8rem",
-                          color: item.is_watched ? "#777" : "#111",
+                          color: item.is_watched ? "var(--text)" : "var(--text-h)",
                           paddingRight: ".5rem",
                         }}
                       >
                         {item.is_watched ? "Watched" : "Unwatched"}
                       </span>
 
-                      <button
+                      <Button
                         style={{ marginRight: ".5rem" }}
                         onClick={(event) => {
                           event.stopPropagation();
@@ -302,7 +303,7 @@ export default function FeedView({ items, onSetWatched, emptyState }: FeedViewPr
                         }}
                       >
                         {item.is_watched ? "Unwatch" : "Watch"}
-                      </button>
+                      </Button>
                     </div>
                   </Row>
                 );

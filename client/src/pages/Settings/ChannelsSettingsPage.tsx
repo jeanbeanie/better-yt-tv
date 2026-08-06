@@ -8,6 +8,7 @@ import {
 } from "../../lib/api";
 import ErrorText from "../../components/ErrorText";
 import MutedText from "../../components/MutedText";
+import Button from "../../components/Button";
 
 
 type ChannelItem = {
@@ -339,23 +340,23 @@ export default function ChannelsSettingsPage() {
       <div style={{ display:"flex", gap:"1rem"}}>
         YouTube Actions:
         <div style={{ display: "flex", flex: 1, gap: "1rem", justifyContent: "center" }}>
-          <button
+          <Button
             type="button"
             title="Manually refresh cached uploads for your subscribed channels."
             disabled={refreshing || syncing || bulkSaving || anyRowSaving}
             onClick={() => void handleRefreshFeed()}
           >
             {refreshing ? "Refreshing..." : "Refresh feed"}
-          </button>
+          </Button>
 
-          <button
+          <Button
             type="button"
             title="Import/update your subscriptions from YouTube."
             disabled={syncing || refreshing || bulkSaving || anyRowSaving}
             onClick={() => void handleSyncSubscriptions()}
           >
             {syncing ? "Syncing..." : "Sync subscriptions"}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -562,13 +563,13 @@ export default function ChannelsSettingsPage() {
           })}
 
           {visibleCount < filteredChannels.length && (
-            <button
+            <Button
               type="button"
               onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
               style={{ justifySelf: "center" }}
             >
               Load more
-            </button>
+            </Button>
           )}
         </div>
       )}

@@ -13,6 +13,7 @@ import {
 import ErrorText from "../../components/ErrorText";
 import MutedText from "../../components/MutedText";
 import Row from "../../components/Row";
+import Button from "../../components/Button";
 
 const SEARCH_RESULT_LIMIT = 25;
 
@@ -184,23 +185,24 @@ export default function ListEditorPage() {
           />
 
           <div style={{ margin: "1rem 0" }}>
-            <button
+            <Button
               type="button"
               onClick={() => void handleSave()}
               disabled={saving || !name.trim()}
             >
               {saving ? "Saving..." : "Save list"}
-            </button>
+            </Button>
             {saveMessage && <span style={{ marginLeft: "0.75rem" }}>{saveMessage}</span>}
 
-            <button
+            <Button
               type="button"
+              variant="danger"
               onClick={() => void handleDelete()}
               disabled={deleting}
               style={{ marginLeft: "0.75rem" }}
             >
               {deleting ? "Deleting..." : "Delete list"}
-            </button>
+            </Button>
 
             {saveError && (
               <ErrorText style={{ margin: "0.5rem 0 0" }}>{saveError}</ErrorText>
@@ -229,7 +231,7 @@ export default function ListEditorPage() {
                     />
                   )}
                   <span style={{ flex: 1 }}>{channel.title}</span>
-                  <button onClick={() => removeChannel(channel.channelId)}>Remove</button>
+                  <Button onClick={() => removeChannel(channel.channelId)}>Remove</Button>
                 </Row>
               ))}
             </ul>

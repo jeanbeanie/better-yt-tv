@@ -11,6 +11,7 @@ import {
 import ErrorText from "../../components/ErrorText";
 import MutedText from "../../components/MutedText";
 import Row from "../../components/Row";
+import Button from "../../components/Button";
 
 export default function ListsSettingsPage() {
   const [lists, setLists] = useState<ListSummary[]>([]);
@@ -109,10 +110,11 @@ export default function ListsSettingsPage() {
           onChange={(event) => setNewListName(event.target.value)}
           placeholder="New list name"
           disabled={creating}
+          style={{ marginRight: "0.5rem" }}
         />
-        <button type="submit" disabled={creating || !newListName.trim()}>
+        <Button type="submit" disabled={creating || !newListName.trim()}>
           {creating ? "Creating..." : "Create new list"}
-        </button>
+        </Button>
         {createError && <ErrorText>{createError}</ErrorText>}
       </form>
 
@@ -141,13 +143,14 @@ export default function ListsSettingsPage() {
               </div>
               <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
                 <Link to={`/settings/lists/${list.id}`}>Edit</Link>
-                <button
+                <Button
                   type="button"
+                  variant="danger"
                   onClick={() => void handleDeleteList(list.id)}
                   disabled={deletingId === list.id}
                 >
                   {deletingId === list.id ? "Deleting..." : "Delete"}
-                </button>
+                </Button>
               </div>
             </Row>
           ))}
