@@ -4,6 +4,7 @@ import YoutubePlayer from "./Player/YoutubePlayer";
 import MutedText from "./MutedText";
 import Row from "./Row";
 import Button from "./Button";
+import CheckboxLabel from "./CheckboxLabel";
 
 type FeedViewProps = {
   items: FeedItem[];
@@ -198,40 +199,22 @@ export default function FeedView({ items, onSetWatched, emptyState }: FeedViewPr
             style={{ display: "flex", margin: "1rem 0", gap: "1rem", justifyContent: "center" }}
           >
             <div>
-              <label
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  cursor: "pointer",
-                }}
+              <CheckboxLabel
+                checked={hideWatched}
+                onChange={(e) => setHideWatched(e.target.checked)}
               >
-                <input
-                  type="checkbox"
-                  checked={hideWatched}
-                  onChange={(e) => setHideWatched(e.target.checked)}
-                />
-                <span>Hide watched</span>
-              </label>
+                Hide watched
+              </CheckboxLabel>
             </div>
 
             <div>
-              <label
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  cursor: "pointer",
-                }}
+              <CheckboxLabel
+                checked={catchUpMode}
+                onChange={(event) => setCatchUpMode(event.target.checked)}
                 title="Automatically play the next unwatched video when one ends."
               >
-                <input
-                  type="checkbox"
-                  checked={catchUpMode}
-                  onChange={(event) => setCatchUpMode(event.target.checked)}
-                />
-                <span>Catch-up mode</span>
-              </label>
+                Catch-up mode
+              </CheckboxLabel>
             </div>
           </div>
 

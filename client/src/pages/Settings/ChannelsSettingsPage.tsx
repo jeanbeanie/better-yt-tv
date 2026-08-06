@@ -9,6 +9,7 @@ import {
 import ErrorText from "../../components/ErrorText";
 import MutedText from "../../components/MutedText";
 import Button from "../../components/Button";
+import CheckboxLabel from "../../components/CheckboxLabel";
 
 
 type ChannelItem = {
@@ -394,44 +395,38 @@ export default function ChannelsSettingsPage() {
         }}
       >
         Bulk Channel Settings (Affects ALL Channels!): 
-        <label style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          <input
-            ref={allCheckboxRef}
-            type="checkbox"
-            checked={bulkAllState.checked}
-            disabled={bulkSaving || anyRowSaving || syncing || loading || channels.length === 0}
-            onChange={(event) =>
-              void handleBulkToggle({ enabledAll: event.target.checked })
-            }
-          />
+        <CheckboxLabel
+          ref={allCheckboxRef}
+          checked={bulkAllState.checked}
+          disabled={bulkSaving || anyRowSaving || syncing || loading || channels.length === 0}
+          onChange={(event) =>
+            void handleBulkToggle({ enabledAll: event.target.checked })
+          }
+        >
           Include in All
-        </label>
+        </CheckboxLabel>
 
-        <label style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          <input
-            ref={liveCheckboxRef}
-            type="checkbox"
-            checked={bulkLiveState.checked}
-            disabled={bulkSaving || anyRowSaving || syncing || loading || channels.length === 0}
-            onChange={(event) =>
-              void handleBulkToggle({ enabledLive: event.target.checked })
-            }
-          />
+        <CheckboxLabel
+          ref={liveCheckboxRef}
+          checked={bulkLiveState.checked}
+          disabled={bulkSaving || anyRowSaving || syncing || loading || channels.length === 0}
+          onChange={(event) =>
+            void handleBulkToggle({ enabledLive: event.target.checked })
+          }
+        >
           Include in Live
-        </label>
+        </CheckboxLabel>
 
-        <label style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          <input
-            ref={shortsCheckboxRef}
-            type="checkbox"
-            checked={bulkShortsState.checked}
-            disabled={bulkSaving || anyRowSaving || syncing || loading || channels.length === 0}
-            onChange={(event) =>
-              void handleBulkToggle({ excludedShorts: event.target.checked })
-            }
-          />
+        <CheckboxLabel
+          ref={shortsCheckboxRef}
+          checked={bulkShortsState.checked}
+          disabled={bulkSaving || anyRowSaving || syncing || loading || channels.length === 0}
+          onChange={(event) =>
+            void handleBulkToggle({ excludedShorts: event.target.checked })
+          }
+        >
           Exclude Shorts
-        </label>
+        </CheckboxLabel>
       </div>
 
       {!loading && !error && channels.length === 0 && (
@@ -515,47 +510,41 @@ export default function ChannelsSettingsPage() {
 
                 {/* Channel preference toggles */}
                 <div style={{ display: "flex", gap: "0.5rem" }}>
-                  <label style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={channel.enabledAll}
-                      disabled={isSaving || bulkSaving || syncing}
-                      onChange={(event) =>
-                        void handleToggle(channel.channelId, {
-                          enabledAll: event.target.checked,
-                        })
-                      }
-                    />
+                  <CheckboxLabel
+                    checked={channel.enabledAll}
+                    disabled={isSaving || bulkSaving || syncing}
+                    onChange={(event) =>
+                      void handleToggle(channel.channelId, {
+                        enabledAll: event.target.checked,
+                      })
+                    }
+                  >
                     Enable in All
-                  </label>
+                  </CheckboxLabel>
 
-                  <label style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={channel.enabledLive}
-                      disabled={isSaving || bulkSaving || syncing}
-                      onChange={(event) =>
-                        void handleToggle(channel.channelId, {
-                          enabledLive: event.target.checked,
-                        })
-                      }
-                    />
+                  <CheckboxLabel
+                    checked={channel.enabledLive}
+                    disabled={isSaving || bulkSaving || syncing}
+                    onChange={(event) =>
+                      void handleToggle(channel.channelId, {
+                        enabledLive: event.target.checked,
+                      })
+                    }
+                  >
                     Enable in Live
-                  </label>
+                  </CheckboxLabel>
 
-                  <label style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={channel.excludedShorts}
-                      disabled={isSaving || bulkSaving || syncing}
-                      onChange={(event) =>
-                        void handleToggle(channel.channelId, {
-                          excludedShorts: event.target.checked,
-                        })
-                      }
-                    />
+                  <CheckboxLabel
+                    checked={channel.excludedShorts}
+                    disabled={isSaving || bulkSaving || syncing}
+                    onChange={(event) =>
+                      void handleToggle(channel.channelId, {
+                        excludedShorts: event.target.checked,
+                      })
+                    }
+                  >
                     Exclude Shorts from All
-                  </label>
+                  </CheckboxLabel>
                 </div>
 
               </article>
