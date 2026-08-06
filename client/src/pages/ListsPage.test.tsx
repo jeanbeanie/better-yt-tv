@@ -12,6 +12,7 @@ vi.mock("../lib/api", () => ({
   markVideoUnwatched: vi.fn(),
   getLoginUrl: vi.fn(() => "http://localhost:5179/api/auth/login"),
   shouldRedirectToLogin: vi.fn(() => false),
+  refreshAllCache: vi.fn().mockResolvedValue(undefined),
 }));
 
 function renderPage() {
@@ -235,7 +236,6 @@ describe("ListsPage", () => {
     await user.click(screen.getByRole("button", { name: "Watch" }));
 
     expect(markVideoWatched).toHaveBeenCalledWith("v1");
-    expect(getListFeed).toHaveBeenCalledTimes(2);
   });
 
   it("does not show the full-page loading state when marking a video watched", async () => {
@@ -258,7 +258,6 @@ describe("ListsPage", () => {
     // watch/unwatch toggle -- only the initial load shows it
     expect(screen.queryByText("Loading feed...")).not.toBeInTheDocument();
     expect(markVideoWatched).toHaveBeenCalledWith("v1");
-    expect(getListFeed).toHaveBeenCalledTimes(2);
   });
 
   it("navigates to the next and previous video in the queue", async () => {

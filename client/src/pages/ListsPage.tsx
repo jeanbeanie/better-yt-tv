@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   getLists,
@@ -7,6 +7,7 @@ import {
   markVideoUnwatched,
   getLoginUrl,
   shouldRedirectToLogin,
+  refreshAllCache,
   type ListSummary,
   type FeedItem,
 } from "../lib/api";
@@ -107,6 +108,32 @@ export default function ListsPage() {
       setError(err instanceof Error ? err.message : "Failed to load list feed");
     }
   }
+
+  // refreshItems closes over selectedListId, which is still null when the
+  // mount-only background-refresh effect below is created (it's set
+  // asynchronously once loadLists() resolves) -- keep the latest version in
+  // a ref so the effect doesn't call a stale closure. Same pattern as
+  // onEndedRef/onReadyRef in components/Player/YoutubePlayer.tsx.
+  const refreshItemsRef = useRef(refreshItems);
+  useEffect(() => {
+    refreshItemsRef.current = refreshItems;
+  });
+
+  // Silently refresh the video cache on every visit -- refreshAllCache is
+  // cheap to call repeatedly since stale channels are TTL-gated server-side,
+  // and re-fetching afterward means a list that's never had its channels
+  // refreshed before can actually populate on this same visit
+  useEffect(() => {
+    async function backgroundRefresh() {
+      try {
+        await refreshAllCache();
+        await refreshItemsRef.current();
+      } catch (err) {
+        console.error("Background cache refresh failed:", err);
+      }
+    }
+    void backgroundRefresh();
+  }, []);
 
   async function handleSetWatched(videoId: string, watched: boolean) {
     try {

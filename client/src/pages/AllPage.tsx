@@ -5,6 +5,7 @@ import {
   markVideoUnwatched,
   getLoginUrl,
   shouldRedirectToLogin,
+  refreshAllCache,
   type FeedItem,
 } from "../lib/api";
 import FeedView from "../components/FeedView";
@@ -47,6 +48,22 @@ export default function AllPage() {
 
   useEffect(() => {
     void loadFeed();
+  }, []);
+
+  // Silently refresh the video cache on every visit -- refreshAllCache is
+  // cheap to call repeatedly since stale channels are TTL-gated server-side,
+  // and re-fetching afterward means a channel that's never been refreshed
+  // before can actually populate on this same visit, not just the next one
+  useEffect(() => {
+    async function backgroundRefresh() {
+      try {
+        await refreshAllCache();
+        await refreshItems();
+      } catch (err) {
+        console.error("Background cache refresh failed:", err);
+      }
+    }
+    void backgroundRefresh();
   }, []);
 
   // Re-fetch items without touching `loading` -- unlike loadFeed(), this

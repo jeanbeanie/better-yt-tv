@@ -11,6 +11,7 @@ vi.mock("../lib/api", () => ({
   markVideoUnwatched: vi.fn(),
   getLoginUrl: vi.fn(() => "http://localhost:5179/api/auth/login"),
   shouldRedirectToLogin: vi.fn(() => false),
+  refreshAllCache: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe("AllPage", () => {
@@ -180,6 +181,5 @@ describe("AllPage", () => {
     // watch/unwatch toggle -- only the initial mount shows it
     expect(screen.queryByText("Loading feed...")).not.toBeInTheDocument();
     expect(markVideoWatched).toHaveBeenCalledWith("v1");
-    expect(getAllFeed).toHaveBeenCalledTimes(2);
   });
 });
