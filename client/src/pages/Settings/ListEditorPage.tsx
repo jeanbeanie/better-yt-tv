@@ -182,7 +182,8 @@ export default function ListEditorPage() {
             value={name}
             onChange={(event) => setName(event.target.value)}
             aria-label="List name"
-            style={{ fontSize: "1.5rem", fontWeight: 700, padding: "0.25rem 0" }}
+            className="text-input"
+            style={{ fontSize: "1.5rem", fontWeight: 700 }}
           />
 
           <div style={{ margin: "1rem 0" }}>
@@ -220,7 +221,7 @@ export default function ListEditorPage() {
               {selectedChannels.map((channel) => (
                 <Row
                   key={channel.channelId}
-                  style={{ gap: "0.75rem", padding: "0.5rem 0" }}
+                  style={{ gap: "2rem", padding: "0.5rem 0" }}
                 >
                   <Thumbnail
                     src={channel.thumbUrl}
@@ -253,6 +254,13 @@ export default function ListEditorPage() {
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
               placeholder="Search your subscribed channels"
+              className="text-input"
+              style={{
+                width: "24rem",
+                maxWidth: "100%",
+                fontSize: "1.1rem",
+                padding: "0.6rem 0.9rem",
+              }}
             />
             {searchResults.length > SEARCH_RESULT_LIMIT && (
               <MutedText style={{ margin: "0.5rem 0 0", fontSize: "smaller" }}>
@@ -265,7 +273,7 @@ export default function ListEditorPage() {
                 <Row
                   key={channel.channelId}
                   onClick={() => addChannel(channel)}
-                  style={{ gap: "0.75rem", padding: "0.5rem 0" }}
+                  style={{ gap: "2rem", padding: "0.5rem 0" }}
                 >
                   <Thumbnail
                     src={channel.thumbUrl}

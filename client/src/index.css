@@ -129,10 +129,19 @@ p {
   display: flex;
   align-items: center;
   border-top: 1px solid var(--border);
+  text-align: left;
 }
 
 .divider-row-clickable:hover {
   background: var(--accent-bg);
+}
+
+.text-input {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
 }
 
 .button {
