@@ -5,6 +5,7 @@ import MutedText from "./MutedText";
 import Row from "./Row";
 import Button from "./Button";
 import CheckboxLabel from "./CheckboxLabel";
+import Thumbnail from "./Thumbnail";
 
 type FeedViewProps = {
   items: FeedItem[];
@@ -238,17 +239,15 @@ export default function FeedView({ items, onSetWatched, emptyState }: FeedViewPr
                       backgroundColor: isSelected ? "#333" : "transparent",
                     }}
                   >
-                    {item.thumb_url && (
-                      <img
-                        src={item.thumb_url}
-                        alt={item.title}
-                        width={120}
-                        style={{
-                          borderRadius: "8px",
-                          flexShrink: 0,
-                        }}
-                      />
-                    )}
+                    <Thumbnail
+                      src={item.thumb_url}
+                      alt={item.title}
+                      width={120}
+                      style={{
+                        borderRadius: "8px",
+                        flexShrink: 0,
+                      }}
+                    />
 
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: isSelected ? 700 : 500 }}>{item.title}</div>

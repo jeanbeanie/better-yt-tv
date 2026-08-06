@@ -10,6 +10,7 @@ import ErrorText from "../../components/ErrorText";
 import MutedText from "../../components/MutedText";
 import Button from "../../components/Button";
 import CheckboxLabel from "../../components/CheckboxLabel";
+import Thumbnail from "../../components/Thumbnail";
 
 
 type ChannelItem = {
@@ -477,28 +478,27 @@ export default function ChannelsSettingsPage() {
                     width: "20rem"
                   }}
                 >
-                  {channel.thumbUrl ? (
-                    <img
-                      src={channel.thumbUrl}
-                      alt=""
-                      width={48}
-                      height={48}
-                      loading="lazy"
-                      style={{
-                        borderRadius: "999px",
-                        objectFit: "cover",
-                      }}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: "999px",
-                        background: "#111",
-                      }}
-                    />
-                  )}
+                  <Thumbnail
+                    src={channel.thumbUrl}
+                    alt=""
+                    width={48}
+                    height={48}
+                    loading="lazy"
+                    style={{
+                      borderRadius: "999px",
+                      objectFit: "cover",
+                    }}
+                    fallback={
+                      <div
+                        style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: "999px",
+                          background: "#111",
+                        }}
+                      />
+                    }
+                  />
 
                   <div>
                     <h3 style={{ margin: 0 }}>{channel.title}</h3>

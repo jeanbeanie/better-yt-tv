@@ -14,6 +14,7 @@ import ErrorText from "../../components/ErrorText";
 import MutedText from "../../components/MutedText";
 import Row from "../../components/Row";
 import Button from "../../components/Button";
+import Thumbnail from "../../components/Thumbnail";
 
 const SEARCH_RESULT_LIMIT = 25;
 
@@ -221,15 +222,13 @@ export default function ListEditorPage() {
                   key={channel.channelId}
                   style={{ gap: "0.75rem", padding: "0.5rem 0" }}
                 >
-                  {channel.thumbUrl && (
-                    <img
-                      src={channel.thumbUrl}
-                      alt={channel.title}
-                      width={40}
-                      loading="lazy"
-                      style={{ borderRadius: "50%" }}
-                    />
-                  )}
+                  <Thumbnail
+                    src={channel.thumbUrl}
+                    alt={channel.title}
+                    width={40}
+                    loading="lazy"
+                    style={{ borderRadius: "50%" }}
+                  />
                   <span style={{ flex: 1 }}>{channel.title}</span>
                   <Button onClick={() => removeChannel(channel.channelId)}>Remove</Button>
                 </Row>
@@ -258,15 +257,13 @@ export default function ListEditorPage() {
                   onClick={() => addChannel(channel)}
                   style={{ justifyContent: "center", gap: "0.75rem", padding: "0.5rem 0" }}
                 >
-                  {channel.thumbUrl && (
-                    <img
-                      src={channel.thumbUrl}
-                      alt={channel.title}
-                      width={32}
-                      loading="lazy"
-                      style={{ borderRadius: "50%" }}
-                    />
-                  )}
+                  <Thumbnail
+                    src={channel.thumbUrl}
+                    alt={channel.title}
+                    width={32}
+                    loading="lazy"
+                    style={{ borderRadius: "50%" }}
+                  />
                   <span>{channel.title}</span>
                 </Row>
               ))}
