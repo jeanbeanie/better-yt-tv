@@ -31,7 +31,7 @@ function App() {
       const data = await getWhoAmI();
       setUser(data.user ?? null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load user");
+      console.error("Failed to load user:", err);
     } finally {
       setLoading(false);
     }
