@@ -12,6 +12,7 @@ import {
 } from "../../lib/api";
 import ErrorText from "../../components/ErrorText";
 import MutedText from "../../components/MutedText";
+import Row from "../../components/Row";
 
 const SEARCH_RESULT_LIMIT = 25;
 
@@ -214,15 +215,9 @@ export default function ListEditorPage() {
             {selectedChannels.length === 0 && <p>No channels selected yet.</p>}
             <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
               {selectedChannels.map((channel) => (
-                <li
+                <Row
                   key={channel.channelId}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.75rem",
-                    padding: "0.5rem 0",
-                    borderTop: "1px solid #333",
-                  }}
+                  style={{ gap: "0.75rem", padding: "0.5rem 0" }}
                 >
                   {channel.thumbUrl && (
                     <img
@@ -235,7 +230,7 @@ export default function ListEditorPage() {
                   )}
                   <span style={{ flex: 1 }}>{channel.title}</span>
                   <button onClick={() => removeChannel(channel.channelId)}>Remove</button>
-                </li>
+                </Row>
               ))}
             </ul>
           </section>
@@ -256,18 +251,10 @@ export default function ListEditorPage() {
             )}
             <ul style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}>
               {visibleSearchResults.map((channel) => (
-                <li
+                <Row
                   key={channel.channelId}
                   onClick={() => addChannel(channel)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "0.75rem",
-                    padding: "0.5rem 0",
-                    borderTop: "1px solid #333",
-                    cursor: "pointer",
-                  }}
+                  style={{ justifyContent: "center", gap: "0.75rem", padding: "0.5rem 0" }}
                 >
                   {channel.thumbUrl && (
                     <img
@@ -279,7 +266,7 @@ export default function ListEditorPage() {
                     />
                   )}
                   <span>{channel.title}</span>
-                </li>
+                </Row>
               ))}
             </ul>
           </section>

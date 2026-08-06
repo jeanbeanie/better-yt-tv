@@ -10,6 +10,7 @@ import {
 } from "../../lib/api";
 import ErrorText from "../../components/ErrorText";
 import MutedText from "../../components/MutedText";
+import Row from "../../components/Row";
 
 export default function ListsSettingsPage() {
   const [lists, setLists] = useState<ListSummary[]>([]);
@@ -126,15 +127,9 @@ export default function ListsSettingsPage() {
       {!loading && !error && lists.length > 0 && (
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {lists.map((list) => (
-            <li
+            <Row
               key={list.id}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "0.75rem 0",
-                borderTop: "1px solid #333",
-              }}
+              style={{ justifyContent: "space-between", padding: "0.75rem 0" }}
             >
               <div>
                 <Link to={`/settings/lists/${list.id}`} style={{ fontWeight: 500 }}>
@@ -154,7 +149,7 @@ export default function ListsSettingsPage() {
                   {deletingId === list.id ? "Deleting..." : "Delete"}
                 </button>
               </div>
-            </li>
+            </Row>
           ))}
         </ul>
       )}

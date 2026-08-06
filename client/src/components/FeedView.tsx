@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { type FeedItem } from "../lib/api";
 import YoutubePlayer from "./Player/YoutubePlayer";
 import MutedText from "./MutedText";
+import Row from "./Row";
 
 type FeedViewProps = {
   items: FeedItem[];
@@ -243,16 +244,12 @@ export default function FeedView({ items, onSetWatched, emptyState }: FeedViewPr
                 const isSelected = item.video_id === selectedVideoId;
 
                 return (
-                  <li
+                  <Row
                     key={item.video_id}
                     onClick={() => setSelectedVideoId(item.video_id)}
                     style={{
-                      display: "flex",
                       gap: "1rem",
-                      alignItems: "center",
                       padding: "0.5rem 0",
-                      borderTop: "1px solid #2e303a",
-                      cursor: "pointer",
                       opacity: item.is_watched ? 0.5 : 1,
                       backgroundColor: isSelected ? "#333" : "transparent",
                     }}
@@ -307,7 +304,7 @@ export default function FeedView({ items, onSetWatched, emptyState }: FeedViewPr
                         {item.is_watched ? "Unwatch" : "Watch"}
                       </button>
                     </div>
-                  </li>
+                  </Row>
                 );
               })}
             </ul>

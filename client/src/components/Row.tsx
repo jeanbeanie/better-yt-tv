@@ -1,0 +1,19 @@
+import { type CSSProperties, type ReactNode } from "react";
+
+type RowProps = {
+  children: ReactNode;
+  onClick?: () => void;
+  style?: CSSProperties;
+};
+
+export default function Row({ children, onClick, style }: RowProps) {
+  return (
+    <li
+      className="divider-row"
+      onClick={onClick}
+      style={{ cursor: onClick ? "pointer" : undefined, ...style }}
+    >
+      {children}
+    </li>
+  );
+}
