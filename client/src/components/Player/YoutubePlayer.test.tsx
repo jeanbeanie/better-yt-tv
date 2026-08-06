@@ -1,0 +1,105 @@
+import { render, waitFor } from "@testing-library/react";
+import { createRef } from "react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import YoutubePlayer, { type YoutubePlayerHandle } from "./YoutubePlayer";
+
+type CapturedEvents = {
+  onReady?: () => void;
+  onStateChange?: (event: { data: number }) => void;
+  onError?: () => void;
+};
+
+describe("YoutubePlayer", () => {
+  let mockPlayerInstance: {
+    loadVideoById: ReturnType<typeof vi.fn>;
+    cueVideoById: ReturnType<typeof vi.fn>;
+    destroy: ReturnType<typeof vi.fn>;
+  };
+  let mockPlayerConstructor: ReturnType<typeof vi.fn>;
+  let capturedEvents: CapturedEvents;
+
+  beforeEach(() => {
+    mockPlayerInstance = {
+      loadVideoById: vi.fn(),
+      cueVideoById: vi.fn(),
+      destroy: vi.fn(),
+    };
+    capturedEvents = {};
+
+    // A plain function expression, not an arrow function -- vi.fn() forwards
+    // `new window.YT.Player(...)` to this implementation, and arrow
+    // functions can never be used as constructors
+    mockPlayerConstructor = vi.fn(function (
+      _element: HTMLElement,
+      options: { events?: CapturedEvents },
+    ) {
+      capturedEvents = options.events ?? {};
+      return mockPlayerInstance;
+    });
+
+    // Pre-set window.YT so loadYouTubeIframeApi() resolves immediately
+    // instead of trying to load the real external script
+    window.YT = {
+      Player: mockPlayerConstructor,
+      PlayerState: { ENDED: 0, PLAYING: 1, PAUSED: 2, CUED: 5 },
+    } as unknown as typeof window.YT;
+  });
+
+  it("calls onError when the underlying player reports a playback error", async () => {
+    const handleError = vi.fn();
+    render(<YoutubePlayer videoId="v1" onError={handleError} />);
+
+    await waitFor(() => expect(mockPlayerConstructor).toHaveBeenCalled());
+
+    capturedEvents.onError?.();
+
+    expect(handleError).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads the first video once onReady fires, and retry() reloads it with no prior videoId change", async () => {
+    // This is the actual reported bug: retry() silently did nothing for the
+    // very first video shown, because currentVideoIdRef was never set until
+    // a genuine videoId prop change happened at least once. The video must
+    // only be loaded once onReady fires -- not immediately after
+    // construction -- since the real IFrame API doesn't accept commands
+    // like loadVideoById until then.
+    const ref = createRef<YoutubePlayerHandle>();
+    render(<YoutubePlayer ref={ref} videoId="v1" />);
+
+    await waitFor(() => expect(mockPlayerConstructor).toHaveBeenCalled());
+
+    // Nothing should have loaded yet -- onReady hasn't fired
+    expect(mockPlayerInstance.loadVideoById).not.toHaveBeenCalled();
+
+    capturedEvents.onReady?.();
+
+    expect(mockPlayerInstance.loadVideoById).toHaveBeenCalledWith("v1");
+
+    mockPlayerInstance.loadVideoById.mockClear();
+
+    ref.current?.retry();
+
+    expect(mockPlayerInstance.loadVideoById).toHaveBeenCalledWith("v1");
+  });
+
+  it("retry() reloads the currently loaded video directly, bypassing videoId prop-diffing", async () => {
+    const ref = createRef<YoutubePlayerHandle>();
+    const { rerender } = render(<YoutubePlayer ref={ref} videoId="v1" />);
+
+    await waitFor(() => expect(mockPlayerConstructor).toHaveBeenCalled());
+
+    // Force a real prop change so the video-update effect actually fires
+    // loadVideoById once playerRef is populated -- this is what sets
+    // currentVideoIdRef, the value retry() reloads
+    rerender(<YoutubePlayer ref={ref} videoId="v2" />);
+    await waitFor(() => expect(mockPlayerInstance.loadVideoById).toHaveBeenCalledWith("v2"));
+
+    mockPlayerInstance.loadVideoById.mockClear();
+
+    // videoId hasn't changed -- retry() must still reload "v2" by calling
+    // the IFrame API directly, not by relying on a prop change
+    ref.current?.retry();
+
+    expect(mockPlayerInstance.loadVideoById).toHaveBeenCalledWith("v2");
+  });
+});

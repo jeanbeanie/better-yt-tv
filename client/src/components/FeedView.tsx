@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { type FeedItem } from "../lib/api";
-import YoutubePlayer from "./Player/YoutubePlayer";
+import YoutubePlayer, { type YoutubePlayerHandle } from "./Player/YoutubePlayer";
 import MutedText from "./MutedText";
 import Row from "./Row";
 import Button from "./Button";
 import CheckboxLabel from "./CheckboxLabel";
 import Thumbnail from "./Thumbnail";
+import ErrorText from "./ErrorText";
 
 type FeedViewProps = {
   items: FeedItem[];
@@ -26,6 +27,14 @@ export default function FeedView({ items, onSetWatched, emptyState }: FeedViewPr
   const [hideWatched, setHideWatched] = useState(false);
   const [catchUpMode, setCatchUpMode] = useState(true);
   const [caughtUp, setCaughtUp] = useState(false);
+  const [playerError, setPlayerError] = useState(false);
+  const playerRef = useRef<YoutubePlayerHandle>(null);
+
+  useEffect(() => {
+    // A playback error is specific to whatever video was selected when it
+    // happened -- clear it as soon as the user moves on to a different one
+    setPlayerError(false);
+  }, [selectedVideoId]);
 
   useEffect(() => {
     // Load the user's saved catch-up preference once on first render
@@ -154,18 +163,36 @@ export default function FeedView({ items, onSetWatched, emptyState }: FeedViewPr
       {selectedItem && (
         <section style={{ margin: "1.5rem 0" }}>
           <YoutubePlayer
+            ref={playerRef}
             videoId={selectedItem.video_id}
             onEnded={() => {
               void handleVideoEnded();
             }}
+            onError={() => setPlayerError(true)}
           />
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <Button
               onClick={goToPreviousVideo}
               disabled={getSelectedIndex(items, selectedVideoId) <= 0}
             >
               Previous
             </Button>
+
+            {playerError && (
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                <Button
+                  onClick={() => {
+                    setPlayerError(false);
+                    playerRef.current?.retry();
+                  }}
+                >
+                  Retry
+                </Button>
+                <ErrorText style={{ margin: 0 }}>Playback failed for this video.</ErrorText>
+              </div>
+            )}
+
             <Button
               onClick={goToNextVideo}
               disabled={

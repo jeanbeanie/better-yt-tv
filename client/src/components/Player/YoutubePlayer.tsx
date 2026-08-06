@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
 // Minimal local typings for the parts of the YouTube IFrame API we need right now
 declare global {
@@ -12,6 +12,7 @@ declare global {
           events?: {
             onReady?: (event: { target: YTPlayerInstance }) => void;
             onStateChange?: (event: { data: number; target: YTPlayerInstance }) => void;
+            onError?: (event: { data: number; target: YTPlayerInstance }) => void;
           };
         },
       ) => YTPlayerInstance;
@@ -42,9 +43,20 @@ type YoutubePlayerProps = {
   // Called once when the player is first ready
   onReady?: () => void;
 
+  // Called when the YouTube player reports a playback error for the current video
+  onError?: () => void;
+
   // If true, changing videoId should immediately start playback
   // If false, the next video is cued but not auto-played
   autoplay?: boolean;
+};
+
+export type YoutubePlayerHandle = {
+  // Reloads the currently loaded video -- unlike changing the videoId prop,
+  // this works even when the video id hasn't changed (e.g. retrying after
+  // a playback error), since it calls the IFrame API directly instead of
+  // going through the videoId-diffing effect below
+  retry: () => void;
 };
 
 // Load the YouTube IFrame API script once for the whole app
@@ -81,12 +93,10 @@ function loadYouTubeIframeApi(): Promise<void> {
   });
 }
 
-export default function YoutubePlayer({
-  videoId,
-  onEnded,
-  onReady,
-  autoplay = true,
-}: YoutubePlayerProps) {
+const YoutubePlayer = forwardRef<YoutubePlayerHandle, YoutubePlayerProps>(function YoutubePlayer(
+  { videoId, onEnded, onReady, onError, autoplay = true },
+  ref,
+) {
   // DOM node where the YouTube API will insert the iframe player
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -99,8 +109,16 @@ export default function YoutubePlayer({
   // Hold the latest callback props without forcing player recreation
   const onEndedRef = useRef<(() => void) | undefined>(onEnded);
   const onReadyRef = useRef<(() => void) | undefined>(onReady);
+  const onErrorRef = useRef<(() => void) | undefined>(onError);
 
-  // Keep callback refs fresh when props change
+  // Hold the latest videoId/autoplay so the player-creation effect (which
+  // only runs once, on mount) can load the first video as soon as the
+  // player is actually ready, rather than depending on the separate
+  // video-update effect below happening to run again later
+  const videoIdRef = useRef(videoId);
+  const autoplayRef = useRef(autoplay);
+
+  // Keep callback/value refs fresh when props change
   useEffect(() => {
     onEndedRef.current = onEnded;
   }, [onEnded]);
@@ -108,6 +126,26 @@ export default function YoutubePlayer({
   useEffect(() => {
     onReadyRef.current = onReady;
   }, [onReady]);
+
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+
+  useEffect(() => {
+    videoIdRef.current = videoId;
+  }, [videoId]);
+
+  useEffect(() => {
+    autoplayRef.current = autoplay;
+  }, [autoplay]);
+
+  useImperativeHandle(ref, () => ({
+    retry() {
+      if (playerRef.current && currentVideoIdRef.current) {
+        playerRef.current.loadVideoById(currentVideoIdRef.current);
+      }
+    },
+  }));
 
 
   // Create the player only once after the API script is ready
@@ -140,6 +178,24 @@ export default function YoutubePlayer({
         events: {
           onReady: () => {
             onReadyRef.current?.();
+
+            // A freshly-constructed player isn't actually ready to accept
+            // commands like loadVideoById until this event fires -- that's
+            // the whole reason onReady exists as a distinct event rather
+            // than the constructor call itself being the "ready" signal.
+            // The video-update effect below already ran once by mount time
+            // (synchronously, before this async setup had a chance to
+            // finish) and bailed out because playerRef.current was still
+            // null then, so load whatever video is currently selected now
+            // that the player genuinely exists and is ready.
+            if (videoIdRef.current && playerRef.current) {
+              if (autoplayRef.current) {
+                playerRef.current.loadVideoById(videoIdRef.current);
+              } else {
+                playerRef.current.cueVideoById(videoIdRef.current);
+              }
+              currentVideoIdRef.current = videoIdRef.current;
+            }
           },
           onStateChange: (event) => {
             // YouTube reports ENDED via the player state constant
@@ -147,9 +203,11 @@ export default function YoutubePlayer({
               onEndedRef.current?.();
             }
           },
+          onError: () => {
+            onErrorRef.current?.();
+          },
         },
       });
-
     }
 
     void setupPlayer();
@@ -191,4 +249,8 @@ export default function YoutubePlayer({
       <div ref={containerRef} />
     </div>
   );
-}
+});
+
+YoutubePlayer.displayName = "YoutubePlayer";
+
+export default YoutubePlayer;
