@@ -228,6 +228,16 @@ export default function ListEditorPage() {
                     width={40}
                     loading="lazy"
                     style={{ borderRadius: "50%" }}
+                    fallback={
+                      <div
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: "50%",
+                          background: "var(--border)",
+                        }}
+                      />
+                    }
                   />
                   <span style={{ flex: 1 }}>{channel.title}</span>
                   <Button onClick={() => removeChannel(channel.channelId)}>Remove</Button>
@@ -263,6 +273,16 @@ export default function ListEditorPage() {
                     width={32}
                     loading="lazy"
                     style={{ borderRadius: "50%" }}
+                    fallback={
+                      <div
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: "50%",
+                          background: "var(--border)",
+                        }}
+                      />
+                    }
                   />
                   <span>{channel.title}</span>
                 </Row>

@@ -494,7 +494,7 @@ export default function ChannelsSettingsPage() {
                           width: 48,
                           height: 48,
                           borderRadius: "999px",
-                          background: "#111",
+                          background: "var(--border)",
                         }}
                       />
                     }
