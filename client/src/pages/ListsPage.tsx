@@ -12,6 +12,7 @@ import {
 } from "../lib/api";
 import FeedView from "../components/FeedView";
 import ErrorText from "../components/ErrorText";
+import MutedText from "../components/MutedText";
 
 const SELECTED_LIST_STORAGE_KEY = "betterYtTv.selectedListId";
 
@@ -161,10 +162,17 @@ export default function ListsPage() {
               items={items}
               onSetWatched={handleSetWatched}
               emptyState={
-                <p>
-                  No videos available for this list right now.{" "}
-                  <Link to={`/settings/lists/${selectedListId}`}>Manage this list</Link>
-                </p>
+                <div>
+                  <p>No videos available for this list right now.</p>
+                  <MutedText style={{ marginTop: "0.5rem" }}>
+                    This can happen if the list has no channels yet, a channel&apos;s
+                    been unsubscribed from, a channel hasn&apos;t synced yet, or every
+                    cached video from its channels is a Short you&apos;ve excluded.
+                  </MutedText>
+                  <p style={{ marginTop: "1rem" }}>
+                    <Link to={`/settings/lists/${selectedListId}`}>Manage this list</Link>
+                  </p>
+                </div>
               }
             />
           )}

@@ -245,7 +245,7 @@ youtubeRouter.post(
       const videos = await fetchRecentVideosForChannel({
         accessToken,
         channelId,
-        maxResults: 10,
+        maxResults: 20,
       });
 
       // save videos into cache table
