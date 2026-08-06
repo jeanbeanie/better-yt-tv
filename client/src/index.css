@@ -131,6 +131,10 @@ p {
   border-top: 1px solid var(--border);
 }
 
+.divider-row-clickable:hover {
+  background: var(--accent-bg);
+}
+
 .button {
   font: inherit;
   padding: 0.5rem 1rem;

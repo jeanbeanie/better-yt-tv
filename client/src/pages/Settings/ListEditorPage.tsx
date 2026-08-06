@@ -265,7 +265,7 @@ export default function ListEditorPage() {
                 <Row
                   key={channel.channelId}
                   onClick={() => addChannel(channel)}
-                  style={{ justifyContent: "center", gap: "0.75rem", padding: "0.5rem 0" }}
+                  style={{ gap: "0.75rem", padding: "0.5rem 0" }}
                 >
                   <Thumbnail
                     src={channel.thumbUrl}
@@ -284,7 +284,7 @@ export default function ListEditorPage() {
                       />
                     }
                   />
-                  <span>{channel.title}</span>
+                  <span style={{ flex: 1 }}>{channel.title}</span>
                 </Row>
               ))}
             </ul>

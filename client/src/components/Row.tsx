@@ -9,7 +9,7 @@ type RowProps = {
 export default function Row({ children, onClick, style }: RowProps) {
   return (
     <li
-      className="divider-row"
+      className={onClick ? "divider-row divider-row-clickable" : "divider-row"}
       onClick={onClick}
       style={{ cursor: onClick ? "pointer" : undefined, ...style }}
     >
