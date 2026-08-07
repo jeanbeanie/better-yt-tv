@@ -320,7 +320,6 @@ export default function ChannelsSettingsPage() {
   return(
     <div style={{ display: "grid", gap: "1rem" }}>
       <header>
-        <h2 style={{ marginBottom: "0.5rem" }}>Channel settings</h2>
         <MutedText>
           Choose which channels participate in your queue and how their uploads behave.
         </MutedText>
