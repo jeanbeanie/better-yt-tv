@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -127,10 +127,14 @@ describe("ListsPage", () => {
 
     renderPage();
 
+    // items starts at [] and loadingFeed starts at false, so the empty-state
+    // text can transiently match before getListFeed has even been called --
+    // wait for the actual fetch first, which is the only unambiguous signal
+    // that the right list was restored, before trusting what's on screen
+    await waitFor(() => expect(getListFeed).toHaveBeenCalledWith("l2"));
     expect(
       await screen.findByText("No videos available for this list right now."),
     ).toBeInTheDocument();
-    expect(getListFeed).toHaveBeenCalledWith("l2");
     expect(screen.getByLabelText("Select list:")).toHaveValue("l2");
   });
 
@@ -144,10 +148,12 @@ describe("ListsPage", () => {
 
     renderPage();
 
+    // Same reasoning as the "restores from localStorage" test above: wait
+    // for the real fetch before trusting the empty-state text on screen
+    await waitFor(() => expect(getListFeed).toHaveBeenCalledWith("l1"));
     expect(
       await screen.findByText("No videos available for this list right now."),
     ).toBeInTheDocument();
-    expect(getListFeed).toHaveBeenCalledWith("l1");
     expect(screen.getByLabelText("Select list:")).toHaveValue("l1");
   });
 
@@ -272,7 +278,13 @@ describe("ListsPage", () => {
 
     await screen.findAllByText("First Video");
 
-    await user.click(screen.getByRole("button", { name: "Next" }));
+    // The queue list renders as soon as `items` is set, but the player
+    // section (and its Previous/Next buttons) only appears once a separate
+    // effect defaults selectedVideoId to the first item -- findAllByText
+    // above can resolve before that second effect has settled, so wait for
+    // the actual button being clicked rather than assuming it's already
+    // there (this was the source of a real, if rare, flaky failure)
+    await user.click(await screen.findByRole("button", { name: "Next" }));
     expect(screen.getAllByText("Second Video").length).toBeGreaterThanOrEqual(1);
 
     await user.click(screen.getByRole("button", { name: "Previous" }));

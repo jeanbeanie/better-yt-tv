@@ -1,6 +1,6 @@
 import { render, waitFor } from "@testing-library/react";
 import { createRef } from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import YoutubePlayer, { type YoutubePlayerHandle } from "./YoutubePlayer";
 
 type CapturedEvents = {
@@ -43,6 +43,15 @@ describe("YoutubePlayer", () => {
       Player: mockPlayerConstructor,
       PlayerState: { ENDED: 0, PLAYING: 1, PAUSED: 2, CUED: 5 },
     } as unknown as typeof window.YT;
+  });
+
+  afterEach(() => {
+    // Without this, the mock Player constructor leaks onto the shared
+    // window global for every other test file, since it's a plain
+    // assignment rather than something vi's mock-clearing config resets --
+    // any other test that renders FeedView/YoutubePlayer around the same
+    // time can pick up this stale mock instead of getting a clean slate
+    delete (window as { YT?: unknown }).YT;
   });
 
   it("calls onError when the underlying player reports a playback error", async () => {
