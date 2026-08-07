@@ -18,12 +18,28 @@ export type User = {
   google_sub: string;
 };
 
+function getInitialTheme(): "light" | "dark" {
+  const stored = window.localStorage.getItem("betterYtTv.theme");
+  if (stored === "light" || stored === "dark") return stored;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
 function App() {
 
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [theme, setTheme] = useState<"light" | "dark">(getInitialTheme);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    window.localStorage.setItem("betterYtTv.theme", theme);
+  }, [theme]);
+
+  function toggleTheme() {
+    setTheme((current) => (current === "dark" ? "light" : "dark"));
+  }
 
   async function loadUser() {
     try {
@@ -71,6 +87,13 @@ function App() {
             <Link to="/settings">Settings</Link>
             </>
           )}
+          <button
+            onClick={toggleTheme}
+            className="theme-toggle"
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {theme === "dark" ? "🌙" : "☀️"}
+          </button>
         </nav>
       </header>
 

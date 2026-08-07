@@ -110,6 +110,7 @@ export default function ListsSettingsPage() {
           onChange={(event) => setNewListName(event.target.value)}
           placeholder="New list name"
           disabled={creating}
+          className="text-input"
           style={{ marginRight: "0.5rem" }}
         />
         <Button type="submit" disabled={creating || !newListName.trim()}>

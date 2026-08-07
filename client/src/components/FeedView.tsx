@@ -263,7 +263,7 @@ export default function FeedView({ items, onSetWatched, emptyState }: FeedViewPr
                       gap: "1rem",
                       padding: "0.5rem 0",
                       opacity: item.is_watched ? 0.5 : 1,
-                      backgroundColor: isSelected ? "#333" : "transparent",
+                      backgroundColor: isSelected ? "var(--accent-bg)" : "transparent",
                     }}
                   >
                     <Thumbnail

@@ -435,12 +435,13 @@ export default function ChannelsSettingsPage() {
       )}
 
       {!loading && channels.length > 0 && (
-        <div style={{ display: "grid", gap: "0.5rem" }}>
+        <div style={{ display: "grid", gap: "0.5rem", width: "50%", margin: "0 auto" }}>
           <input
             type="text"
             value={searchText}
             onChange={(event) => handleSearchChange(event.target.value)}
             placeholder="Search your channels"
+            className="text-input"
           />
           <MutedText style={{ fontSize: "smaller" }}>
             Showing {visibleChannels.length} of {filteredChannels.length}
