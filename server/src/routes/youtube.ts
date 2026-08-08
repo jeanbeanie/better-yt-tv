@@ -144,39 +144,30 @@ youtubeRouter.post(
     const items = await fetchYoutubeSubscriptions(accessToken);
 
     // save into DB user_subscriptions so feed logic can use our own data model
-    // TODO: these two inserts aren't wrapped in a transaction, so a crash/dropped
-    // connection between them could leave a user_subscriptions row without its
-    // matching channel_preferences row. Self-heals on the next successful sync
-    // (channel_preferences insert is `on conflict do nothing`), but should be
-    // wrapped in a pool.connect()/BEGIN.../COMMIT transaction like
-    // PUT /api/lists/:listId for real atomicity.
-    for (const item of items) {
-      // if sub already exists, update instead of duplicating
+    // Bulk upsert via unnest() + a CTE, rather than looping per item, so the
+    // subscriptions insert and its default channel_preferences row are one
+    // atomic statement (not two separately-committed queries) and the whole
+    // sync is a single round trip regardless of subscription count.
+    if (items.length > 0) {
+      const channelIds = items.map((item) => item.channelId);
+      const titles = items.map((item) => item.title);
+      const thumbUrls = items.map((item) => item.thumbUrl);
+
       await pool.query(
         `
-        insert into user_subscriptions (user_id, channel_id, channel_title, channel_thumb_url)
-        values ($1, $2, $3, $4)
-        on conflict (user_id, channel_id) do update
-          set channel_title = excluded.channel_title,
-              channel_thumb_url = excluded.channel_thumb_url
-        `,
-        [userId, item.channelId, item.title, item.thumbUrl],
-      );
-      // Ensure this synced channel has a default preference row
-      // Only create it if it does not already exist
-      await pool.query(
-        `
-        insert into channel_preferences (
-          user_id,
-          channel_id,
-          enabled_all,
-          enabled_live,
-          excluded_shorts
+        with subs as (
+          insert into user_subscriptions (user_id, channel_id, channel_title, channel_thumb_url)
+          select $1, * from unnest($2::text[], $3::text[], $4::text[]) as t(channel_id, channel_title, channel_thumb_url)
+          on conflict (user_id, channel_id) do update
+            set channel_title = excluded.channel_title,
+                channel_thumb_url = excluded.channel_thumb_url
+          returning channel_id
         )
-        values ($1, $2, true, true, true)
+        insert into channel_preferences (user_id, channel_id, enabled_all, enabled_live, excluded_shorts)
+        select $1, channel_id, true, true, true from subs
         on conflict (user_id, channel_id) do nothing
         `,
-        [userId, item.channelId],
+        [userId, channelIds, titles, thumbUrls],
       );
     }
 
