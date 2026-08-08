@@ -16,7 +16,6 @@ const EnvSchema = z.object({
 
   DATABASE_URL: z.string().min(1),
 
-  SESSION_SECRET: z.string().min(16),
   TOKEN_ENCRYPTION_KEY: z.string().min(16),
 
   GOOGLE_CLIENT_ID: z.string().min(1),

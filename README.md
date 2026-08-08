@@ -33,7 +33,7 @@ A personal YouTube viewing dashboard that lets you watch the most recent uploads
    cp .env.example .env
    cp .env.dbmate.example .env.dbmate
    ```
-   Fill in `.env` with a Google OAuth client ID/secret (for Google/YouTube login) and generate values for `SESSION_SECRET` and `TOKEN_ENCRYPTION_KEY`.
+   Fill in `.env` with a Google OAuth client ID/secret (for Google/YouTube login) and generate a value for `TOKEN_ENCRYPTION_KEY`.
 3. Start Postgres and apply migrations:
    ```bash
    pnpm db:up
