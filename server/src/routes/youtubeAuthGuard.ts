@@ -10,24 +10,39 @@ function isInvalidGrantError(err: unknown): boolean {
 }
 
 // delete invalid Google OAuth token and set session (if included) as revoked in db
+// Wrapped in a transaction so a failure partway through can't leave the token
+// deleted without the session actually being revoked (or vice versa).
 async function revokeSessionAndTokens(userId: string, sid?: string) {
-  await pool.query(
-    `
-    delete from oauth_tokens
-    where user_id = $1
-    `,
-    [userId],
-  );
+  const client = await pool.connect();
 
-  if (sid) {
-    await pool.query(
+  try {
+    await client.query("BEGIN");
+
+    await client.query(
       `
-      update sessions
-      set revoked_at = now()
-      where id = $1
+      delete from oauth_tokens
+      where user_id = $1
       `,
-      [sid],
+      [userId],
     );
+
+    if (sid) {
+      await client.query(
+        `
+        update sessions
+        set revoked_at = now()
+        where id = $1
+        `,
+        [sid],
+      );
+    }
+
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
   }
 }
 
