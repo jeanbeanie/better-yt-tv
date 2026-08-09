@@ -21,7 +21,7 @@ type ApiErrorPayload = {
 
 // type guard
 function isApiErrorPayload(value: unknown): value is ApiErrorPayload {
-  return typeof value == "object" || value !== null;
+  return typeof value === "object" && value !== null;
 }
 
   //////////////////////////
@@ -42,13 +42,13 @@ async function parseApiError(resp: Response, fallback: string): Promise<ApiError
   let code: string | undefined;
 
   if (isApiErrorPayload(payload)) {
-    if (typeof payload.message === "string" && payload.message.length > 0) {
+    if (typeof payload?.message === "string" && payload.message.length > 0) {
       message = payload.message;
-    } else if (typeof payload.error === "string" && payload.error.length > 0) {
+    } else if (typeof payload?.error === "string" && payload.error.length > 0) {
       message = payload.error;
     }
 
-    if (typeof payload.code === "string" && payload.code.length > 0) {
+    if (typeof payload?.code === "string" && payload.code.length > 0) {
       code = payload.code;
     }
   }
