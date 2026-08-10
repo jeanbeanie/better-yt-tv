@@ -54,4 +54,4 @@ A personal YouTube viewing dashboard that lets you watch the most recent uploads
 | `pnpm --filter client build` | Type-checks and builds the client for production |
 | `pnpm --filter client lint` | Lints the client |
 | `pnpm --filter client test` | Runs client tests (vitest + React Testing Library) |
-| `pnpm --filter server test` | Runs server tests (vitest — currently no test files exist yet, infra only) |
+| `pnpm --filter server test` | Runs server tests (vitest) |
