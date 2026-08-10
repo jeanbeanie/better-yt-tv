@@ -41,7 +41,7 @@ export default function ListEditorPage() {
     window.location.assign(getLoginUrl());
   }, [pendingLoginRedirect]);
 
-  function redirectIfAuthError(err: Error): boolean {
+  function redirectIfAuthError(err: unknown): boolean {
     if (shouldRedirectToLogin(err)) {
       setError("Your session expired. Redirecting to sign in...");
       setPendingLoginRedirect(true);
