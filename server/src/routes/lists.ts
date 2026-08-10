@@ -162,6 +162,11 @@ listsRouter.get("/:listId", requireAuth, async (req, res, next) => {
     const userId = (req as AuthedRequest).userId;
     const { listId } = req.params;
 
+    // narrow for tsc; .param() already guarantees this at runtime
+    if (typeof listId !== "string") {
+      return res.status(404).json({ error: "List not found" });
+    }
+
     const list = await fetchListDetail(userId, listId);
 
     if (!list) {
@@ -180,6 +185,11 @@ listsRouter.get("/:listId", requireAuth, async (req, res, next) => {
 listsRouter.put("/:listId", requireAuth, async (req, res, next) => {
   const userId = (req as AuthedRequest).userId;
   const { listId } = req.params;
+
+  // narrow for tsc; .param() already guarantees this at runtime
+  if (typeof listId !== "string") {
+    return res.status(404).json({ error: "List not found" });
+  }
 
   const { name, channelIds } = req.body as { name?: string; channelIds?: unknown };
   const trimmedName = typeof name === "string" ? name.trim() : "";
