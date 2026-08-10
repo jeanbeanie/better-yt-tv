@@ -76,6 +76,7 @@ describe("GET /api/auth/login", () => {
     expect(stateCookie).not.toBeNull();
     expect(stateCookie!.raw).toContain("HttpOnly");
     expect(stateCookie!.raw).toContain("Max-Age=600");
+    expect(stateCookie!.raw).toContain("SameSite=Lax");
     expect(stateCookie!.raw).not.toContain("Secure"); // env.isSecureContext is false in dev/test
 
     const location = new URL(res.headers.location);
@@ -193,6 +194,7 @@ describe("GET /api/auth/callback", () => {
     expect(sidCookie).not.toBeNull();
     expect(sidCookie!.value).toBe("session-1");
     expect(sidCookie!.raw).toContain("HttpOnly");
+    expect(sidCookie!.raw).toContain("SameSite=Lax");
   });
 
   it("skips storing oauth_tokens when Google doesn't return a refresh_token", async () => {

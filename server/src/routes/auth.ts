@@ -15,7 +15,7 @@ authRouter.get("/login", async (req: Request, res: Response) => {
   // Store it in an httpOnly cookie so we can validate on callback
   res.cookie("oauth_state", state, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: env.cookieSameSite,
     secure: env.isSecureContext,
     maxAge: 10 * 60 * 1000, // 10 minutes
     path:"/",
@@ -173,7 +173,7 @@ authRouter.get("/callback", async (req: Request, res: Response, next) => {
 
     res.cookie("sid", sid, {
       httpOnly: true,
-      sameSite: "lax",
+      sameSite: env.cookieSameSite,
       secure: env.isSecureContext,
       maxAge: sessionTtlMs,
       path: "/",

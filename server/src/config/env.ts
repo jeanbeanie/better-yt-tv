@@ -28,9 +28,14 @@ const EnvSchema = z.object({
 });
 
 const parsedEnv = EnvSchema.parse(process.env);
+const isSecureContext = new URL(parsedEnv.OAUTH_CALLBACK_URL).protocol === "https:";
 
 // export typed env obj
 export const env = {
   ...parsedEnv,
-  isSecureContext: new URL(parsedEnv.OAUTH_CALLBACK_URL).protocol === "https:",
+  isSecureContext,
+  // SameSite=None is required for cookies to survive cross-site fetch() calls
+  // (e.g. client and API on different subdomains) but browsers reject
+  // SameSite=None without Secure, so this only flips once isSecureContext does
+  cookieSameSite: isSecureContext ? ("none" as const) : ("lax" as const),
 };
