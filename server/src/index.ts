@@ -77,6 +77,6 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 const port = env.PORT;
 
 app.listen(port, () => {
-  console.log(`API listening on http://localhost:${port}`);
+  console.log(`API listening on port ${port}`);
 });
 
