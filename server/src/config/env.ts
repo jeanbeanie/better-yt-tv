@@ -27,5 +27,10 @@ const EnvSchema = z.object({
   CLIENT_ORIGIN: z.string().url().default("http://localhost:5173")
 });
 
+const parsedEnv = EnvSchema.parse(process.env);
+
 // export typed env obj
-export const env = EnvSchema.parse(process.env);
+export const env = {
+  ...parsedEnv,
+  isSecureContext: new URL(parsedEnv.OAUTH_CALLBACK_URL).protocol === "https:",
+};

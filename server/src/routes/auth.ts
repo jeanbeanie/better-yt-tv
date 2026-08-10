@@ -16,7 +16,7 @@ authRouter.get("/login", async (req: Request, res: Response) => {
   res.cookie("oauth_state", state, {
     httpOnly: true,
     sameSite: "lax",
-    secure: false, // set true when behind https
+    secure: env.isSecureContext,
     maxAge: 10 * 60 * 1000, // 10 minutes
     path:"/",
   });
@@ -174,7 +174,7 @@ authRouter.get("/callback", async (req: Request, res: Response, next) => {
     res.cookie("sid", sid, {
       httpOnly: true,
       sameSite: "lax",
-      secure: false, // set true when behind https
+      secure: env.isSecureContext,
       maxAge: sessionTtlMs,
       path: "/",
     });
