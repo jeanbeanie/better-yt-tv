@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // server/src/config/env.ts -> repo root is ../../../
-dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
+dotenv.config({ path: path.resolve(__dirname, "../../../.env"), quiet: true });
 
 // validate required vars
 const EnvSchema = z.object({
