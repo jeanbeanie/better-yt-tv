@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   getAllFeed,
   markVideoWatched,
@@ -110,7 +111,12 @@ export default function AllPage() {
         <FeedView
           items={items}
           onSetWatched={handleSetWatched}
-          emptyState={<p>No videos yet. Try building the feed.</p>}
+          emptyState={
+            <p>
+              No videos yet. Try building the feed in the{" "}
+              <Link to="/settings/channels">settings page</Link>.
+            </p>
+          }
         />
       )}
     </main>
