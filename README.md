@@ -57,3 +57,7 @@ A personal YouTube viewing dashboard that lets you watch the most recent uploads
 | `pnpm --filter server test` | Runs server tests (vitest) |
 | `pnpm db:status:production` | Shows migration status against the production database |
 | `pnpm db:up:production` | Applies pending migrations to the production database |
+
+## TODO / Future additions
+
+- Independent `pg_dump` backup script for the production database, separate from whatever Railway's managed Postgres provides by default
