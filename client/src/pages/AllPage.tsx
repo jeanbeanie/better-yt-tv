@@ -11,10 +11,12 @@ import {
 } from "../lib/api";
 import FeedView from "../components/FeedView";
 import ErrorText from "../components/ErrorText";
+import Spinner from "../components/Spinner";
 
 export default function AllPage() {
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingLoginRedirect, setPendingLoginRedirect] = useState(false);
 
@@ -62,6 +64,8 @@ export default function AllPage() {
         await refreshItems();
       } catch (err) {
         console.error("Background cache refresh failed:", err);
+      } finally {
+        setRefreshing(false);
       }
     }
     void backgroundRefresh();
@@ -107,7 +111,11 @@ export default function AllPage() {
       {loading && <p>Loading feed...</p>}
       {error && <ErrorText>{error}</ErrorText>}
 
-      {!loading && !error && (
+      {!loading && !error && items.length === 0 && refreshing && (
+        <Spinner label="Fetching your videos, this may take a moment the first time..." />
+      )}
+
+      {!loading && !error && !(items.length === 0 && refreshing) && (
         <FeedView
           items={items}
           onSetWatched={handleSetWatched}
