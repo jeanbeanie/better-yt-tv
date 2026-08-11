@@ -24,7 +24,7 @@ describe("createApp static serving and spa fallback", () => {
   it("still serves real api routes", async () => {
     const app = createApp(tmpDir);
 
-    const res = await request(app).get("/api/test");
+    const res = await request(app).get("/api/health");
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true });

@@ -4,7 +4,6 @@ import cors from "cors";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { env } from "./config/env.js";
-import { pool } from "./db/pool.js";
 import { authRouter } from "./routes/auth.js";
 import { youtubeRouter } from "./routes/youtube.js";
 import { feedRouter } from "./routes/feed.js";
@@ -35,18 +34,10 @@ export function createApp(clientDistPath: string = defaultClientDistPath) {
   app.use(express.json());
   app.use(cookieParser());
 
-  app.get("/api/test", (_req, res) => {
-    res.json({ ok: true });
-  });
-
-  // db test
-  app.get("/api/db-test", async (_req, res, next) => {
-    try {
-      const result = await pool.query("select 1 as ok");
-      res.json({ ok: result.rows[0].ok });
-    } catch (err) {
-      next(err);
-    }
+  // liveness only, no db check. railway gates deploys on this endpoint, so
+  // a database hiccup can't fail a deploy that's otherwise fine
+  app.get("/api/health", (_req, res) => {
+    res.status(200).json({ ok: true });
   });
 
   // Mount other routes:
