@@ -42,7 +42,7 @@ pnpm db:status   # show migration status
 pnpm db:new      # create a new migration file
 ```
 
-Postgres itself runs via `docker-compose.yml` (`better-yt-tv-db` service, port 5432). Migrations live in `server/src/db/migrations/`; the schema dump lives at both `server/src/db/schema.sql` and `db/schema.sql`.
+Postgres itself runs via `docker-compose.yml` (`better-yt-tv-db` service, port 5432). Migrations live in `server/src/db/migrations/`; the schema dump lives at `server/src/db/schema.sql`.
 
 ### Environment
 
@@ -63,7 +63,7 @@ Imperative subject line under 50 chars, blank line, then bulleted body — one b
 
 ### Data model and sync pipeline
 
-Tables (see `db/schema.sql`): `users`, `oauth_tokens`, `sessions`, `user_subscriptions`, `channel_preferences`, `videos_cache`, `channel_recent_cache_state`, `user_video_state`. (`billing_customers`/`entitlements` exist in the schema but aren't wired into any routes yet.)
+Tables (see `server/src/db/schema.sql`): `users`, `oauth_tokens`, `sessions`, `user_subscriptions`, `channel_preferences`, `videos_cache`, `channel_recent_cache_state`, `user_video_state`. (`billing_customers`/`entitlements` exist in the schema but aren't wired into any routes yet.)
 
 1. `POST /api/youtube/sync-subscriptions` fetches the user's subscriptions from the YouTube Data API and upserts them into `user_subscriptions`, creating a default `channel_preferences` row (`enabled_all`/`enabled_live`/`excluded_shorts` all true) per channel if one doesn't exist yet.
 2. `POST /api/youtube/refresh-all-cache` iterates the user's subscribed channels, skips any whose `channel_recent_cache_state.cache_expires_at` hasn't passed (`YOUTUBE_CACHE_TTL_MINUTES`), and for stale channels fetches recent videos (`server/src/youtube/videos.ts`) and upserts them into `videos_cache`. This cache is shared across users of the same channel, not per-user.
