@@ -140,22 +140,37 @@ export default function FeedView({ items, onSetWatched, emptyState }: FeedViewPr
     return items.findIndex((item) => item.video_id === selectedVideoId);
   }
 
-  function goToPreviousVideo() {
+  // Walks from the current item toward direction (1 = forward, -1 = back),
+  // skipping watched items when hideWatched is on, so Previous/Next always
+  // land on a video thats actually visible in the queue below
+  function findAdjacentVideo(direction: 1 | -1): FeedItem | null {
     const currentIndex = getSelectedIndex(items, selectedVideoId);
-    if (currentIndex <= 0) {
-      return;
+    if (currentIndex === -1) {
+      return null;
     }
-    setSelectedVideoId(items[currentIndex - 1].video_id);
-    setCaughtUp(false);
+
+    for (let i = currentIndex + direction; i >= 0 && i < items.length; i += direction) {
+      if (!hideWatched || !items[i].is_watched) {
+        return items[i];
+      }
+    }
+    return null;
+  }
+
+  function goToPreviousVideo() {
+    const previous = findAdjacentVideo(-1);
+    if (previous) {
+      setSelectedVideoId(previous.video_id);
+      setCaughtUp(false);
+    }
   }
 
   function goToNextVideo() {
-    const currentIndex = getSelectedIndex(items, selectedVideoId);
-    if (currentIndex === -1 || currentIndex >= items.length - 1) {
-      return;
+    const next = findAdjacentVideo(1);
+    if (next) {
+      setSelectedVideoId(next.video_id);
+      setCaughtUp(false);
     }
-    setSelectedVideoId(items[currentIndex + 1].video_id);
-    setCaughtUp(false);
   }
 
   return (
@@ -172,10 +187,7 @@ export default function FeedView({ items, onSetWatched, emptyState }: FeedViewPr
           />
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <Button
-              onClick={goToPreviousVideo}
-              disabled={getSelectedIndex(items, selectedVideoId) <= 0}
-            >
+            <Button onClick={goToPreviousVideo} disabled={!findAdjacentVideo(-1)}>
               Previous
             </Button>
 
@@ -193,13 +205,7 @@ export default function FeedView({ items, onSetWatched, emptyState }: FeedViewPr
               </div>
             )}
 
-            <Button
-              onClick={goToNextVideo}
-              disabled={
-                getSelectedIndex(items, selectedVideoId) === -1 ||
-                getSelectedIndex(items, selectedVideoId) >= items.length - 1
-              }
-            >
+            <Button onClick={goToNextVideo} disabled={!findAdjacentVideo(1)}>
               Next
             </Button>
           </div>
