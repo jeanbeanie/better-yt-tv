@@ -9,7 +9,10 @@
 
     "db:up": "dotenv -e .env.dbmate -- docker compose run --rm dbmate up",
     "db:status": "dotenv -e .env.dbmate -- docker compose run --rm dbmate status",
-    "db:new": "dotenv -e .env.dbmate -- docker compose run --rm dbmate new"
+    "db:new": "dotenv -e .env.dbmate -- docker compose run --rm dbmate new",
+
+    "db:up:production": "dotenv -e .env.dbmate.production -- docker compose run --rm --no-deps dbmate up",
+    "db:status:production": "dotenv -e .env.dbmate.production -- docker compose run --rm --no-deps dbmate status"
   },
   "keywords": [],
   "author": "",

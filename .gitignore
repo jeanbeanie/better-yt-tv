@@ -3,4 +3,5 @@ node_modules
 dist
 .env
 .env.dbmate
+.env.dbmate.production
 .DS_Store
