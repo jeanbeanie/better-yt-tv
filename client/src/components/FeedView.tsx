@@ -12,6 +12,10 @@ type FeedViewProps = {
   items: FeedItem[];
   onSetWatched: (videoId: string, watched: boolean) => Promise<void>;
   emptyState: ReactNode;
+  // localStorage key for remembering the selected video across refreshes
+  // scope this per page/list so selections dont bleed into each other, pass
+  // "" to skip persistence, like before a list has finished loading
+  storageKey: string;
 };
 
 // Shared by AllPage, ListsPage, and LivePage: the player, Previous/Next,
@@ -22,7 +26,7 @@ type FeedViewProps = {
 // were before -- copies of this exact queue UI already produced one real
 // bug (the Hide watched/Catch-up checkboxes disappearing), fixed by hand
 // in two places.
-export default function FeedView({ items, onSetWatched, emptyState }: FeedViewProps) {
+export default function FeedView({ items, onSetWatched, emptyState, storageKey }: FeedViewProps) {
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   const [hideWatched, setHideWatched] = useState(false);
   const [catchUpMode, setCatchUpMode] = useState(true);
@@ -50,18 +54,26 @@ export default function FeedView({ items, onSetWatched, emptyState }: FeedViewPr
   }, [catchUpMode]);
 
   useEffect(() => {
-    // Default to the first item if nothing is selected yet, or fall back to
-    // the first item if the previously selected video is no longer present
-    // (feed reloaded, or -- for ListsPage -- the user switched lists)
-    if (!selectedVideoId && items.length > 0) {
-      setSelectedVideoId(items[0].video_id);
+    // Current selection is still valid, nothing to do
+    if (selectedVideoId && items.some((item) => item.video_id === selectedVideoId)) {
       return;
     }
 
-    if (selectedVideoId && !items.some((item) => item.video_id === selectedVideoId)) {
-      setSelectedVideoId(items[0]?.video_id ?? null);
+    // Otherwise restore the last remembered video for this key if its still
+    // in the feed (covers a page refresh, or switching back to a list),
+    // else fall back to the first item
+    const stored = storageKey ? window.localStorage.getItem(storageKey) : null;
+    const isStoredValid = stored && items.some((item) => item.video_id === stored);
+    setSelectedVideoId(isStoredValid ? stored : (items[0]?.video_id ?? null));
+  }, [items, selectedVideoId, storageKey]);
+
+  useEffect(() => {
+    // Persist the current selection so a refresh lands back on it
+    if (!storageKey || !selectedVideoId) {
+      return;
     }
-  }, [items, selectedVideoId]);
+    window.localStorage.setItem(storageKey, selectedVideoId);
+  }, [storageKey, selectedVideoId]);
 
   function findNextUnwatchedVideo(items: FeedItem[], currentVideoId: string) {
     const currentIndex = items.findIndex((item) => item.video_id === currentVideoId);

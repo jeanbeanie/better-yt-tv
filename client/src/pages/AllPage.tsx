@@ -119,6 +119,7 @@ export default function AllPage() {
         <FeedView
           items={items}
           onSetWatched={handleSetWatched}
+          storageKey="betterYtTv.selectedVideoId.all"
           emptyState={
             <p>
               No videos yet. Try building the feed in the{" "}

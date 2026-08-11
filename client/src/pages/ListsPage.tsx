@@ -188,6 +188,7 @@ export default function ListsPage() {
             <FeedView
               items={items}
               onSetWatched={handleSetWatched}
+              storageKey={selectedListId ? `betterYtTv.selectedVideoId.list.${selectedListId}` : ""}
               emptyState={
                 <div>
                   <p>No videos available for this list right now.</p>
