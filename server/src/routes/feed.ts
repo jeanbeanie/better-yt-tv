@@ -27,9 +27,9 @@ export function applyRoundRobin<T extends { channel_id: string }>(rows: T[]): T[
   return result;
 }
 
-// Reject a malformed listId before it ever reaches a query -- same fix as
+// Reject a malformed listId before it ever reaches a query, same fix as
 // listsRouter.param("listId", ...) in routes/lists.ts, needed separately
-// here since Express param hooks are per-router, not global.
+// here since Express param hooks are per-router, not global
 feedRouter.param("listId", (req, res, next, value) => {
   if (!isValidUuid(value)) {
     return res.status(404).json({ error: "List not found" });
@@ -37,20 +37,20 @@ feedRouter.param("listId", (req, res, next, value) => {
   next();
 });
 
-// Shared by GET /all and GET /live: both return recent cached videos for
+// Shared by GET /all and GET /live, both return recent cached videos for
 // channels this user is subscribed to, filtered by a single per-channel
-// boolean preference (enabled_all or enabled_live) plus excluded_shorts.
+// boolean preference (enabled_all or enabled_live) plus excluded_shorts
 // preferenceColumn is interpolated directly (not a $N placeholder, since
-// placeholders are for values, not identifiers) -- safe because it's a
+// placeholders are for values, not identifiers) since it's a
 // TypeScript union restricted to two literal, code-controlled values,
-// never user input. Same trust model as the dynamic column names already
-// built in channels.ts's partial-update queries.
+// never user input, same trust model as the dynamic column names already
+// built in channels.ts's partial-update queries
 //
 // Extracted here rather than duplicated per route because this exact query
-// shape has already produced one real bug from copy-paste drift: the
+// shape has already produced one real bug from copy-paste drift, the
 // coalesce()/fail-open handling below was missing from the original /all
-// query until an orphaned channel_preferences row surfaced it. One copy
-// means that fix (and any future one) only has to happen once.
+// query until an orphaned channel_preferences row surfaced it, one copy
+// means that fix (and any future one) only has to happen once
 async function fetchFeedForPreference(
   userId: string,
   preferenceColumn: "enabled_all" | "enabled_live",
@@ -184,8 +184,8 @@ feedRouter.get("/lists/:listId", requireAuth, async (req, res, next) => {
         and (
           -- If Shorts are allowed for this channel (or preferences are
           -- missing entirely, fail open rather than silently excluding),
-          -- include all videos. enabled_all is deliberately never
-          -- referenced here -- list feeds ignore it by design.
+          -- include all videos, enabled_all is deliberately never
+          -- referenced here, list feeds ignore it by design
           coalesce(cp.excluded_shorts, false) = false
 
           -- If duration is unknown, keep the video for now rather than
