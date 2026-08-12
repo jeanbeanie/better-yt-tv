@@ -27,6 +27,18 @@ export function applyRoundRobin<T extends { channel_id: string }>(rows: T[]): T[
   return result;
 }
 
+// reads offset/limit from the query string, malformed or out of range
+// values fall back to safe defaults instead of reaching the query
+function parsePagination(query: express.Request["query"]) {
+  const rawOffset = Number(query.offset);
+  const rawLimit = Number(query.limit);
+
+  const offset = Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.floor(rawLimit) : 50;
+
+  return { offset, limit: Math.min(limit, 200) };
+}
+
 // Reject a malformed listId before it ever reaches a query, same fix as
 // listsRouter.param("listId", ...) in routes/lists.ts, needed separately
 // here since Express param hooks are per-router, not global
@@ -93,7 +105,6 @@ async function fetchFeedForPreference(
         or v.duration_seconds > 60
       )
     order by v.published_at desc
-    limit 200
     `,
     [userId],
   );
@@ -105,11 +116,14 @@ async function fetchFeedForPreference(
 feedRouter.get("/all", requireAuth, async (req, res, next) => {
   try {
     const userId = (req as AuthedRequest).userId;
+    const { offset, limit } = parsePagination(req.query);
     const result = await fetchFeedForPreference(userId, "enabled_all");
 
-    return res.json({
-      items: result.rows,
-    });
+    const ordered = applyRoundRobin(result.rows);
+    const items = ordered.slice(offset, offset + limit);
+    const hasMore = offset + limit < ordered.length;
+
+    return res.json({ items, hasMore });
   } catch (err) {
     next(err);
   }
@@ -122,11 +136,14 @@ feedRouter.get("/all", requireAuth, async (req, res, next) => {
 feedRouter.get("/live", requireAuth, async (req, res, next) => {
   try {
     const userId = (req as AuthedRequest).userId;
+    const { offset, limit } = parsePagination(req.query);
     const result = await fetchFeedForPreference(userId, "enabled_live");
 
-    return res.json({
-      items: result.rows,
-    });
+    const ordered = applyRoundRobin(result.rows);
+    const items = ordered.slice(offset, offset + limit);
+    const hasMore = offset + limit < ordered.length;
+
+    return res.json({ items, hasMore });
   } catch (err) {
     next(err);
   }
