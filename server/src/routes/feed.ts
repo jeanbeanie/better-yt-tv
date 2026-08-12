@@ -5,6 +5,28 @@ import { isValidUuid } from "../lib/uuid.js";
 
 export const feedRouter = express.Router();
 
+// input must already be sorted published_at desc, that ordering is what
+// makes the channel grouping below come out with the most recently active
+// channel first, for free, without a separate sort
+export function applyRoundRobin<T extends { channel_id: string }>(rows: T[]): T[] {
+  const channelQueues = new Map<string, T[]>();
+
+  for (const row of rows) {
+    if (!channelQueues.has(row.channel_id)) {
+      channelQueues.set(row.channel_id, []);
+    }
+    channelQueues.get(row.channel_id)!.push(row);
+  }
+
+  const result: T[] = [];
+  for (let i = 0; result.length < rows.length; i++) {
+    for (const queue of channelQueues.values()) {
+      if (i < queue.length) result.push(queue[i]);
+    }
+  }
+  return result;
+}
+
 // Reject a malformed listId before it ever reaches a query -- same fix as
 // listsRouter.param("listId", ...) in routes/lists.ts, needed separately
 // here since Express param hooks are per-router, not global.
