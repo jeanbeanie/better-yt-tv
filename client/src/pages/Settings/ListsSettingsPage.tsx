@@ -12,6 +12,7 @@ import ErrorText from "../../components/ErrorText";
 import MutedText from "../../components/MutedText";
 import Row from "../../components/Row";
 import Button from "../../components/Button";
+import Spinner from "../../components/Spinner";
 
 export default function ListsSettingsPage() {
   const [lists, setLists] = useState<ListSummary[]>([]);
@@ -119,7 +120,7 @@ export default function ListsSettingsPage() {
         {createError && <ErrorText>{createError}</ErrorText>}
       </form>
 
-      {loading && <p>Loading lists...</p>}
+      {loading && <Spinner label="Loading lists..." />}
       {error && <ErrorText>{error}</ErrorText>}
       {deleteError && <ErrorText>{deleteError}</ErrorText>}
 

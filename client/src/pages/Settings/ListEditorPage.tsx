@@ -13,6 +13,7 @@ import {
 import ErrorText from "../../components/ErrorText";
 import MutedText from "../../components/MutedText";
 import Row from "../../components/Row";
+import Spinner from "../../components/Spinner";
 import Button from "../../components/Button";
 import Thumbnail from "../../components/Thumbnail";
 
@@ -171,7 +172,7 @@ export default function ListEditorPage() {
         <Link to="/settings/lists">&larr; Back to Lists</Link>
       </p>
 
-      {listLoading && <p>Loading list...</p>}
+      {listLoading && <Spinner label="Loading list..." />}
       {error && <ErrorText>{error}</ErrorText>}
       {notFound && <p>List not found.</p>}
 

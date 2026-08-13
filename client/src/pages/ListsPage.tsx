@@ -14,6 +14,7 @@ import {
 import FeedView from "../components/FeedView";
 import ErrorText from "../components/ErrorText";
 import MutedText from "../components/MutedText";
+import Spinner from "../components/Spinner";
 
 const SELECTED_LIST_STORAGE_KEY = "betterYtTv.selectedListId";
 const DEFAULT_LIMIT = 50;
@@ -172,7 +173,7 @@ export default function ListsPage() {
       <h1>Lists</h1>
       <p>Pick a list to watch a queue of its videos.</p>
 
-      {loadingLists && <p>Loading lists...</p>}
+      {loadingLists && <Spinner label="Loading lists..." />}
       {error && <ErrorText>{error}</ErrorText>}
 
       {!loadingLists && !error && lists.length === 0 && (
@@ -199,7 +200,7 @@ export default function ListsPage() {
             </label>
           </div>
 
-          {loadingFeed && <p>Loading feed...</p>}
+          {loadingFeed && <Spinner label="Loading feed..." />}
 
           {!loadingFeed && (
             <FeedView

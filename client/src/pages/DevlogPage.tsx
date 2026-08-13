@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import ErrorText from "../components/ErrorText";
 import MutedText from "../components/MutedText";
+import Spinner from "../components/Spinner";
 
 export default function DevlogPage() {
   // raw markdown text fetched from /devlog.md
@@ -52,7 +53,7 @@ export default function DevlogPage() {
           Notes, decisions, and progress updates while building YT Catchup.
         </MutedText>
 
-      {loading && <p>Loading devlog...</p>}
+      {loading && <Spinner label="Loading devlog..." />}
 
       {error && <ErrorText>{error}</ErrorText>}
 

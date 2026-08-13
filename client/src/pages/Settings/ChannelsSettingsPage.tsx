@@ -11,6 +11,7 @@ import MutedText from "../../components/MutedText";
 import Button from "../../components/Button";
 import CheckboxLabel from "../../components/CheckboxLabel";
 import Thumbnail from "../../components/Thumbnail";
+import Spinner from "../../components/Spinner";
 
 
 type ChannelItem = {
@@ -325,7 +326,7 @@ export default function ChannelsSettingsPage() {
         </MutedText>
       </header>
 
-      {loading && <p>Loading channels...</p>}
+      {loading && <Spinner label="Loading channels..." />}
 
       {error && <ErrorText>{error}</ErrorText>}
 

@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { type User } from "../App";
 import { getLoginUrl } from "../lib/api";
 import ErrorText from "../components/ErrorText";
+import Spinner from "../components/Spinner";
 
 
 type homePageProps = {
@@ -28,7 +29,7 @@ export default function HomePage(props:homePageProps) {
           more missing uploads you care about.
         </p>
 
-        {loading && <p>Loading user...</p>}
+        {loading && <Spinner label="Loading user..." />}
 
         {error && <ErrorText>{error}</ErrorText>}
 

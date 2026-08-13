@@ -126,7 +126,7 @@ export default function AllPage() {
 
       <p>A queue of recent videos from channels you follow.</p>
 
-      {loading && <p>Loading feed...</p>}
+      {loading && <Spinner label="Loading feed..." />}
       {error && <ErrorText>{error}</ErrorText>}
 
       {!loading && !error && items.length === 0 && refreshing && (
