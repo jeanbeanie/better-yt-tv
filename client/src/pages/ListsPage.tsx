@@ -16,11 +16,13 @@ import ErrorText from "../components/ErrorText";
 import MutedText from "../components/MutedText";
 
 const SELECTED_LIST_STORAGE_KEY = "betterYtTv.selectedListId";
+const DEFAULT_LIMIT = 50;
 
 export default function ListsPage() {
   const [lists, setLists] = useState<ListSummary[]>([]);
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
   const [items, setItems] = useState<FeedItem[]>([]);
+  const [hasMore, setHasMore] = useState(false);
   const [loadingLists, setLoadingLists] = useState(true);
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,8 +82,9 @@ export default function ListsPage() {
       setLoadingFeed(true);
       setError(null);
 
-      const data = await getListFeed(selectedListId);
+      const data = await getListFeed(selectedListId, { limit: DEFAULT_LIMIT });
       setItems(data.items ?? []);
+      setHasMore(data.hasMore ?? false);
     } catch (err) {
       if (redirectIfAuthError(err)) return;
       setError(err instanceof Error ? err.message : "Failed to load list feed");
@@ -94,15 +97,16 @@ export default function ListsPage() {
     void loadFeed();
   }, [selectedListId]);
 
-  // Re-fetch items without touching loadingFeed -- same reasoning as
-  // AllPage.tsx: avoids unmounting FeedView (and the player) on every
-  // watch/unwatch click.
+  // re-fetch at least as many items as are already loaded, so a
+  // background refresh doesnt collapse how far youve scrolled, also
+  // avoids unmounting FeedView (and the player) on every watch/unwatch click
   async function refreshItems() {
     if (!selectedListId) return;
 
     try {
-      const data = await getListFeed(selectedListId);
+      const data = await getListFeed(selectedListId, { limit: Math.max(items.length, DEFAULT_LIMIT) });
       setItems(data.items ?? []);
+      setHasMore(data.hasMore ?? false);
     } catch (err) {
       if (redirectIfAuthError(err)) return;
       setError(err instanceof Error ? err.message : "Failed to load list feed");
@@ -134,6 +138,19 @@ export default function ListsPage() {
     }
     void backgroundRefresh();
   }, []);
+
+  async function loadMore() {
+    if (!selectedListId) return;
+
+    try {
+      const data = await getListFeed(selectedListId, { offset: items.length, limit: DEFAULT_LIMIT });
+      setItems((prev) => [...prev, ...(data.items ?? [])]);
+      setHasMore(data.hasMore ?? false);
+    } catch (err) {
+      if (redirectIfAuthError(err)) return;
+      setError(err instanceof Error ? err.message : "Failed to load more videos");
+    }
+  }
 
   async function handleSetWatched(videoId: string, watched: boolean) {
     try {
@@ -189,6 +206,8 @@ export default function ListsPage() {
               items={items}
               onSetWatched={handleSetWatched}
               storageKey={selectedListId ? `betterYtTv.selectedVideoId.list.${selectedListId}` : ""}
+              hasMore={hasMore}
+              onLoadMore={loadMore}
               emptyState={
                 <div>
                   <p>No videos available for this list right now.</p>

@@ -158,6 +158,7 @@ feedRouter.get("/lists/:listId", requireAuth, async (req, res, next) => {
   try {
     const userId = (req as AuthedRequest).userId;
     const { listId } = req.params;
+    const { offset, limit } = parsePagination(req.query);
 
     const listResult = await pool.query(
       `select id, name from lists where id = $1 and user_id = $2`,
@@ -214,17 +215,21 @@ feedRouter.get("/lists/:listId", requireAuth, async (req, res, next) => {
           or v.duration_seconds > 60
         )
       order by v.published_at desc
-      limit 200
       `,
       [userId, listId],
     );
+
+    const ordered = applyRoundRobin(result.rows);
+    const items = ordered.slice(offset, offset + limit);
+    const hasMore = offset + limit < ordered.length;
 
     return res.json({
       list: {
         id: listResult.rows[0].id,
         name: listResult.rows[0].name,
       },
-      items: result.rows,
+      items,
+      hasMore,
     });
   } catch (err) {
     next(err);

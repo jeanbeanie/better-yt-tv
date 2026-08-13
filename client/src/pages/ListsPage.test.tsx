@@ -96,7 +96,7 @@ describe("ListsPage", () => {
     renderPage();
 
     expect((await screen.findAllByText("First Video")).length).toBeGreaterThanOrEqual(1);
-    expect(getListFeed).toHaveBeenCalledWith("l1");
+    expect(getListFeed).toHaveBeenCalledWith("l1", { limit: 50 });
     expect(await screen.findByLabelText("Select list:")).toHaveValue("l1");
   });
 
@@ -134,7 +134,7 @@ describe("ListsPage", () => {
     // text can transiently match before getListFeed has even been called --
     // wait for the actual fetch first, which is the only unambiguous signal
     // that the right list was restored, before trusting what's on screen
-    await waitFor(() => expect(getListFeed).toHaveBeenCalledWith("l2"));
+    await waitFor(() => expect(getListFeed).toHaveBeenCalledWith("l2", { limit: 50 }));
     expect(
       await screen.findByText("No videos available for this list right now."),
     ).toBeInTheDocument();
@@ -154,7 +154,7 @@ describe("ListsPage", () => {
 
     // Same reasoning as the "restores from localStorage" test above: wait
     // for the real fetch before trusting the empty-state text on screen
-    await waitFor(() => expect(getListFeed).toHaveBeenCalledWith("l1"));
+    await waitFor(() => expect(getListFeed).toHaveBeenCalledWith("l1", { limit: 50 }));
     expect(
       await screen.findByText("No videos available for this list right now."),
     ).toBeInTheDocument();
@@ -181,7 +181,7 @@ describe("ListsPage", () => {
     expect(
       await screen.findByText("No videos available for this list right now."),
     ).toBeInTheDocument();
-    expect(getListFeed).toHaveBeenCalledWith("l2");
+    expect(getListFeed).toHaveBeenCalledWith("l2", { limit: 50 });
     expect(window.localStorage.getItem("betterYtTv.selectedListId")).toBe("l2");
   });
 

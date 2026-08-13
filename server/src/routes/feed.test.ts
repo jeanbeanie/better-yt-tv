@@ -67,6 +67,45 @@ describe("GET /api/feed/all", () => {
   });
 });
 
+const LIST_ID = "11111111-1111-1111-1111-111111111111";
+
+function mockListLookup(rows: Row[]) {
+  vi.mocked(pool.query).mockImplementation(async (sql: any) => {
+    if (String(sql).includes("from lists")) {
+      return { rows: [{ id: LIST_ID, name: "My List" }], rowCount: 1 } as any;
+    }
+    return { rows } as any;
+  });
+}
+
+describe("GET /api/feed/lists/:listId", () => {
+  beforeEach(() => {
+    vi.mocked(pool.query).mockReset();
+  });
+
+  it("returns videos spread across channels instead of grouped by date alone", async () => {
+    mockListLookup(makeRows());
+
+    const res = await request(buildApp()).get(`/api/feed/lists/${LIST_ID}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.items.map((r: Row) => r.video_id)).toEqual(["a3", "b1", "c1", "a2", "a1"]);
+    expect(res.body.hasMore).toBe(false);
+  });
+
+  it("paginates with offset and limit", async () => {
+    mockListLookup(makeRows());
+
+    const firstPage = await request(buildApp()).get(`/api/feed/lists/${LIST_ID}?limit=2`);
+    expect(firstPage.body.items.map((r: Row) => r.video_id)).toEqual(["a3", "b1"]);
+    expect(firstPage.body.hasMore).toBe(true);
+
+    const secondPage = await request(buildApp()).get(`/api/feed/lists/${LIST_ID}?offset=2&limit=2`);
+    expect(secondPage.body.items.map((r: Row) => r.video_id)).toEqual(["c1", "a2"]);
+    expect(secondPage.body.hasMore).toBe(true);
+  });
+});
+
 describe("applyRoundRobin", () => {
   it("spreads out a busy channel's videos instead of leaving them consecutive", () => {
     // already sorted published_at desc, same order the real query returns
