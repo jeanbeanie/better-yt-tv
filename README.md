@@ -2,13 +2,15 @@
 
 A personal YouTube viewing dashboard that lets you watch the most recent uploads from only the channels you're subscribed to. Think of it as a TV queue for your subscriptions.
 
+![YT Catchup demo](docs/ytcatchup_demo.gif)
+
 ## Features
 
-- **All** — the main queue: recent uploads across all your enabled channels, in round-robin order.
-- **Lists** — custom lists that scope the queue to a subset of your subscribed channels.
-- **Settings** — per-channel preferences (enable/disable in All, enable/disable Live, exclude Shorts), with bulk-edit controls.
-- **Catch-up mode** — autoplay straight through your unwatched videos instead of picking each one manually.
-- **Devlog** — an in-app page of running notes and decisions made while building the app.
+- **All**: the main queue, recent uploads across all your enabled channels, in round-robin order.
+- **Lists**: custom lists that scope the queue to a subset of your subscribed channels.
+- **Settings**: per-channel preferences (enable/disable in All, enable/disable Live, exclude Shorts), with bulk-edit controls.
+- **Catch-up mode**: autoplay straight through your unwatched videos instead of picking each one manually.
+- **Devlog**: an in-app page of running notes and decisions made while building the app.
 
 ## Tech stack
 
