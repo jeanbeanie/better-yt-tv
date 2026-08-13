@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   getAllFeed,
@@ -13,8 +13,11 @@ import FeedView from "../components/FeedView";
 import ErrorText from "../components/ErrorText";
 import Spinner from "../components/Spinner";
 
+const DEFAULT_LIMIT = 50;
+
 export default function AllPage() {
   const [items, setItems] = useState<FeedItem[]>([]);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,8 +42,9 @@ export default function AllPage() {
       setLoading(true);
       setError(null);
 
-      const data = await getAllFeed();
+      const data = await getAllFeed({ limit: DEFAULT_LIMIT });
       setItems(data.items ?? []);
+      setHasMore(data.hasMore ?? false);
     } catch (err) {
       if (redirectIfAuthError(err)) return;
       setError(err instanceof Error ? err.message : "Failed to load /all feed");
@@ -53,15 +57,12 @@ export default function AllPage() {
     void loadFeed();
   }, []);
 
-  // Silently refresh the video cache on every visit -- refreshAllCache is
-  // cheap to call repeatedly since stale channels are TTL-gated server-side,
-  // and re-fetching afterward means a channel that's never been refreshed
-  // before can actually populate on this same visit, not just the next one
+  // silently refresh the video cache on every visit
   useEffect(() => {
     async function backgroundRefresh() {
       try {
         await refreshAllCache();
-        await refreshItems();
+        await refreshItemsRef.current();
       } catch (err) {
         console.error("Background cache refresh failed:", err);
       } finally {
@@ -71,17 +72,34 @@ export default function AllPage() {
     void backgroundRefresh();
   }, []);
 
-  // Re-fetch items without touching `loading` -- unlike loadFeed(), this
-  // doesn't unmount/remount FeedView (and the YouTube player inside it) on
-  // every watch/unwatch click. loadFeed() stays reserved for the initial
-  // mount, where showing "Loading feed..." is actually wanted.
+  // re-fetch at least as many items as are already loaded, so a
+  // background refresh doesnt collapse how far youve scrolled
   async function refreshItems() {
     try {
-      const data = await getAllFeed();
+      const data = await getAllFeed({ limit: Math.max(items.length, DEFAULT_LIMIT) });
       setItems(data.items ?? []);
+      setHasMore(data.hasMore ?? false);
     } catch (err) {
       if (redirectIfAuthError(err)) return;
       setError(err instanceof Error ? err.message : "Failed to load /all feed");
+    }
+  }
+
+  // keeps backgroundRefresh from calling a stale refreshItems,
+  // same pattern as ListsPage.tsx
+  const refreshItemsRef = useRef(refreshItems);
+  useEffect(() => {
+    refreshItemsRef.current = refreshItems;
+  });
+
+  async function loadMore() {
+    try {
+      const data = await getAllFeed({ offset: items.length, limit: DEFAULT_LIMIT });
+      setItems((prev) => [...prev, ...(data.items ?? [])]);
+      setHasMore(data.hasMore ?? false);
+    } catch (err) {
+      if (redirectIfAuthError(err)) return;
+      setError(err instanceof Error ? err.message : "Failed to load more videos");
     }
   }
 
@@ -93,7 +111,7 @@ export default function AllPage() {
         await markVideoUnwatched(videoId);
       }
 
-      // Refresh silently so ordering and watched state stay accurate
+      // refresh silently so ordering and watched state stay accurate
       // without flashing the whole page
       await refreshItems();
     } catch (err) {
@@ -120,6 +138,8 @@ export default function AllPage() {
           items={items}
           onSetWatched={handleSetWatched}
           storageKey="betterYtTv.selectedVideoId.all"
+          hasMore={hasMore}
+          onLoadMore={loadMore}
           emptyState={
             <p>
               No videos yet. Try building the feed in the{" "}

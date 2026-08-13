@@ -90,6 +90,7 @@ describe("ListsPage", () => {
     vi.mocked(getListFeed).mockResolvedValue({
       list: { id: "l1", name: "News" },
       items: [VIDEO_1],
+      hasMore: false,
     });
 
     renderPage();
@@ -104,6 +105,7 @@ describe("ListsPage", () => {
     vi.mocked(getListFeed).mockResolvedValue({
       list: { id: "l1", name: "News" },
       items: [],
+      hasMore: false,
     });
 
     renderPage();
@@ -123,6 +125,7 @@ describe("ListsPage", () => {
     vi.mocked(getListFeed).mockResolvedValue({
       list: { id: "l2", name: "Music" },
       items: [],
+      hasMore: false,
     });
 
     renderPage();
@@ -144,6 +147,7 @@ describe("ListsPage", () => {
     vi.mocked(getListFeed).mockResolvedValue({
       list: { id: "l1", name: "News" },
       items: [],
+      hasMore: false,
     });
 
     renderPage();
@@ -162,8 +166,8 @@ describe("ListsPage", () => {
     vi.mocked(getListFeed).mockImplementation((listId) =>
       Promise.resolve(
         listId === "l1"
-          ? { list: { id: "l1", name: "News" }, items: [VIDEO_1] }
-          : { list: { id: "l2", name: "Music" }, items: [] },
+          ? { list: { id: "l1", name: "News" }, items: [VIDEO_1], hasMore: false }
+          : { list: { id: "l2", name: "Music" }, items: [], hasMore: false },
       ),
     );
 
@@ -186,6 +190,7 @@ describe("ListsPage", () => {
     vi.mocked(getListFeed).mockResolvedValue({
       list: { id: "l1", name: "News" },
       items: [VIDEO_1, VIDEO_2],
+      hasMore: false,
     });
 
     const user = userEvent.setup();
@@ -205,6 +210,7 @@ describe("ListsPage", () => {
     vi.mocked(getListFeed).mockResolvedValue({
       list: { id: "l1", name: "News" },
       items: [{ ...VIDEO_1, is_watched: true }, VIDEO_2],
+      hasMore: false,
     });
 
     const user = userEvent.setup();
@@ -232,6 +238,7 @@ describe("ListsPage", () => {
     vi.mocked(getListFeed).mockResolvedValue({
       list: { id: "l1", name: "News" },
       items: [VIDEO_1],
+      hasMore: false,
     });
     vi.mocked(markVideoWatched).mockResolvedValue({ ok: true });
 
@@ -249,6 +256,7 @@ describe("ListsPage", () => {
     vi.mocked(getListFeed).mockResolvedValue({
       list: { id: "l1", name: "News" },
       items: [VIDEO_1],
+      hasMore: false,
     });
     vi.mocked(markVideoWatched).mockResolvedValue({ ok: true });
 
@@ -271,6 +279,7 @@ describe("ListsPage", () => {
     vi.mocked(getListFeed).mockResolvedValue({
       list: { id: "l1", name: "News" },
       items: [VIDEO_1, { ...VIDEO_2, is_watched: false }],
+      hasMore: false,
     });
 
     const user = userEvent.setup();
@@ -297,6 +306,7 @@ describe("ListsPage", () => {
     vi.mocked(getListFeed).mockResolvedValue({
       list: { id: "l1", name: "News" },
       items: [VIDEO_1],
+      hasMore: false,
     });
 
     renderPage();

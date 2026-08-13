@@ -16,6 +16,10 @@ type FeedViewProps = {
   // scope this per page/list so selections dont bleed into each other, pass
   // "" to skip persistence, like before a list has finished loading
   storageKey: string;
+  // omit both to hide the load more button entirely, for a page that
+  // doesnt support paging yet
+  hasMore?: boolean;
+  onLoadMore?: () => void;
 };
 
 // Shared by AllPage, ListsPage, and LivePage: the player, Previous/Next,
@@ -26,7 +30,14 @@ type FeedViewProps = {
 // were before -- copies of this exact queue UI already produced one real
 // bug (the Hide watched/Catch-up checkboxes disappearing), fixed by hand
 // in two places.
-export default function FeedView({ items, onSetWatched, emptyState, storageKey }: FeedViewProps) {
+export default function FeedView({
+  items,
+  onSetWatched,
+  emptyState,
+  storageKey,
+  hasMore,
+  onLoadMore,
+}: FeedViewProps) {
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
   const [hideWatched, setHideWatched] = useState(false);
   const [catchUpMode, setCatchUpMode] = useState(true);
@@ -336,6 +347,12 @@ export default function FeedView({ items, onSetWatched, emptyState, storageKey }
                 );
               })}
             </ul>
+          )}
+
+          {hasMore && onLoadMore && (
+            <div style={{ textAlign: "center", margin: "1rem 0" }}>
+              <Button onClick={onLoadMore}>Load more</Button>
+            </div>
           )}
         </section>
       )}

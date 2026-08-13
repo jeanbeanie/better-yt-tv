@@ -1,9 +1,22 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import AllPage from "./AllPage";
 import { getAllFeed, markVideoWatched, markVideoUnwatched } from "../lib/api";
+
+function makeFeedItems(count: number) {
+  return Array.from({ length: count }, (_, i) => ({
+    video_id: `v${i}`,
+    channel_id: "c1",
+    channel_title: "Channel One",
+    title: `Video ${i}`,
+    thumb_url: "",
+    published_at: "2026-07-01T00:00:00Z",
+    watched_at: null,
+    is_watched: false,
+  }));
+}
 
 vi.mock("../lib/api", () => ({
   getAllFeed: vi.fn(),
@@ -35,6 +48,7 @@ describe("AllPage", () => {
           is_watched: false,
         },
       ],
+      hasMore: false,
     });
 
     render(
@@ -70,6 +84,7 @@ describe("AllPage", () => {
           is_watched: true,
         },
       ],
+      hasMore: false,
     });
 
     const user = userEvent.setup();
@@ -120,6 +135,7 @@ describe("AllPage", () => {
           is_watched: true,
         },
       ],
+      hasMore: false,
     });
 
     const user = userEvent.setup();
@@ -161,6 +177,7 @@ describe("AllPage", () => {
           is_watched: false,
         },
       ],
+      hasMore: false,
     });
     vi.mocked(markVideoWatched).mockResolvedValue({ ok: true });
 
@@ -181,5 +198,53 @@ describe("AllPage", () => {
     // watch/unwatch toggle -- only the initial mount shows it
     expect(screen.queryByText("Loading feed...")).not.toBeInTheDocument();
     expect(markVideoWatched).toHaveBeenCalledWith("v1");
+  });
+
+  it("loadMore appends new items instead of replacing the existing ones", async () => {
+    vi.mocked(getAllFeed).mockImplementation(async (params) => {
+      if (params?.offset) {
+        return {
+          items: [{ ...makeFeedItems(1)[0], video_id: "v-more", title: "Second Video" }],
+          hasMore: false,
+        };
+      }
+      return { items: [makeFeedItems(1)[0]], hasMore: true };
+    });
+
+    render(
+      <MemoryRouter>
+        <AllPage />
+      </MemoryRouter>
+    );
+
+    await screen.findAllByText("Video 0");
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Load more" }));
+
+    expect(await screen.findAllByText("Second Video")).not.toHaveLength(0);
+    // original item should still be there, not replaced by the new page
+    expect(screen.getAllByText("Video 0").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("a refresh after marking watched requests enough items to cover what's already loaded", async () => {
+    const bigPage = makeFeedItems(51);
+    vi.mocked(getAllFeed).mockResolvedValue({ items: bigPage, hasMore: false });
+    vi.mocked(markVideoWatched).mockResolvedValue({ ok: true });
+
+    render(
+      <MemoryRouter>
+        <AllPage />
+      </MemoryRouter>
+    );
+
+    await screen.findAllByText("Video 0");
+    vi.mocked(getAllFeed).mockClear();
+
+    const user = userEvent.setup();
+    await user.click(screen.getAllByRole("button", { name: "Watch" })[0]);
+
+    await waitFor(() => expect(getAllFeed).toHaveBeenCalled());
+    expect(getAllFeed).toHaveBeenCalledWith({ limit: 51 });
   });
 });

@@ -179,10 +179,28 @@ export type FeedItem = {
   is_watched: boolean;
 };
 
+export type PaginationParams = {
+  offset?: number;
+  limit?: number;
+};
+
+// turns offset/limit into a query string, leaves it out entirely when
+// neither is given so callers dont need to think about it
+function buildPaginationQuery(params?: PaginationParams): string {
+  if (!params) return "";
+
+  const search = new URLSearchParams();
+  if (params.offset !== undefined) search.set("offset", String(params.offset));
+  if (params.limit !== undefined) search.set("limit", String(params.limit));
+
+  const query = search.toString();
+  return query ? `?${query}` : "";
+}
+
 // Get current user's saved feed data from the backend
-export async function getAllFeed() {
-  return apiFetch<{ items: FeedItem[] }>(
-    "/api/feed/all",
+export async function getAllFeed(params?: PaginationParams) {
+  return apiFetch<{ items: FeedItem[]; hasMore: boolean }>(
+    `/api/feed/all${buildPaginationQuery(params)}`,
     { method: "GET" },
     "all feed failed",
   );
@@ -377,9 +395,9 @@ export async function deleteList(listId: string) {
 
 // Get the video feed for a specific list (ignores enabled_all, respects
 // excluded_shorts and watched state, same as getAllFeed)
-export async function getListFeed(listId: string) {
-  return apiFetch<{ list: { id: string; name: string }; items: FeedItem[] }>(
-    `/api/feed/lists/${listId}`,
+export async function getListFeed(listId: string, params?: PaginationParams) {
+  return apiFetch<{ list: { id: string; name: string }; items: FeedItem[]; hasMore: boolean }>(
+    `/api/feed/lists/${listId}${buildPaginationQuery(params)}`,
     { method: "GET" },
     "get list feed failed",
   );
