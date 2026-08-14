@@ -117,22 +117,6 @@ export async function logout() {
  //          YOUTUBE          //
 ///////////////////////////////
 
-export type YoutubeSubscription = {
-  channelId: string;
-  title: string;
-  thumbUrl: string | null;
-};
-
-// get user YouTube channel subscriptions
-export async function getSubscriptions() {
-  return apiFetch<{ items: YoutubeSubscription[] }>(
-    "/api/youtube/subscriptions",
-    { method: "GET" },
-    "subscriptions failed",
-  );
-}
-
-
 // Do a one-time sync from YouTube into the DB
 export async function syncSubscriptions(): Promise<{ ok: boolean; syncedCount: number }> {
   const resp = await fetch(`${API_BASE}/api/youtube/sync-subscriptions`, {

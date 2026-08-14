@@ -110,25 +110,6 @@ async function fetchYoutubeSubscriptions(accessToken: string): Promise<YoutubeSu
 
 /* YOUTUBE ROUTE HANDLERS */
 
-// GET /api/youtube/subscriptions
-youtubeRouter.get(
-  "/subscriptions", 
-  requireAuth, 
-  withYoutubeReauthHandling(async (req, res) => {
-  
-    const userId = (req as AuthedRequest).userId;
-
-    // get temporary Google access token for logged in user
-    const accessToken = await getGoogleAccessToken(userId);
-    
-    // normalized subscriptions from YT
-    const items = await fetchYoutubeSubscriptions(accessToken);
-
-    res.json({ items });
-  })
-);
-
-
 // POST /api/youtube/sync-subscriptions
 // fetches subs from YT and saved into DB
 youtubeRouter.post(
