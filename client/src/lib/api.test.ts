@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ApiError, getAllFeed } from "./api";
+import {
+  ApiError,
+  getAllFeed,
+  markVideoWatched,
+  markVideoUnwatched,
+  shouldRedirectToLogin,
+} from "./api";
 
 function mockFetchOnce(body: string, status: number) {
   globalThis.fetch = vi.fn().mockResolvedValue(new Response(body, { status })) as unknown as typeof fetch;
@@ -43,5 +49,34 @@ describe("apiFetch error parsing", () => {
 
     expect(err).toBeInstanceOf(ApiError);
     expect(err).toMatchObject({ message: "all feed failed: 500", status: 500 });
+  });
+});
+
+describe("mark watched/unwatched auth handling", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const authErrorBody = JSON.stringify({
+    code: "AUTH_REQUIRED",
+    message: "Your session is no longer valid. Please sign in again.",
+  });
+
+  it("markVideoWatched surfaces an ApiError that triggers a login redirect on 401", async () => {
+    mockFetchOnce(authErrorBody, 401);
+
+    const err = await markVideoWatched("v1").catch((e) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect(shouldRedirectToLogin(err)).toBe(true);
+  });
+
+  it("markVideoUnwatched surfaces an ApiError that triggers a login redirect on 401", async () => {
+    mockFetchOnce(authErrorBody, 401);
+
+    const err = await markVideoUnwatched("v1").catch((e) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect(shouldRedirectToLogin(err)).toBe(true);
   });
 });

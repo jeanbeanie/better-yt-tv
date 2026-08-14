@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom";
-import { type User } from "../App";
-import { getLoginUrl } from "../lib/api";
+import { getLoginUrl, type User } from "../lib/api";
 import ErrorText from "../components/ErrorText";
 import Spinner from "../components/Spinner";
 

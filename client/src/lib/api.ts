@@ -88,32 +88,28 @@ export function shouldRedirectToLogin(err: unknown): boolean {
  //          AUTH             //
 ///////////////////////////////
 
+export type User = {
+  id: string;
+  email: string | null;
+  google_sub: string;
+};
 
 // get current user profile details
 export async function getWhoAmI() {
-  const resp = await fetch(`${API_BASE}/api/auth/whoami`, {
-    credentials: "include",
-  });
-
-  if (!resp.ok) {
-    throw new Error(`whoami failed: ${resp.status}`);
-  }
-
-  return resp.json();
+  return apiFetch<{ user: User | null }>(
+    "/api/auth/whoami",
+    { method: "GET" },
+    "whoami failed",
+  );
 }
 
 // LOG OUT user with POST request
 export async function logout() {
-  const resp = await fetch(`${API_BASE}/api/auth/logout`, {
-    method: "POST",
-    credentials: "include",
-  });
-
-  if (!resp.ok) {
-    throw new Error(`logout failed: ${resp.status}`);
-  }
-
-  return resp.json();
+  return apiFetch<{ ok: boolean }>(
+    "/api/auth/logout",
+    { method: "POST" },
+    "logout failed",
+  );
 }
 
 
@@ -121,17 +117,19 @@ export async function logout() {
  //          YOUTUBE          //
 ///////////////////////////////
 
+export type YoutubeSubscription = {
+  channelId: string;
+  title: string;
+  thumbUrl: string | null;
+};
+
 // get user YouTube channel subscriptions
 export async function getSubscriptions() {
-  const resp = await fetch(`${API_BASE}/api/youtube/subscriptions`, {
-    credentials: "include",
-  });
-
-  if (!resp.ok) {
-    throw new Error(`subscriptions failed: ${resp.status}`);
-  }
-
-  return resp.json();
+  return apiFetch<{ items: YoutubeSubscription[] }>(
+    "/api/youtube/subscriptions",
+    { method: "GET" },
+    "subscriptions failed",
+  );
 }
 
 
@@ -208,30 +206,20 @@ export async function getAllFeed(params?: PaginationParams) {
 
 // Mark a specific video as watched for the current user
 export async function markVideoWatched(videoId: string) {
-  const resp = await fetch(`${API_BASE}/api/feed/videos/${videoId}/watch`, {
-    method: "POST",
-    credentials: "include",
-  });
-
-  if (!resp.ok) {
-    throw new Error(`mark watched failed: ${resp.status}`);
-  }
-
-  return resp.json();
+  return apiFetch<{ ok: boolean }>(
+    `/api/feed/videos/${videoId}/watch`,
+    { method: "POST" },
+    "mark watched failed",
+  );
 }
 
 // Mark a specific video as not watched for the current user
 export async function markVideoUnwatched(videoId: string) {
-  const resp = await fetch(`${API_BASE}/api/feed/videos/${videoId}/unwatch`, {
-    method: "POST",
-    credentials: "include",
-  });
-
-  if (!resp.ok) {
-    throw new Error(`mark unwatched failed: ${resp.status}`);
-  }
-
-  return resp.json();
+  return apiFetch<{ ok: boolean }>(
+    `/api/feed/videos/${videoId}/unwatch`,
+    { method: "POST" },
+    "mark unwatched failed",
+  );
 }
 
   ///////////////////////////////
