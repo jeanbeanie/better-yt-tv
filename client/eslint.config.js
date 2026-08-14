@@ -20,6 +20,9 @@ export default defineConfig([
     },
     rules: {
       eqeqeq: 'error',
+      // wants Suspense/use() or a query library instead of useEffect+useState
+      // too big a shift for this app right now, off by choice
+      'react-hooks/set-state-in-effect': 'off',
     },
   },
 ])

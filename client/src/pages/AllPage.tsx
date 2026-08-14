@@ -57,21 +57,6 @@ export default function AllPage() {
     void loadFeed();
   }, []);
 
-  // silently refresh the video cache on every visit
-  useEffect(() => {
-    async function backgroundRefresh() {
-      try {
-        await refreshAllCache();
-        await refreshItemsRef.current();
-      } catch (err) {
-        console.error("Background cache refresh failed:", err);
-      } finally {
-        setRefreshing(false);
-      }
-    }
-    void backgroundRefresh();
-  }, []);
-
   // re-fetch at least as many items as are already loaded, so a
   // background refresh doesnt collapse how far youve scrolled
   async function refreshItems() {
@@ -91,6 +76,21 @@ export default function AllPage() {
   useEffect(() => {
     refreshItemsRef.current = refreshItems;
   });
+
+  // silently refresh the video cache on every visit
+  useEffect(() => {
+    async function backgroundRefresh() {
+      try {
+        await refreshAllCache();
+        await refreshItemsRef.current();
+      } catch (err) {
+        console.error("Background cache refresh failed:", err);
+      } finally {
+        setRefreshing(false);
+      }
+    }
+    void backgroundRefresh();
+  }, []);
 
   async function loadMore() {
     try {
