@@ -12,7 +12,7 @@ A personal YouTube viewing dashboard that lets you watch the most recent uploads
 - **Lists**: custom lists that scope the queue to a subset of your subscribed channels.
 - **Settings**: per-channel preferences (enable/disable in All, enable/disable Live, exclude Shorts), with bulk-edit controls.
 - **Catch-up mode**: autoplay straight through your unwatched videos instead of picking each one manually.
-- **Devlog**: an in-app page of running notes and decisions made while building the app.
+- **Changelog**: a page summarizing what shipped, grouped by date.
 
 ## Tech stack
 

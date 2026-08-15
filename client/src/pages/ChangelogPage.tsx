@@ -4,37 +4,37 @@ import ErrorText from "../components/ErrorText";
 import MutedText from "../components/MutedText";
 import Spinner from "../components/Spinner";
 
-export default function DevlogPage() {
-  // raw markdown text fetched from /devlog.md
+export default function ChangelogPage() {
+  // raw markdown text fetched from /changelog.md
   const [markdown, setMarkdown] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadDevlog() {
+    async function loadChangelog() {
       try {
         setLoading(true);
         setError(null);
 
-        const response = await fetch("/devlog.md");
+        const response = await fetch("/changelog.md");
 
         if (!response.ok) {
-          throw new Error(`Failed to load devlog: ${response.status}`);
+          throw new Error(`Failed to load changelog: ${response.status}`);
         }
 
         const text = await response.text();
         setMarkdown(text);
       } catch (err) {
         setError(
-          err instanceof Error ? err.message : "Failed to load devlog",
+          err instanceof Error ? err.message : "Failed to load changelog",
         );
       } finally {
         setLoading(false);
       }
     }
 
-    void loadDevlog();
+    void loadChangelog();
   }, []);
 
   return (
@@ -47,13 +47,13 @@ export default function DevlogPage() {
       }}
     >
       <header>
-        <h1 style={{ marginBottom: "0.5rem" }}>YT Catchup Devlog</h1>
+        <h1 style={{ marginBottom: "0.5rem" }}>YT Catchup Changelog</h1>
       </header>
         <MutedText>
-          Notes, decisions, and progress updates while building YT Catchup.
+          What shipped, grouped by date.
         </MutedText>
 
-      {loading && <Spinner label="Loading devlog..." />}
+      {loading && <Spinner label="Loading changelog..." />}
 
       {error && <ErrorText>{error}</ErrorText>}
 

@@ -10,7 +10,7 @@ import SettingsLayout from "./pages/Settings/SettingsLayout";
 import ChannelsSettingsPage from "./pages/Settings/ChannelsSettingsPage";
 import ListsSettingsPage from "./pages/Settings/ListsSettingsPage";
 import ListEditorPage from "./pages/Settings/ListEditorPage";
-import DevlogPage from "./pages/DevlogPage";
+import ChangelogPage from "./pages/ChangelogPage";
 
 function getInitialTheme(): "light" | "dark" {
   const stored = window.localStorage.getItem("betterYtTv.theme");
@@ -97,7 +97,7 @@ function App() {
         <Route path="/all" element={<AllPage />} />
         <Route path="/live" element={<LivePage />} />
         <Route path="/lists" element={<ListsPage />} />
-        <Route path="/devlog" element={<DevlogPage />}/>
+        <Route path="/changelog" element={<ChangelogPage />}/>
         {/*  SETTINGS ROUTES */}
         <Route path="/settings" element={<SettingsLayout />}>
           <Route index element={<ChannelsSettingsPage />} />
@@ -114,7 +114,7 @@ function App() {
           <Button onClick={() => void handleLogout()}>Logout</Button>
         </div>
       )}
-      <Link to="/devlog">Devlog</Link>
+      <Link to="/changelog">Changelog</Link>
       </div>
 
     </div>
