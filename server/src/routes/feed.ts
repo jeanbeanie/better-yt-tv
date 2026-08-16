@@ -49,20 +49,11 @@ feedRouter.param("listId", (req, res, next, value) => {
   next();
 });
 
-// Shared by GET /all and GET /live, both return recent cached videos for
-// channels this user is subscribed to, filtered by a single per-channel
-// boolean preference (enabled_all or enabled_live) plus excluded_shorts
-// preferenceColumn is interpolated directly (not a $N placeholder, since
-// placeholders are for values, not identifiers) since it's a
-// TypeScript union restricted to two literal, code-controlled values,
-// never user input, same trust model as the dynamic column names already
-// built in channels.ts's partial-update queries
-//
-// Extracted here rather than duplicated per route because this exact query
-// shape has already produced one real bug from copy-paste drift, the
-// coalesce()/fail-open handling below was missing from the original /all
-// query until an orphaned channel_preferences row surfaced it, one copy
-// means that fix (and any future one) only has to happen once
+// Shared by GET /all and GET /live, filtered by a per-channel boolean
+// preference (enabled_all or enabled_live) plus excluded_shorts.
+// preferenceColumn is interpolated directly (not a $N placeholder) since
+// it's a TypeScript union of two literal, code-controlled values, never
+// user input
 async function fetchFeedForPreference(
   userId: string,
   preferenceColumn: "enabled_all" | "enabled_live",
@@ -88,12 +79,10 @@ async function fetchFeedForPreference(
       on uvs.user_id = us.user_id
      and uvs.video_id = v.video_id
     where us.user_id = $1
-      -- If preferences are missing entirely (see TODO in youtube.ts sync
-      -- flow), fail open rather than silently excluding the channel
+      -- Fail open if preferences are missing (see docblock above)
       and coalesce(cp.${preferenceColumn}, true) = true
       and (
-        -- If Shorts are allowed for this channel (or preferences are
-        -- missing, same fail-open reasoning as above), include all
+        -- Same fail-open reasoning as above for Shorts exclusion
         coalesce(cp.excluded_shorts, false) = false
 
         -- If duration is unknown, keep the video for now rather than
