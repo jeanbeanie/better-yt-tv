@@ -65,3 +65,4 @@ A personal YouTube viewing dashboard that lets you watch the most recent uploads
 ## TODO / Future additions
 
 - Independent `pg_dump` backup script for the production database, separate from whatever Railway's managed Postgres provides by default
+- Rate limiting on `/api/auth/*` endpoints
