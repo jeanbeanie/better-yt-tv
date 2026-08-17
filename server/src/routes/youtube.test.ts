@@ -29,7 +29,7 @@ vi.mock("../auth/google.js", () => ({
 }));
 
 vi.mock("../youtube/videos.js", () => ({
-  isChannelCacheStale: vi.fn(),
+  getChannelCacheState: vi.fn(),
   fetchRecentVideosForChannel: vi.fn(),
   upsertVideosCache: vi.fn(),
   markChannelCacheRefreshed: vi.fn(),
@@ -37,7 +37,7 @@ vi.mock("../youtube/videos.js", () => ({
 
 const { pool } = await import("../db/pool.js");
 const {
-  isChannelCacheStale,
+  getChannelCacheState,
   fetchRecentVideosForChannel,
   upsertVideosCache,
   markChannelCacheRefreshed,
@@ -166,7 +166,7 @@ function mockChannelIdsQuery(channelIds: string[]) {
 describe("POST /api/youtube/refresh-all-cache", () => {
   beforeEach(() => {
     vi.mocked(pool.query).mockReset();
-    vi.mocked(isChannelCacheStale).mockReset();
+    vi.mocked(getChannelCacheState).mockReset();
     vi.mocked(fetchRecentVideosForChannel).mockReset();
     vi.mocked(upsertVideosCache).mockReset();
     vi.mocked(markChannelCacheRefreshed).mockReset();
@@ -203,15 +203,21 @@ describe("POST /api/youtube/refresh-all-cache", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true, refreshedChannels: 0, skippedChannels: 0, cachedVideos: 0 });
-    expect(isChannelCacheStale).not.toHaveBeenCalled();
+    expect(getChannelCacheState).not.toHaveBeenCalled();
   });
 
   it("refreshes stale channels and skips fresh ones, tallying counts correctly", async () => {
     mockChannelIdsQuery(["chan1", "chan2"]);
-    vi.mocked(isChannelCacheStale).mockImplementation(async (channelId) => channelId === "chan1");
-    vi.mocked(fetchRecentVideosForChannel).mockResolvedValue([
-      { videoId: "v1", channelId: "chan1", title: "t", publishedAt: "2026-01-01", thumbUrl: null },
-    ]);
+    vi.mocked(getChannelCacheState).mockImplementation(async (channelId) => ({
+      stale: channelId === "chan1",
+      uploadsPlaylistId: null,
+    }));
+    vi.mocked(fetchRecentVideosForChannel).mockResolvedValue({
+      videos: [
+        { videoId: "v1", channelId: "chan1", title: "t", publishedAt: "2026-01-01", thumbUrl: null },
+      ],
+      uploadsPlaylistId: "UUchan1",
+    });
 
     const res = await request(buildApp())
       .post("/api/youtube/refresh-all-cache")
@@ -223,7 +229,28 @@ describe("POST /api/youtube/refresh-all-cache", () => {
     expect(fetchRecentVideosForChannel).toHaveBeenCalledWith(
       expect.objectContaining({ channelId: "chan1" }),
     );
-    expect(markChannelCacheRefreshed).toHaveBeenCalledWith("chan1");
+    expect(markChannelCacheRefreshed).toHaveBeenCalledWith("chan1", "UUchan1");
     expect(upsertVideosCache).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes a channel's cached uploads playlist id through to the fetch", async () => {
+    mockChannelIdsQuery(["chan1"]);
+    vi.mocked(getChannelCacheState).mockResolvedValue({
+      stale: true,
+      uploadsPlaylistId: "UUcached",
+    });
+    vi.mocked(fetchRecentVideosForChannel).mockResolvedValue({
+      videos: [],
+      uploadsPlaylistId: "UUcached",
+    });
+
+    await request(buildApp())
+      .post("/api/youtube/refresh-all-cache")
+      .set("Cookie", "sid=fake-session");
+
+    expect(fetchRecentVideosForChannel).toHaveBeenCalledWith(
+      expect.objectContaining({ cachedUploadsPlaylistId: "UUcached" }),
+    );
+    expect(markChannelCacheRefreshed).toHaveBeenCalledWith("chan1", "UUcached");
   });
 });
