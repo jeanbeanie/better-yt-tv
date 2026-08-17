@@ -169,12 +169,26 @@ youtubeRouter.post(
   withYoutubeReauthHandling(async (req, res) => {
      const userId = (req as AuthedRequest).userId;
 
-    // Grab this user's saved subscriptions from our DB
+    // Grab this user's saved subscriptions from our DB, skipping channels
+    // that can never appear in any feed (enabled_all=false and not in a list)
     const subResult = await pool.query(
       `
-      select channel_id
-      from user_subscriptions
-      where user_id = $1
+      select us.channel_id
+      from user_subscriptions us
+      left join channel_preferences cp
+        on cp.user_id = us.user_id
+       and cp.channel_id = us.channel_id
+      where us.user_id = $1
+        and (
+          coalesce(cp.enabled_all, true) = true
+          or exists (
+            select 1
+            from list_channels lc
+            join lists l on l.id = lc.list_id
+            where l.user_id = us.user_id
+              and lc.channel_id = us.channel_id
+          )
+        )
       `,
       [userId],
     );
