@@ -1,6 +1,6 @@
 \restrict dbmate
 
--- Dumped from database version 18.4 (Debian 18.4-1.pgdg13+1)
+-- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 18.3
 
 SET statement_timeout = 0;
@@ -65,7 +65,8 @@ CREATE TABLE public.channel_preferences (
 CREATE TABLE public.channel_recent_cache_state (
     channel_id text NOT NULL,
     cache_expires_at timestamp with time zone NOT NULL,
-    last_checked_at timestamp with time zone DEFAULT now() NOT NULL
+    last_checked_at timestamp with time zone DEFAULT now() NOT NULL,
+    uploads_playlist_id text
 );
 
 
@@ -478,4 +479,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260517051252'),
     ('20260517192315'),
     ('20260521154720'),
-    ('20260804175339');
+    ('20260804175339'),
+    ('20260817030003');
