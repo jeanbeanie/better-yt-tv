@@ -101,7 +101,7 @@ authRouter.get("/callback", async (req: Request, res: Response, next) => {
       return res.status(400).json({ error: "Missing id_token from Google" });
     }
 
-    const googleUser = getGoogleUserFromIdToken(tokens.id_token);
+    const googleUser = await getGoogleUserFromIdToken(tokens.id_token);
     // googleUser.sub is what you'll store as users.google_sub
     const googleSub = googleUser.sub;
     const email = googleUser.email ?? null;

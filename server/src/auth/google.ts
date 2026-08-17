@@ -1,3 +1,7 @@
+import { OAuth2Client } from "google-auth-library";
+import { env } from "../config/env.js";
+
+const oauthClient = new OAuth2Client();
 
 type BuildAuthUrlArgs = {
   clientId: string;
@@ -60,17 +64,19 @@ export async function exchangeCodeForTokens(args: {
   return { ...json, expires_at };
 }
 
-// grab user details
-export function getGoogleUserFromIdToken(idToken: string): { sub: string; email?: string } {
-  const parts = idToken.split(".");
-  if (parts.length !== 3) throw new Error("Invalid id_token format");
-
-  const payloadJson = Buffer.from(parts[1], "base64url").toString("utf8");
-  const payload = JSON.parse(payloadJson);
+// verify id_token signature/aud/iss/exp against Google, then grab user details
+export async function getGoogleUserFromIdToken(
+  idToken: string,
+): Promise<{ sub: string; email?: string }> {
+  const ticket = await oauthClient.verifyIdToken({
+    idToken,
+    audience: env.GOOGLE_CLIENT_ID,
+  });
+  const payload = ticket.getPayload();
 
   // return user's unique Google ID and email
-  if (!payload.sub) throw new Error("id_token missing sub");
-  return { sub: String(payload.sub), email: payload.email ? String(payload.email) : undefined };
+  if (!payload?.sub) throw new Error("id_token missing sub");
+  return { sub: payload.sub, email: payload.email };
 }
 
 // re-establish access after prev access token expires with a refresh token

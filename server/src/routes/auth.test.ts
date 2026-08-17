@@ -174,7 +174,7 @@ describe("GET /api/auth/callback", () => {
       expires_in: 3600,
       scope: "openid email",
     });
-    vi.mocked(getGoogleUserFromIdToken).mockReturnValue({ sub: "google-sub-1", email: "user@example.com" });
+    vi.mocked(getGoogleUserFromIdToken).mockResolvedValue({ sub: "google-sub-1", email: "user@example.com" });
 
     const res = await request(buildApp())
       .get("/api/auth/callback")
@@ -204,7 +204,7 @@ describe("GET /api/auth/callback", () => {
       access_token: "fake-access-token",
       // no refresh_token -- Google omits it unless prompt=consent was granted fresh
     });
-    vi.mocked(getGoogleUserFromIdToken).mockReturnValue({ sub: "google-sub-1" });
+    vi.mocked(getGoogleUserFromIdToken).mockResolvedValue({ sub: "google-sub-1" });
 
     const res = await request(buildApp())
       .get("/api/auth/callback")
