@@ -2,6 +2,12 @@
 
 What shipped, by day.
 
+## 2026-08-16
+
+- Verified Google id_token signatures during login with google-auth-library instead of manually decoding the JWT payload
+- Trimmed an overlong comment on the shared feed query
+- Replaced the client README's unedited Vite boilerplate with real content
+
 ## 2026-08-14
 
 - Fixed a login redirect bug in several client API functions
