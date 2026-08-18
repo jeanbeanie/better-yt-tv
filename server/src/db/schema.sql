@@ -65,7 +65,8 @@ CREATE TABLE public.channel_preferences (
 CREATE TABLE public.channel_recent_cache_state (
     channel_id text NOT NULL,
     cache_expires_at timestamp with time zone NOT NULL,
-    last_checked_at timestamp with time zone DEFAULT now() NOT NULL
+    last_checked_at timestamp with time zone DEFAULT now() NOT NULL,
+    uploads_playlist_id text
 );
 
 
@@ -520,4 +521,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260517192315'),
     ('20260521154720'),
     ('20260804175339'),
+    ('20260817030003'),
     ('20260817190121');

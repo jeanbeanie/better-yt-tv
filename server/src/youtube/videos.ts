@@ -115,20 +115,24 @@ async function fetchRecentVideosFromUploadsPlaylist(args: {
 export async function fetchRecentVideosForChannel(args: {
   accessToken: string;
   channelId: string;
+  cachedUploadsPlaylistId?: string | null;
   maxResults?: number;
-}): Promise<CachedVideo[]> {
-// First fetch the hidden uploads playlist that belongs to this channel
-  const uploadsPlaylistId = await fetchUploadsPlaylistId({
-    accessToken: args.accessToken,
-    channelId: args.channelId,
-  });
+}): Promise<{ videos: CachedVideo[]; uploadsPlaylistId: string }> {
+  // uploads playlist id never changes, reuse a cached one if we have it
+  const uploadsPlaylistId =
+    args.cachedUploadsPlaylistId ??
+    (await fetchUploadsPlaylistId({
+      accessToken: args.accessToken,
+      channelId: args.channelId,
+    }));
 
-  // Then fetch and return recent uploaded videos from that playlist
-  return fetchRecentVideosFromUploadsPlaylist({
+  const videos = await fetchRecentVideosFromUploadsPlaylist({
     accessToken: args.accessToken,
     uploadsPlaylistId,
     maxResults: args.maxResults ?? 10,
   });
+
+  return { videos, uploadsPlaylistId };
 }
 
 // Save a batch of videos into videos_cache, upserting to avoid duplicates
@@ -162,30 +166,38 @@ export async function upsertVideosCache(videos: CachedVideo[]) {
   }
 }
 
-// check if a channel's cached video data is still fresh
-// if channel has no row yet, treat as stale so it gets fetched
-export async function isChannelCacheStale(channelId: string) {
+// check staleness and any cached uploads playlist id for a channel
+// no row yet means stale, with no cached id
+export async function getChannelCacheState(channelId: string): Promise<{
+  stale: boolean;
+  uploadsPlaylistId: string | null;
+}> {
   const result = await pool.query(
     `
-    select cache_expires_at
+    select cache_expires_at, uploads_playlist_id
     from channel_recent_cache_state
     where channel_id = $1
     `,
     [channelId],
   );
 
-  // No cache state row = channel has never been refreshed
   if (result.rowCount === 0) {
-    return true;
+    return { stale: true, uploadsPlaylistId: null };
   }
 
   const cacheExpiresAt = new Date(result.rows[0].cache_expires_at);
-  return cacheExpiresAt.getTime() <= Date.now();
+  return {
+    stale: cacheExpiresAt.getTime() <= Date.now(),
+    uploadsPlaylistId: result.rows[0].uploads_playlist_id,
+  };
 }
 
-// After refreshing a channel, update its cache freshness window
-// Future refreshes will skip channels that are still fresh
-export async function markChannelCacheRefreshed(channelId: string) {
+// after refreshing a channel, update its freshness window and
+// persist its uploads playlist id so future refreshes can reuse it
+export async function markChannelCacheRefreshed(
+  channelId: string,
+  uploadsPlaylistId: string,
+) {
   const ttlMinutes = env.YOUTUBE_CACHE_TTL_MINUTES;
   const cacheExpiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
 
@@ -194,13 +206,15 @@ export async function markChannelCacheRefreshed(channelId: string) {
     insert into channel_recent_cache_state (
       channel_id,
       cache_expires_at,
-      last_checked_at
+      last_checked_at,
+      uploads_playlist_id
     )
-    values ($1, $2, now())
+    values ($1, $2, now(), $3)
     on conflict (channel_id) do update
       set cache_expires_at = excluded.cache_expires_at,
-          last_checked_at = now()
+          last_checked_at = now(),
+          uploads_playlist_id = excluded.uploads_playlist_id
     `,
-    [channelId, cacheExpiresAt],
+    [channelId, cacheExpiresAt, uploadsPlaylistId],
   );
 }

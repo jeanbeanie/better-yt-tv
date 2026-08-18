@@ -5,10 +5,10 @@ import { requireAuth, type AuthedRequest } from "../auth/requireAuth.js";
 import { decryptRefreshToken } from "../auth/crypto.js";
 import { refreshAccessToken } from "../auth/google.js";
 import { withYoutubeReauthHandling } from "./youtubeAuthGuard.js";
-import { 
+import {
   fetchRecentVideosForChannel,
   upsertVideosCache,
-  isChannelCacheStale,
+  getChannelCacheState,
   markChannelCacheRefreshed,
 } from "../youtube/videos.js";
 import { recordQuotaUsage } from "../youtube/quota.js";
@@ -173,12 +173,26 @@ youtubeRouter.post(
   withYoutubeReauthHandling(async (req, res) => {
      const userId = (req as AuthedRequest).userId;
 
-    // Grab this user's saved subscriptions from our DB
+    // Grab this user's saved subscriptions from our DB, skipping channels
+    // that can never appear in any feed (enabled_all=false and not in a list)
     const subResult = await pool.query(
       `
-      select channel_id
-      from user_subscriptions
-      where user_id = $1
+      select us.channel_id
+      from user_subscriptions us
+      left join channel_preferences cp
+        on cp.user_id = us.user_id
+       and cp.channel_id = us.channel_id
+      where us.user_id = $1
+        and (
+          coalesce(cp.enabled_all, true) = true
+          or exists (
+            select 1
+            from list_channels lc
+            join lists l on l.id = lc.list_id
+            where l.user_id = us.user_id
+              and lc.channel_id = us.channel_id
+          )
+        )
       `,
       [userId],
     );
@@ -204,10 +218,10 @@ youtubeRouter.post(
 
     // fetch recent videos for each channel, upsert them into videos_cache
     for (const channelId of channelIds) {
-      const stale = await isChannelCacheStale(channelId);
+      const cacheState = await getChannelCacheState(channelId);
 
       // skip channels whose cache is still valid
-      if(!stale) {
+      if(!cacheState.stale) {
         skippedChannels += 1;
         continue;
       }
@@ -216,11 +230,12 @@ youtubeRouter.post(
       if(!accessToken) {
         accessToken = await getGoogleAccessToken(userId);
       }
-      
+
       // fetch recent videos from YouTube for this stale channel
-      const videos = await fetchRecentVideosForChannel({
+      const { videos, uploadsPlaylistId } = await fetchRecentVideosForChannel({
         accessToken,
         channelId,
+        cachedUploadsPlaylistId: cacheState.uploadsPlaylistId,
         maxResults: 20,
       });
 
@@ -228,7 +243,7 @@ youtubeRouter.post(
       await upsertVideosCache(videos);
 
       // mark channel's cache state as fresh again
-      await markChannelCacheRefreshed(channelId);
+      await markChannelCacheRefreshed(channelId, uploadsPlaylistId);
 
       refreshedChannels += 1;
       cachedVideos += videos.length;

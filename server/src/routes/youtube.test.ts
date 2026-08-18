@@ -32,8 +32,21 @@ vi.mock("../youtube/quota.js", () => ({
   recordQuotaUsage: vi.fn(),
 }));
 
+vi.mock("../youtube/videos.js", () => ({
+  getChannelCacheState: vi.fn(),
+  fetchRecentVideosForChannel: vi.fn(),
+  upsertVideosCache: vi.fn(),
+  markChannelCacheRefreshed: vi.fn(),
+}));
+
 const { pool } = await import("../db/pool.js");
 const { recordQuotaUsage } = await import("../youtube/quota.js");
+const {
+  getChannelCacheState,
+  fetchRecentVideosForChannel,
+  upsertVideosCache,
+  markChannelCacheRefreshed,
+} = await import("../youtube/videos.js");
 const { youtubeRouter } = await import("./youtube.js");
 
 function buildApp() {
@@ -173,5 +186,112 @@ describe("POST /api/youtube/sync-subscriptions", () => {
     expect(recordQuotaUsage).toHaveBeenCalledTimes(2);
     expect(recordQuotaUsage).toHaveBeenNthCalledWith(1, "subscriptions.list", 1);
     expect(recordQuotaUsage).toHaveBeenNthCalledWith(2, "subscriptions.list", 1);
+  });
+});
+
+function mockChannelIdsQuery(channelIds: string[]) {
+  vi.mocked(pool.query).mockImplementation(async (sql: any) => {
+    if (String(sql).includes("oauth_tokens")) {
+      return { rows: [{ refresh_token_ciphertext: "fake-ciphertext" }], rowCount: 1 } as any;
+    }
+    if (String(sql).includes("from user_subscriptions us")) {
+      return {
+        rows: channelIds.map((channel_id) => ({ channel_id })),
+        rowCount: channelIds.length,
+      } as any;
+    }
+    throw new Error(`Unexpected query in mockChannelIdsQuery: ${String(sql)}`);
+  });
+}
+
+describe("POST /api/youtube/refresh-all-cache", () => {
+  beforeEach(() => {
+    vi.mocked(pool.query).mockReset();
+    vi.mocked(getChannelCacheState).mockReset();
+    vi.mocked(fetchRecentVideosForChannel).mockReset();
+    vi.mocked(upsertVideosCache).mockReset();
+    vi.mocked(markChannelCacheRefreshed).mockReset();
+  });
+
+  // pool.query is mocked, so this can't prove the WHERE clause actually
+  // filters correctly against real data -- it guards the query's shape,
+  // so a future edit can't silently drop the list_channels override or
+  // reintroduce enabled_live (see the comment above this query in
+  // youtube.ts for why enabled_live is deliberately excluded)
+  it("queries channel eligibility via channel_preferences and list_channels, never enabled_live", async () => {
+    mockChannelIdsQuery([]);
+
+    await request(buildApp())
+      .post("/api/youtube/refresh-all-cache")
+      .set("Cookie", "sid=fake-session");
+
+    const call = vi
+      .mocked(pool.query)
+      .mock.calls.find(([sql]) => String(sql).includes("from user_subscriptions us"));
+    expect(call).toBeDefined();
+    const sql = String(call![0]);
+    expect(sql).toContain("channel_preferences");
+    expect(sql).toContain("list_channels");
+    expect(sql).not.toContain("enabled_live");
+  });
+
+  it("returns zero counts and never checks staleness when there are no eligible channels", async () => {
+    mockChannelIdsQuery([]);
+
+    const res = await request(buildApp())
+      .post("/api/youtube/refresh-all-cache")
+      .set("Cookie", "sid=fake-session");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, refreshedChannels: 0, skippedChannels: 0, cachedVideos: 0 });
+    expect(getChannelCacheState).not.toHaveBeenCalled();
+  });
+
+  it("refreshes stale channels and skips fresh ones, tallying counts correctly", async () => {
+    mockChannelIdsQuery(["chan1", "chan2"]);
+    vi.mocked(getChannelCacheState).mockImplementation(async (channelId) => ({
+      stale: channelId === "chan1",
+      uploadsPlaylistId: null,
+    }));
+    vi.mocked(fetchRecentVideosForChannel).mockResolvedValue({
+      videos: [
+        { videoId: "v1", channelId: "chan1", title: "t", publishedAt: "2026-01-01", thumbUrl: null },
+      ],
+      uploadsPlaylistId: "UUchan1",
+    });
+
+    const res = await request(buildApp())
+      .post("/api/youtube/refresh-all-cache")
+      .set("Cookie", "sid=fake-session");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, refreshedChannels: 1, skippedChannels: 1, cachedVideos: 1 });
+    expect(fetchRecentVideosForChannel).toHaveBeenCalledTimes(1);
+    expect(fetchRecentVideosForChannel).toHaveBeenCalledWith(
+      expect.objectContaining({ channelId: "chan1" }),
+    );
+    expect(markChannelCacheRefreshed).toHaveBeenCalledWith("chan1", "UUchan1");
+    expect(upsertVideosCache).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes a channel's cached uploads playlist id through to the fetch", async () => {
+    mockChannelIdsQuery(["chan1"]);
+    vi.mocked(getChannelCacheState).mockResolvedValue({
+      stale: true,
+      uploadsPlaylistId: "UUcached",
+    });
+    vi.mocked(fetchRecentVideosForChannel).mockResolvedValue({
+      videos: [],
+      uploadsPlaylistId: "UUcached",
+    });
+
+    await request(buildApp())
+      .post("/api/youtube/refresh-all-cache")
+      .set("Cookie", "sid=fake-session");
+
+    expect(fetchRecentVideosForChannel).toHaveBeenCalledWith(
+      expect.objectContaining({ cachedUploadsPlaylistId: "UUcached" }),
+    );
+    expect(markChannelCacheRefreshed).toHaveBeenCalledWith("chan1", "UUcached");
   });
 });
