@@ -11,6 +11,7 @@ import {
   isChannelCacheStale,
   markChannelCacheRefreshed,
 } from "../youtube/videos.js";
+import { recordQuotaUsage } from "../youtube/quota.js";
 
 export const youtubeRouter = express.Router();
 
@@ -78,6 +79,9 @@ async function fetchYoutubeSubscriptions(accessToken: string): Promise<YoutubeSu
       const ytResponse = await fetch(url, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
+
+      // log quota usage for this page of results
+      await recordQuotaUsage("subscriptions.list", 1);
 
       if (!ytResponse.ok) {
         const text = await ytResponse.text();

@@ -28,7 +28,12 @@ vi.mock("../auth/google.js", () => ({
   })),
 }));
 
+vi.mock("../youtube/quota.js", () => ({
+  recordQuotaUsage: vi.fn(),
+}));
+
 const { pool } = await import("../db/pool.js");
+const { recordQuotaUsage } = await import("../youtube/quota.js");
 const { youtubeRouter } = await import("./youtube.js");
 
 function buildApp() {
@@ -54,6 +59,24 @@ function mockSubscriptionsFetch(items: Array<{ channelId: string; title: string;
       { status: 200 },
     ),
   ) as unknown as typeof fetch;
+}
+
+function mockPagedSubscriptionsFetch(pages: Array<Array<{ channelId: string; title: string }>>) {
+  global.fetch = vi.fn(async (url: any) => {
+    const pageIndex = new URL(url).searchParams.get("pageToken") === "page2" ? 1 : 0;
+    const items = pages[pageIndex];
+    const isLastPage = pageIndex === pages.length - 1;
+
+    return new Response(
+      JSON.stringify({
+        items: items.map((item) => ({
+          snippet: { resourceId: { channelId: item.channelId }, title: item.title, thumbnails: {} },
+        })),
+        nextPageToken: isLastPage ? undefined : "page2",
+      }),
+      { status: 200 },
+    );
+  }) as unknown as typeof fetch;
 }
 
 // getGoogleAccessToken always looks up oauth_tokens first, regardless of
@@ -132,5 +155,23 @@ describe("POST /api/youtube/sync-subscriptions", () => {
 
     expect(res.status).toBe(500);
     expect(syncInsertCalls()).toHaveLength(1);
+  });
+
+  it("records one subscriptions.list unit per page fetched, not per sync", async () => {
+    mockPagedSubscriptionsFetch([
+      [{ channelId: "chan1", title: "Channel One" }],
+      [{ channelId: "chan2", title: "Channel Two" }],
+    ]);
+    mockOauthTokenLookup(async () => ({ rows: [], rowCount: 0 }));
+    vi.mocked(recordQuotaUsage).mockReset();
+
+    const res = await request(buildApp())
+      .post("/api/youtube/sync-subscriptions")
+      .set("Cookie", "sid=fake-session");
+
+    expect(res.status).toBe(200);
+    expect(recordQuotaUsage).toHaveBeenCalledTimes(2);
+    expect(recordQuotaUsage).toHaveBeenNthCalledWith(1, "subscriptions.list", 1);
+    expect(recordQuotaUsage).toHaveBeenNthCalledWith(2, "subscriptions.list", 1);
   });
 });

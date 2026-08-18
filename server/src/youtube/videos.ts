@@ -1,5 +1,6 @@
 import { pool } from "../db/pool.js";
 import { env } from "../config/env.js";
+import { recordQuotaUsage } from "./quota.js";
 
 // shape we want to send into database
 export type CachedVideo = {
@@ -27,6 +28,9 @@ async function fetchUploadsPlaylistId(args: {
       Authorization: `Bearer ${args.accessToken}`,
     },
   });
+
+  // log quota usage for this call
+  await recordQuotaUsage("channels.list", 1);
 
   if (!resp.ok) {
     const text = await resp.text();
@@ -69,6 +73,9 @@ async function fetchRecentVideosFromUploadsPlaylist(args: {
       Authorization: `Bearer ${args.accessToken}`,
     },
   });
+
+  // log quota usage for this call
+  await recordQuotaUsage("playlistItems.list", 1);
 
   if (!resp.ok) {
     const text = await resp.text();
