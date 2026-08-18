@@ -1,6 +1,6 @@
 \restrict dbmate
 
--- Dumped from database version 18.4 (Debian 18.4-1.pgdg13+1)
+-- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 18.3
 
 SET statement_timeout = 0;
@@ -207,6 +207,32 @@ CREATE TABLE public.videos_cache (
 
 
 --
+-- Name: youtube_quota_usage; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.youtube_quota_usage (
+    id bigint NOT NULL,
+    call_type text NOT NULL,
+    units integer NOT NULL,
+    called_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: youtube_quota_usage_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.youtube_quota_usage ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.youtube_quota_usage_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: billing_customers billing_customers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -343,6 +369,14 @@ ALTER TABLE ONLY public.videos_cache
 
 
 --
+-- Name: youtube_quota_usage youtube_quota_usage_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.youtube_quota_usage
+    ADD CONSTRAINT youtube_quota_usage_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: channel_preferences_user_enabled_all_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -389,6 +423,13 @@ CREATE INDEX user_video_state_user_watched_idx ON public.user_video_state USING 
 --
 
 CREATE INDEX videos_cache_channel_published_idx ON public.videos_cache USING btree (channel_id, published_at DESC);
+
+
+--
+-- Name: youtube_quota_usage_called_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX youtube_quota_usage_called_at_idx ON public.youtube_quota_usage USING btree (called_at);
 
 
 --
@@ -478,4 +519,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260517051252'),
     ('20260517192315'),
     ('20260521154720'),
-    ('20260804175339');
+    ('20260804175339'),
+    ('20260817190121');
