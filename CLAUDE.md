@@ -42,7 +42,7 @@ pnpm db:status   # show migration status
 pnpm db:new      # create a new migration file
 ```
 
-Postgres itself runs via `docker-compose.yml` (`better-yt-tv-db` service, port 5432). Migrations live in `server/src/db/migrations/`; the schema dump lives at `server/src/db/schema.sql`.
+Postgres itself runs via `docker-compose.yml` (`db` service, port 5432). Migrations live in `server/src/db/migrations/`; the schema dump lives at `server/src/db/schema.sql`.
 
 ### Environment
 
