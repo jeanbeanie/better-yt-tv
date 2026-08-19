@@ -8,6 +8,7 @@ const { pool } = await import("../db/pool.js");
 const {
   recordQuotaUsage,
   getQuotaHistory,
+  getQuotaCallsOnDate,
   summarizeToday,
   DAILY_QUOTA_BUDGET,
   HISTORY_WINDOW_DAYS,
@@ -99,6 +100,47 @@ describe("getQuotaHistory", () => {
       .mock.calls.find(([sql]) => String(sql).includes("group by usage_date"));
     expect(historyCall![0]).toContain("where called_at >");
     expect(historyCall![1]).toEqual([HISTORY_WINDOW_DAYS]);
+  });
+});
+
+describe("getQuotaCallsOnDate", () => {
+  beforeEach(() => {
+    vi.mocked(pool.query).mockReset();
+  });
+
+  it("filters on the pacific-date expression, passing the date through as a parameter", async () => {
+    vi.mocked(pool.query).mockResolvedValue({ rows: [] } as any);
+
+    await getQuotaCallsOnDate("2026-08-17");
+
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("timezone('America/Los_Angeles', called_at)::date = $1::date"),
+      ["2026-08-17"],
+    );
+  });
+
+  it("maps rows to camelCase with an ISO-stamped calledAt, newest first as returned by postgres", async () => {
+    // simulates a call made late in the UTC evening that postgres has already
+    // bucketed onto the requested pacific date via the timezone() expression
+    vi.mocked(pool.query).mockResolvedValue({
+      rows: [
+        { call_type: "channels.list", units: 1, called_at: new Date("2026-08-18T05:30:00.000Z") },
+        { call_type: "playlistItems.list", units: 4, called_at: new Date("2026-08-18T02:00:00.000Z") },
+      ],
+    } as any);
+
+    const calls = await getQuotaCallsOnDate("2026-08-17");
+
+    expect(calls).toEqual([
+      { calledAt: "2026-08-18T05:30:00.000Z", callType: "channels.list", units: 1 },
+      { calledAt: "2026-08-18T02:00:00.000Z", callType: "playlistItems.list", units: 4 },
+    ]);
+  });
+
+  it("returns an empty array when no calls exist for the date", async () => {
+    vi.mocked(pool.query).mockResolvedValue({ rows: [] } as any);
+
+    expect(await getQuotaCallsOnDate("2026-08-17")).toEqual([]);
   });
 });
 
