@@ -169,12 +169,13 @@ p {
 }
 
 .divider-row-clickable:hover {
-  background: var(--accent-bg);
+  background: var(--code-bg);
 }
 
 .queue-row {
   padding: 0.5rem 0;
   gap: 1rem;
+  border-left: 3px solid transparent;
 }
 
 .queue-row-watched {
@@ -182,6 +183,11 @@ p {
 }
 
 .queue-row-selected {
+  background: var(--accent-bg);
+  border-left-color: var(--accent);
+}
+
+.queue-row-selected.divider-row-clickable:hover {
   background: var(--accent-bg);
 }
 
