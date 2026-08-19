@@ -1,6 +1,7 @@
 import { pool } from "../db/pool.js";
 
 export const DAILY_QUOTA_BUDGET = 10_000;
+export const HISTORY_WINDOW_DAYS = 365;
 
 export type YoutubeQuotaCallType =
   | "channels.list"
@@ -46,22 +47,24 @@ export async function getQuotaHistory(): Promise<{
     pool.query(
       `
       select
-        timezone('America/Los_Angeles', called_at)::date as usage_date,
+        to_char(timezone('America/Los_Angeles', called_at)::date, 'YYYY-MM-DD') as usage_date,
         call_type,
         sum(units)::int as units
       from youtube_quota_usage
+      where called_at > now() - ($1 || ' days')::interval
       group by usage_date, call_type
       order by usage_date desc, call_type
       `,
+      [HISTORY_WINDOW_DAYS],
     ),
     pool.query(
-      `select timezone('America/Los_Angeles', now())::date as today_date`,
+      `select to_char(timezone('America/Los_Angeles', now())::date, 'YYYY-MM-DD') as today_date`,
     ),
   ]);
 
   const byDate = new Map<string, QuotaHistoryDay>();
   for (const row of historyResult.rows) {
-    const date = (row.usage_date as Date).toISOString().slice(0, 10);
+    const date = row.usage_date as string;
     if (!byDate.has(date)) {
       byDate.set(date, { date, total: 0, breakdown: [] });
     }
@@ -70,9 +73,7 @@ export async function getQuotaHistory(): Promise<{
     day.total += row.units;
   }
 
-  const todayDate = (todayResult.rows[0].today_date as Date)
-    .toISOString()
-    .slice(0, 10);
+  const todayDate = todayResult.rows[0].today_date as string;
 
   return { days: [...byDate.values()], todayDate };
 }

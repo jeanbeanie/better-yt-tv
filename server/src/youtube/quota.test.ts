@@ -5,8 +5,13 @@ vi.mock("../db/pool.js", () => ({
 }));
 
 const { pool } = await import("../db/pool.js");
-const { recordQuotaUsage, getQuotaHistory, summarizeToday, DAILY_QUOTA_BUDGET } =
-  await import("./quota.js");
+const {
+  recordQuotaUsage,
+  getQuotaHistory,
+  summarizeToday,
+  DAILY_QUOTA_BUDGET,
+  HISTORY_WINDOW_DAYS,
+} = await import("./quota.js");
 
 describe("recordQuotaUsage", () => {
   beforeEach(() => {
@@ -36,7 +41,7 @@ describe("getQuotaHistory", () => {
     vi.mocked(pool.query).mockReset();
   });
 
-  function mockRows(historyRows: any[], todayDate: Date) {
+  function mockRows(historyRows: any[], todayDate: string) {
     vi.mocked(pool.query).mockImplementation(async (sql: any) => {
       if (String(sql).includes("group by usage_date")) {
         return { rows: historyRows } as any;
@@ -48,11 +53,11 @@ describe("getQuotaHistory", () => {
   it("groups multiple call types on the same day into one entry", async () => {
     mockRows(
       [
-        { usage_date: new Date("2026-08-17"), call_type: "channels.list", units: 4 },
-        { usage_date: new Date("2026-08-17"), call_type: "playlistItems.list", units: 4 },
-        { usage_date: new Date("2026-08-16"), call_type: "subscriptions.list", units: 1 },
+        { usage_date: "2026-08-17", call_type: "channels.list", units: 4 },
+        { usage_date: "2026-08-17", call_type: "playlistItems.list", units: 4 },
+        { usage_date: "2026-08-16", call_type: "subscriptions.list", units: 1 },
       ],
-      new Date("2026-08-17"),
+      "2026-08-17",
     );
 
     const { days, todayDate } = await getQuotaHistory();
@@ -76,12 +81,24 @@ describe("getQuotaHistory", () => {
   });
 
   it("returns an empty list when the table has no rows", async () => {
-    mockRows([], new Date("2026-08-17"));
+    mockRows([], "2026-08-17");
 
     const { days, todayDate } = await getQuotaHistory();
 
     expect(days).toEqual([]);
     expect(todayDate).toBe("2026-08-17");
+  });
+
+  it("bounds the history query to HISTORY_WINDOW_DAYS", async () => {
+    mockRows([], "2026-08-17");
+
+    await getQuotaHistory();
+
+    const historyCall = vi
+      .mocked(pool.query)
+      .mock.calls.find(([sql]) => String(sql).includes("group by usage_date"));
+    expect(historyCall![0]).toContain("where called_at >");
+    expect(historyCall![1]).toEqual([HISTORY_WINDOW_DAYS]);
   });
 });
 

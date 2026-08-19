@@ -434,6 +434,13 @@ CREATE INDEX youtube_quota_usage_called_at_idx ON public.youtube_quota_usage USI
 
 
 --
+-- Name: youtube_quota_usage_usage_date_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX youtube_quota_usage_usage_date_idx ON public.youtube_quota_usage USING btree (((timezone('America/Los_Angeles'::text, called_at))::date));
+
+
+--
 -- Name: billing_customers billing_customers_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -522,4 +529,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260521154720'),
     ('20260804175339'),
     ('20260817030003'),
-    ('20260817190121');
+    ('20260817190121'),
+    ('20260818234304');
