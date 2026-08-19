@@ -3,13 +3,18 @@ import { type CSSProperties, type ReactNode } from "react";
 type RowProps = {
   children: ReactNode;
   onClick?: () => void;
+  className?: string;
   style?: CSSProperties;
 };
 
-export default function Row({ children, onClick, style }: RowProps) {
+export default function Row({ children, onClick, className, style }: RowProps) {
+  const classes = ["divider-row", onClick ? "divider-row-clickable" : "", className]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <li
-      className={onClick ? "divider-row divider-row-clickable" : "divider-row"}
+      className={classes}
       onClick={onClick}
       style={{ cursor: onClick ? "pointer" : undefined, ...style }}
     >

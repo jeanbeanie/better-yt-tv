@@ -172,6 +172,19 @@ p {
   background: var(--accent-bg);
 }
 
+.queue-row {
+  padding: 0.5rem 0;
+  gap: 1rem;
+}
+
+.queue-row-watched {
+  opacity: 0.5;
+}
+
+.queue-row-selected {
+  background: var(--accent-bg);
+}
+
 .text-input {
   padding: 0.5rem 0.75rem;
   border-radius: 6px;

@@ -284,16 +284,19 @@ export default function FeedView({
               {visibleItems.map((item) => {
                 const isSelected = item.video_id === selectedVideoId;
 
+                const rowClassName = [
+                  "queue-row",
+                  item.is_watched ? "queue-row-watched" : "",
+                  isSelected ? "queue-row-selected" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ");
+
                 return (
                   <Row
                     key={item.video_id}
                     onClick={() => setSelectedVideoId(item.video_id)}
-                    style={{
-                      gap: "1rem",
-                      padding: "0.5rem 0",
-                      opacity: item.is_watched ? 0.5 : 1,
-                      backgroundColor: isSelected ? "var(--accent-bg)" : "transparent",
-                    }}
+                    className={rowClassName}
                   >
                     <Thumbnail
                       src={item.thumb_url}
