@@ -374,3 +374,31 @@ export async function getListFeed(listId: string, params?: PaginationParams) {
     "get list feed failed",
   );
 }
+
+  ///////////////////////////////
+ //          ADMIN            //
+///////////////////////////////
+
+export type QuotaBreakdownEntry = { callType: string; units: number };
+
+export type QuotaSummary = {
+  used: number;
+  remaining: number;
+  budget: number;
+  breakdown: QuotaBreakdownEntry[];
+};
+
+export type QuotaHistoryDay = {
+  date: string;
+  total: number;
+  breakdown: QuotaBreakdownEntry[];
+};
+
+// Get today's estimated YouTube Data API quota usage plus recent history
+export async function getQuotaSummary() {
+  return apiFetch<{ today: QuotaSummary; history: QuotaHistoryDay[] }>(
+    "/api/admin/quota",
+    { method: "GET" },
+    "get quota summary failed",
+  );
+}

@@ -11,6 +11,7 @@ import ChannelsSettingsPage from "./pages/Settings/ChannelsSettingsPage";
 import ListsSettingsPage from "./pages/Settings/ListsSettingsPage";
 import ListEditorPage from "./pages/Settings/ListEditorPage";
 import ChangelogPage from "./pages/ChangelogPage";
+import AdminPage from "./pages/AdminPage";
 
 function getInitialTheme(): "light" | "dark" {
   const stored = window.localStorage.getItem("betterYtTv.theme");
@@ -98,6 +99,7 @@ function App() {
         <Route path="/live" element={<LivePage />} />
         <Route path="/lists" element={<ListsPage />} />
         <Route path="/changelog" element={<ChangelogPage />}/>
+        <Route path="/admin" element={<AdminPage />}/>
         {/*  SETTINGS ROUTES */}
         <Route path="/settings" element={<SettingsLayout />}>
           <Route index element={<ChannelsSettingsPage />} />

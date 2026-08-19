@@ -9,6 +9,7 @@ import { youtubeRouter } from "./routes/youtube.js";
 import { feedRouter } from "./routes/feed.js";
 import { channelsRouter } from "./routes/channels.js";
 import { listsRouter } from "./routes/lists.js";
+import { adminRouter } from "./routes/admin.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -66,6 +67,9 @@ export function createApp(clientDistPath: string = defaultClientDistPath) {
   // - PUT /api/lists/:listId
   // - DELETE /api/lists/:listId
   app.use("/api/lists", listsRouter);
+
+  // - GET /api/admin/quota
+  app.use("/api/admin", adminRouter);
 
   // unmatched /api paths are real 404s, not frontend routes
   // must come before static and the fallback below so they cant swallow it

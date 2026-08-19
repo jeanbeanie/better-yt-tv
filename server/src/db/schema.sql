@@ -188,7 +188,8 @@ CREATE TABLE public.users (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     google_sub text NOT NULL,
     email text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    is_admin boolean DEFAULT false NOT NULL
 );
 
 
@@ -530,4 +531,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260804175339'),
     ('20260817030003'),
     ('20260817190121'),
-    ('20260818234304');
+    ('20260818234304'),
+    ('20260819143543');
