@@ -1,4 +1,5 @@
 import express from "express";
+import crypto from "node:crypto";
 import { env } from "../config/env.js";
 import { pool } from "../db/pool.js";
 import { requireAuth, type AuthedRequest } from "../auth/requireAuth.js";
@@ -11,7 +12,7 @@ import {
   getChannelCacheState,
   markChannelCacheRefreshed,
 } from "../youtube/videos.js";
-import { recordQuotaUsage } from "../youtube/quota.js";
+import { recordQuotaUsage, type QuotaCallContext } from "../youtube/quota.js";
 
 export const youtubeRouter = express.Router();
 
@@ -60,7 +61,10 @@ async function getGoogleAccessToken(userId:string) {
     return access_token;
 }
 
-async function fetchYoutubeSubscriptions(accessToken: string): Promise<YoutubeSubscription[]> {
+async function fetchYoutubeSubscriptions(
+  accessToken: string,
+  quotaContext?: QuotaCallContext,
+): Promise<YoutubeSubscription[]> {
     // YouTube Data API: subscriptions.list
     // Follow nextPageToken until YouTube stops returning one, so accounts
     // with more than 50 subscriptions (the max per page) are fully synced.
@@ -81,7 +85,7 @@ async function fetchYoutubeSubscriptions(accessToken: string): Promise<YoutubeSu
       });
 
       // log quota usage for this page of results
-      await recordQuotaUsage("subscriptions.list", 1);
+      await recordQuotaUsage("subscriptions.list", 1, quotaContext ?? {});
 
       if (!ytResponse.ok) {
         const text = await ytResponse.text();
@@ -121,12 +125,17 @@ youtubeRouter.post(
   requireAuth,
   withYoutubeReauthHandling(async (req, res) => {
     const userId = (req as AuthedRequest).userId;
+    const requestGroupId = crypto.randomUUID();
 
     // get google access token for this user
     const accessToken = await getGoogleAccessToken(userId);
 
     // fetch subs from YT using access token
-    const items = await fetchYoutubeSubscriptions(accessToken);
+    const items = await fetchYoutubeSubscriptions(accessToken, {
+      action: "sync-subscriptions",
+      userId,
+      requestGroupId,
+    });
 
     // save into DB user_subscriptions so feed logic can use our own data model
     // Bulk upsert via unnest() + a CTE, rather than looping per item, so the
@@ -172,6 +181,7 @@ youtubeRouter.post(
   requireAuth,
   withYoutubeReauthHandling(async (req, res) => {
      const userId = (req as AuthedRequest).userId;
+    const requestGroupId = crypto.randomUUID();
 
     // Grab this user's saved subscriptions from our DB, skipping channels
     // that can never appear in any feed (enabled_all=false and not in a list)
@@ -237,6 +247,7 @@ youtubeRouter.post(
         channelId,
         cachedUploadsPlaylistId: cacheState.uploadsPlaylistId,
         maxResults: 20,
+        quotaContext: { action: "refresh-all-cache", userId, requestGroupId },
       });
 
       // save videos into cache table

@@ -8,6 +8,8 @@ const { pool } = await import("../db/pool.js");
 const {
   recordQuotaUsage,
   getQuotaHistory,
+  getQuotaGroupsOnDate,
+  getQuotaCallsInGroup,
   summarizeToday,
   DAILY_QUOTA_BUDGET,
   HISTORY_WINDOW_DAYS,
@@ -18,14 +20,29 @@ describe("recordQuotaUsage", () => {
     vi.mocked(pool.query).mockReset();
   });
 
-  it("inserts one row with the given call type and units", async () => {
+  it("inserts one row with the given call type and units, and nulls when no context is given", async () => {
     vi.mocked(pool.query).mockResolvedValue({ rows: [], rowCount: 1 } as any);
 
     await recordQuotaUsage("channels.list", 1);
 
     expect(pool.query).toHaveBeenCalledWith(
       expect.stringContaining("insert into youtube_quota_usage"),
-      ["channels.list", 1],
+      ["channels.list", 1, null, null, null],
+    );
+  });
+
+  it("inserts action, userId, and requestGroupId when a context is given", async () => {
+    vi.mocked(pool.query).mockResolvedValue({ rows: [], rowCount: 1 } as any);
+
+    await recordQuotaUsage("channels.list", 1, {
+      action: "refresh-all-cache",
+      userId: "user-1",
+      requestGroupId: "group-1",
+    });
+
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("insert into youtube_quota_usage"),
+      ["channels.list", 1, "refresh-all-cache", "user-1", "group-1"],
     );
   });
 
@@ -99,6 +116,192 @@ describe("getQuotaHistory", () => {
       .mock.calls.find(([sql]) => String(sql).includes("group by usage_date"));
     expect(historyCall![0]).toContain("where called_at >");
     expect(historyCall![1]).toEqual([HISTORY_WINDOW_DAYS]);
+  });
+});
+
+describe("getQuotaGroupsOnDate", () => {
+  beforeEach(() => {
+    vi.mocked(pool.query).mockReset();
+  });
+
+  it("filters on the pacific-date expression, passing the date through as a parameter", async () => {
+    vi.mocked(pool.query).mockResolvedValue({ rows: [] } as any);
+
+    await getQuotaGroupsOnDate("2026-08-17");
+
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("timezone('America/Los_Angeles', q.called_at)::date = $1::date"),
+      ["2026-08-17"],
+    );
+  });
+
+  it("keeps two users running the same action and call type on one day as separate rows", async () => {
+    vi.mocked(pool.query).mockResolvedValue({
+      rows: [
+        {
+          action: "refresh-all-cache",
+          call_type: "playlistItems.list",
+          units: 900,
+          request_group_id: "group-a",
+          user_id: "user-1",
+          user_email: "one@example.com",
+          first_at: new Date("2026-08-17T18:00:00.000Z"),
+          last_at: new Date("2026-08-17T18:05:00.000Z"),
+        },
+        {
+          action: "refresh-all-cache",
+          call_type: "playlistItems.list",
+          units: 400,
+          request_group_id: "group-b",
+          user_id: "user-2",
+          user_email: "two@example.com",
+          first_at: new Date("2026-08-17T19:00:00.000Z"),
+          last_at: new Date("2026-08-17T19:02:00.000Z"),
+        },
+      ],
+    } as any);
+
+    const groups = await getQuotaGroupsOnDate("2026-08-17");
+
+    expect(groups).toEqual([
+      {
+        action: "refresh-all-cache",
+        callType: "playlistItems.list",
+        units: 900,
+        requestGroupId: "group-a",
+        userEmail: "one@example.com",
+        firstAt: "2026-08-17T18:00:00.000Z",
+        lastAt: "2026-08-17T18:05:00.000Z",
+      },
+      {
+        action: "refresh-all-cache",
+        callType: "playlistItems.list",
+        units: 400,
+        requestGroupId: "group-b",
+        userEmail: "two@example.com",
+        firstAt: "2026-08-17T19:00:00.000Z",
+        lastAt: "2026-08-17T19:02:00.000Z",
+      },
+    ]);
+  });
+
+  it("passes through a null action for pre migration rows", async () => {
+    vi.mocked(pool.query).mockResolvedValue({
+      rows: [
+        {
+          action: null,
+          call_type: "channels.list",
+          units: 40,
+          request_group_id: null,
+          user_id: null,
+          user_email: null,
+          first_at: new Date("2026-08-17T10:00:00.000Z"),
+          last_at: new Date("2026-08-17T10:00:00.000Z"),
+        },
+      ],
+    } as any);
+
+    const groups = await getQuotaGroupsOnDate("2026-08-17");
+
+    expect(groups[0].action).toBeNull();
+    expect(groups[0].requestGroupId).toBeNull();
+    expect(groups[0].userEmail).toBeNull();
+  });
+
+  it("gives two same-day runs of the same action by the same user separate lines", async () => {
+    // regression test: two refresh-all-cache runs differ only by request_group_id
+    vi.mocked(pool.query).mockResolvedValue({
+      rows: [
+        {
+          action: "refresh-all-cache",
+          call_type: "playlistItems.list",
+          units: 500,
+          request_group_id: "run-2",
+          user_id: "user-1",
+          user_email: "one@example.com",
+          first_at: new Date("2026-08-17T20:00:00.000Z"),
+          last_at: new Date("2026-08-17T20:05:00.000Z"),
+        },
+        {
+          action: "refresh-all-cache",
+          call_type: "playlistItems.list",
+          units: 300,
+          request_group_id: "run-1",
+          user_id: "user-1",
+          user_email: "one@example.com",
+          first_at: new Date("2026-08-17T09:00:00.000Z"),
+          last_at: new Date("2026-08-17T09:03:00.000Z"),
+        },
+      ],
+    } as any);
+
+    const groups = await getQuotaGroupsOnDate("2026-08-17");
+
+    expect(groups).toHaveLength(2);
+    expect(groups.map((g) => g.requestGroupId)).toEqual(["run-2", "run-1"]);
+    expect(groups.map((g) => g.units)).toEqual([500, 300]);
+  });
+});
+
+describe("getQuotaCallsInGroup", () => {
+  beforeEach(() => {
+    vi.mocked(pool.query).mockReset();
+  });
+
+  it("filters on date, call type, action, user, and run, in that parameter order", async () => {
+    vi.mocked(pool.query).mockResolvedValue({ rows: [] } as any);
+
+    await getQuotaCallsInGroup({
+      date: "2026-08-17",
+      callType: "playlistItems.list",
+      action: "refresh-all-cache",
+      userId: "user-1",
+      requestGroupId: "group-a",
+    });
+
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("is not distinct from"),
+      ["2026-08-17", "playlistItems.list", "refresh-all-cache", "user-1", "group-a"],
+    );
+  });
+
+  it("passes null action, userId, and requestGroupId through for pre migration rows", async () => {
+    vi.mocked(pool.query).mockResolvedValue({ rows: [] } as any);
+
+    await getQuotaCallsInGroup({
+      date: "2026-08-17",
+      callType: "channels.list",
+      action: null,
+      userId: null,
+      requestGroupId: null,
+    });
+
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.any(String),
+      ["2026-08-17", "channels.list", null, null, null],
+    );
+  });
+
+  it("maps rows to camelCase with an ISO-stamped calledAt, newest first as returned by postgres", async () => {
+    vi.mocked(pool.query).mockResolvedValue({
+      rows: [
+        { call_type: "channels.list", units: 1, called_at: new Date("2026-08-17T20:00:00.000Z") },
+        { call_type: "channels.list", units: 1, called_at: new Date("2026-08-17T09:00:00.000Z") },
+      ],
+    } as any);
+
+    const calls = await getQuotaCallsInGroup({
+      date: "2026-08-17",
+      callType: "channels.list",
+      action: null,
+      userId: null,
+      requestGroupId: null,
+    });
+
+    expect(calls).toEqual([
+      { calledAt: "2026-08-17T20:00:00.000Z", callType: "channels.list", units: 1 },
+      { calledAt: "2026-08-17T09:00:00.000Z", callType: "channels.list", units: 1 },
+    ]);
   });
 });
 

@@ -402,3 +402,46 @@ export async function getQuotaSummary() {
     "get quota summary failed",
   );
 }
+
+export type QuotaCall = { calledAt: string; callType: string; units: number };
+
+export type QuotaActionGroup = {
+  action: string | null;
+  callType: string;
+  units: number;
+  requestGroupId: string | null;
+  userEmail: string | null;
+  firstAt: string;
+  lastAt: string;
+};
+
+// Get the quota calls logged on one pacific calendar date (YYYY-MM-DD),
+// grouped by action, call type, user, and run
+export async function getQuotaGroupsForDate(date: string) {
+  return apiFetch<{ date: string; groups: QuotaActionGroup[] }>(
+    `/api/admin/quota/groups?date=${date}`,
+    { method: "GET" },
+    "get quota groups failed",
+  );
+}
+
+// Get the raw calls within one group.
+//left out of the query when null
+export async function getQuotaGroupCalls(args: {
+  date: string;
+  callType: string;
+  action: string | null;
+  userId: string | null;
+  requestGroupId: string | null;
+}) {
+  const params = new URLSearchParams({ date: args.date, callType: args.callType });
+  if (args.action !== null) params.set("action", args.action);
+  if (args.userId !== null) params.set("userId", args.userId);
+  if (args.requestGroupId !== null) params.set("requestGroupId", args.requestGroupId);
+
+  return apiFetch<{ date: string; calls: QuotaCall[] }>(
+    `/api/admin/quota/group-calls?${params.toString()}`,
+    { method: "GET" },
+    "get quota group calls failed",
+  );
+}

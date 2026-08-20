@@ -1,6 +1,6 @@
 import { pool } from "../db/pool.js";
 import { env } from "../config/env.js";
-import { recordQuotaUsage } from "./quota.js";
+import { recordQuotaUsage, type QuotaCallContext } from "./quota.js";
 
 // shape we want to send into database
 export type CachedVideo = {
@@ -16,6 +16,7 @@ export type CachedVideo = {
 async function fetchUploadsPlaylistId(args: {
   accessToken: string;
   channelId: string;
+  quotaContext?: QuotaCallContext;
 }): Promise<string> {
   const url = new URL("https://www.googleapis.com/youtube/v3/channels");
 
@@ -30,7 +31,7 @@ async function fetchUploadsPlaylistId(args: {
   });
 
   // log quota usage for this call
-  await recordQuotaUsage("channels.list", 1);
+  await recordQuotaUsage("channels.list", 1, args.quotaContext ?? {});
 
   if (!resp.ok) {
     const text = await resp.text();
@@ -59,6 +60,7 @@ async function fetchRecentVideosFromUploadsPlaylist(args: {
   accessToken: string;
   uploadsPlaylistId: string;
   maxResults?: number;
+  quotaContext?: QuotaCallContext;
 }): Promise<CachedVideo[]> {
   const url = new URL("https://www.googleapis.com/youtube/v3/playlistItems");
 
@@ -75,7 +77,7 @@ async function fetchRecentVideosFromUploadsPlaylist(args: {
   });
 
   // log quota usage for this call
-  await recordQuotaUsage("playlistItems.list", 1);
+  await recordQuotaUsage("playlistItems.list", 1, args.quotaContext ?? {});
 
   if (!resp.ok) {
     const text = await resp.text();
@@ -117,6 +119,7 @@ export async function fetchRecentVideosForChannel(args: {
   channelId: string;
   cachedUploadsPlaylistId?: string | null;
   maxResults?: number;
+  quotaContext?: QuotaCallContext;
 }): Promise<{ videos: CachedVideo[]; uploadsPlaylistId: string }> {
   // uploads playlist id never changes, reuse a cached one if we have it
   const uploadsPlaylistId =
@@ -124,12 +127,14 @@ export async function fetchRecentVideosForChannel(args: {
     (await fetchUploadsPlaylistId({
       accessToken: args.accessToken,
       channelId: args.channelId,
+      quotaContext: args.quotaContext,
     }));
 
   const videos = await fetchRecentVideosFromUploadsPlaylist({
     accessToken: args.accessToken,
     uploadsPlaylistId,
     maxResults: args.maxResults ?? 10,
+    quotaContext: args.quotaContext,
   });
 
   return { videos, uploadsPlaylistId };

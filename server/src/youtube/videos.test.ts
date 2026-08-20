@@ -77,8 +77,8 @@ describe("fetchRecentVideosForChannel", () => {
     expect(result.uploadsPlaylistId).toBe("UUresolved");
     expect(result.videos).toHaveLength(1);
     expect(global.fetch).toHaveBeenCalledTimes(2);
-    expect(recordQuotaUsage).toHaveBeenCalledWith("channels.list", 1);
-    expect(recordQuotaUsage).toHaveBeenCalledWith("playlistItems.list", 1);
+    expect(recordQuotaUsage).toHaveBeenCalledWith("channels.list", 1, {});
+    expect(recordQuotaUsage).toHaveBeenCalledWith("playlistItems.list", 1, {});
     expect(recordQuotaUsage).toHaveBeenCalledTimes(2);
   });
 
@@ -93,8 +93,8 @@ describe("fetchRecentVideosForChannel", () => {
 
     expect(result.uploadsPlaylistId).toBe("UUcached");
     expect(global.fetch).toHaveBeenCalledTimes(1);
-    expect(recordQuotaUsage).not.toHaveBeenCalledWith("channels.list", 1);
-    expect(recordQuotaUsage).toHaveBeenCalledWith("playlistItems.list", 1);
+    expect(recordQuotaUsage).not.toHaveBeenCalledWith("channels.list", 1, {});
+    expect(recordQuotaUsage).toHaveBeenCalledWith("playlistItems.list", 1, {});
     expect(recordQuotaUsage).toHaveBeenCalledTimes(1);
   });
 
@@ -105,8 +105,8 @@ describe("fetchRecentVideosForChannel", () => {
       fetchRecentVideosForChannel({ accessToken: "token", channelId: "chan1" }),
     ).rejects.toThrow();
 
-    expect(recordQuotaUsage).toHaveBeenCalledWith("channels.list", 1);
-    expect(recordQuotaUsage).not.toHaveBeenCalledWith("playlistItems.list", 1);
+    expect(recordQuotaUsage).toHaveBeenCalledWith("channels.list", 1, {});
+    expect(recordQuotaUsage).not.toHaveBeenCalledWith("playlistItems.list", 1, {});
   });
 
   it("still records playlistItems.list usage when the playlist fetch fails", async () => {
@@ -116,8 +116,8 @@ describe("fetchRecentVideosForChannel", () => {
       fetchRecentVideosForChannel({ accessToken: "token", channelId: "chan1" }),
     ).rejects.toThrow();
 
-    expect(recordQuotaUsage).toHaveBeenCalledWith("channels.list", 1);
-    expect(recordQuotaUsage).toHaveBeenCalledWith("playlistItems.list", 1);
+    expect(recordQuotaUsage).toHaveBeenCalledWith("channels.list", 1, {});
+    expect(recordQuotaUsage).toHaveBeenCalledWith("playlistItems.list", 1, {});
   });
 });
 
