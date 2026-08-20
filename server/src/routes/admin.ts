@@ -3,7 +3,6 @@ import { requireAuth } from "../auth/requireAuth.js";
 import { requireAdmin } from "../auth/requireAdmin.js";
 import {
   getQuotaHistory,
-  getQuotaCallsOnDate,
   getQuotaGroupsOnDate,
   getQuotaCallsInGroup,
   summarizeToday,
@@ -32,22 +31,6 @@ adminRouter.get("/quota", requireAuth, requireAdmin, async (_req, res, next) => 
     const { days, todayDate } = await getQuotaHistory();
     const today = summarizeToday(days, todayDate);
     return res.json({ today, history: days });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// GET /api/admin/quota/calls?date=YYYY-MM-DD
-// Individual quota-consuming calls logged on one pacific calendar date
-adminRouter.get("/quota/calls", requireAuth, requireAdmin, async (req, res, next) => {
-  try {
-    const date = req.query.date;
-    if (typeof date !== "string" || !isValidDate(date)) {
-      return res.status(400).json({ error: "date must be a valid YYYY-MM-DD date" });
-    }
-
-    const calls = await getQuotaCallsOnDate(date);
-    return res.json({ date, calls });
   } catch (err) {
     next(err);
   }

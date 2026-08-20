@@ -1,16 +1,30 @@
 import { Fragment, useEffect, useState } from "react";
 import {
   getQuotaSummary,
-  getQuotaCallsForDate,
+  getQuotaGroupsForDate,
+  getQuotaGroupCalls,
   getLoginUrl,
   ApiError,
   type QuotaSummary,
   type QuotaHistoryDay,
   type QuotaCall,
+  type QuotaActionGroup,
 } from "../lib/api";
 import ErrorText from "../components/ErrorText";
 import MutedText from "../components/MutedText";
 import Spinner from "../components/Spinner";
+
+function formatPacificTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("en-US", {
+    timeZone: "America/Los_Angeles",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function groupKey(date: string, group: QuotaActionGroup) {
+  return `${date}|${group.callType}|${group.action ?? ""}|${group.requestGroupId ?? ""}`;
+}
 
 export default function AdminPage() {
   const [today, setToday] = useState<QuotaSummary | null>(null);
@@ -21,9 +35,14 @@ export default function AdminPage() {
   const [pendingLoginRedirect, setPendingLoginRedirect] = useState(false);
 
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
-  const [callsByDate, setCallsByDate] = useState<Record<string, QuotaCall[]>>({});
+  const [groupsByDate, setGroupsByDate] = useState<Record<string, QuotaActionGroup[]>>({});
   const [loadingDates, setLoadingDates] = useState<Set<string>>(new Set());
-  const [callErrors, setCallErrors] = useState<Record<string, string>>({});
+  const [dayErrors, setDayErrors] = useState<Record<string, string>>({});
+
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [callsByGroup, setCallsByGroup] = useState<Record<string, QuotaCall[]>>({});
+  const [loadingGroups, setLoadingGroups] = useState<Set<string>>(new Set());
+  const [groupErrors, setGroupErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!pendingLoginRedirect) return;
@@ -59,7 +78,7 @@ export default function AdminPage() {
     void loadQuota();
   }, []);
 
-  // lazy-loads a day's individual calls on first expand, caches on success,
+  // lazy-loads a day's quota groups on first expand, caches on success,
   // and clears any error on collapse so re-expanding retries a transient failure
   async function toggleDate(date: string) {
     if (expandedDates.has(date)) {
@@ -68,7 +87,7 @@ export default function AdminPage() {
         next.delete(date);
         return next;
       });
-      setCallErrors((prev) => {
+      setDayErrors((prev) => {
         if (!(date in prev)) return prev;
         const next = { ...prev };
         delete next[date];
@@ -79,21 +98,69 @@ export default function AdminPage() {
 
     setExpandedDates((prev) => new Set(prev).add(date));
 
-    if (callsByDate[date] || loadingDates.has(date)) return;
+    if (groupsByDate[date] || loadingDates.has(date)) return;
 
     setLoadingDates((prev) => new Set(prev).add(date));
     try {
-      const data = await getQuotaCallsForDate(date);
-      setCallsByDate((prev) => ({ ...prev, [date]: data.calls }));
+      const data = await getQuotaGroupsForDate(date);
+      setGroupsByDate((prev) => ({ ...prev, [date]: data.groups }));
     } catch (err) {
-      setCallErrors((prev) => ({
+      setDayErrors((prev) => ({
         ...prev,
-        [date]: err instanceof Error ? err.message : "Failed to load calls",
+        [date]: err instanceof Error ? err.message : "Failed to load quota groups",
       }));
     } finally {
       setLoadingDates((prev) => {
         const next = new Set(prev);
         next.delete(date);
+        return next;
+      });
+    }
+  }
+
+  // same lazy-load/cache/error shape as toggleDate, one level down
+  // only called for "unknown (before tracking)" groups
+  async function toggleGroup(date: string, group: QuotaActionGroup) {
+    const key = groupKey(date, group);
+
+    if (expandedGroups.has(key)) {
+      setExpandedGroups((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+      setGroupErrors((prev) => {
+        if (!(key in prev)) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      return;
+    }
+
+    setExpandedGroups((prev) => new Set(prev).add(key));
+
+    if (callsByGroup[key] || loadingGroups.has(key)) return;
+
+    setLoadingGroups((prev) => new Set(prev).add(key));
+    try {
+      const data = await getQuotaGroupCalls({
+        date,
+        callType: group.callType,
+        action: null,
+        userId: null,
+        requestGroupId: null,
+      });
+      setCallsByGroup((prev) => ({ ...prev, [key]: data.calls }));
+    } catch (err) {
+      setGroupErrors((prev) => ({
+        ...prev,
+        [key]: err instanceof Error ? err.message : "Failed to load calls",
+      }));
+    } finally {
+      setLoadingGroups((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
         return next;
       });
     }
@@ -198,9 +265,6 @@ export default function AdminPage() {
                   <tbody>
                     {history.map((day) => {
                       const isExpanded = expandedDates.has(day.date);
-                      const isLoading = loadingDates.has(day.date);
-                      const dayError = callErrors[day.date];
-                      const calls = callsByDate[day.date];
 
                       return (
                         <Fragment key={day.date}>
@@ -252,36 +316,17 @@ export default function AdminPage() {
                                 colSpan={callTypes.length + 2}
                                 style={{ padding: "0.5rem", borderBottom: "1px solid var(--border)" }}
                               >
-                                {isLoading && <Spinner label="Loading calls..." />}
-                                {dayError && <ErrorText>{dayError}</ErrorText>}
-                                {!isLoading && !dayError && calls && calls.length === 0 && (
-                                  <MutedText>No calls recorded.</MutedText>
-                                )}
-                                {!isLoading && !dayError && calls && calls.length > 0 && (
-                                  <div style={{ display: "grid", gap: "0.25rem" }}>
-                                    {calls.map((call, index) => (
-                                      <div
-                                        key={`${call.calledAt}-${call.callType}-${index}`}
-                                        style={{
-                                          display: "flex",
-                                          justifyContent: "space-between",
-                                          gap: "1rem",
-                                          fontSize: "0.85rem",
-                                        }}
-                                      >
-                                        <span>
-                                          {new Date(call.calledAt).toLocaleTimeString("en-US", {
-                                            timeZone: "America/Los_Angeles",
-                                            hour: "numeric",
-                                            minute: "2-digit",
-                                          })}
-                                        </span>
-                                        <span>{call.callType}</span>
-                                        <MutedText>{call.units.toLocaleString()} units</MutedText>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
+                                <QuotaDayDetail
+                                  date={day.date}
+                                  isLoading={loadingDates.has(day.date)}
+                                  error={dayErrors[day.date]}
+                                  groups={groupsByDate[day.date]}
+                                  expandedGroups={expandedGroups}
+                                  loadingGroups={loadingGroups}
+                                  groupErrors={groupErrors}
+                                  callsByGroup={callsByGroup}
+                                  onToggleGroup={toggleGroup}
+                                />
                               </td>
                             </tr>
                           )}
@@ -296,5 +341,146 @@ export default function AdminPage() {
         </>
       )}
     </main>
+  );
+}
+
+function QuotaDayDetail({
+  date,
+  isLoading,
+  error,
+  groups,
+  expandedGroups,
+  loadingGroups,
+  groupErrors,
+  callsByGroup,
+  onToggleGroup,
+}: {
+  date: string;
+  isLoading: boolean;
+  error: string | undefined;
+  groups: QuotaActionGroup[] | undefined;
+  expandedGroups: Set<string>;
+  loadingGroups: Set<string>;
+  groupErrors: Record<string, string>;
+  callsByGroup: Record<string, QuotaCall[]>;
+  onToggleGroup: (date: string, group: QuotaActionGroup) => void;
+}) {
+  if (isLoading) return <Spinner label="Loading quota groups..." />;
+  if (error) return <ErrorText>{error}</ErrorText>;
+  if (!groups) return null;
+  if (groups.length === 0) return <MutedText>No calls recorded.</MutedText>;
+
+  return (
+    <div style={{ display: "grid", gap: "0.25rem" }}>
+      {groups.map((group) => {
+        const key = groupKey(date, group);
+        return (
+          <QuotaGroupRow
+            key={key}
+            date={date}
+            group={group}
+            isExpanded={expandedGroups.has(key)}
+            isLoading={loadingGroups.has(key)}
+            error={groupErrors[key]}
+            calls={callsByGroup[key]}
+            onToggle={onToggleGroup}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function QuotaGroupRow({
+  date,
+  group,
+  isExpanded,
+  isLoading,
+  error,
+  calls,
+  onToggle,
+}: {
+  date: string;
+  group: QuotaActionGroup;
+  isExpanded: boolean;
+  isLoading: boolean;
+  error: string | undefined;
+  calls: QuotaCall[] | undefined;
+  onToggle: (date: string, group: QuotaActionGroup) => void;
+}) {
+  const isDrillable = group.action === null;
+  const timeLabel =
+    group.firstAt === group.lastAt
+      ? formatPacificTime(group.firstAt)
+      : `${formatPacificTime(group.firstAt)}–${formatPacificTime(group.lastAt)}`;
+
+  return (
+    <div style={{ display: "grid", gap: "0.25rem" }}>
+      <div
+        onClick={isDrillable ? () => onToggle(date, group) : undefined}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "1rem",
+          fontSize: "0.85rem",
+          cursor: isDrillable ? "pointer" : "default",
+        }}
+      >
+        <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+          {isDrillable && (
+            <button
+              type="button"
+              title={isExpanded ? "Collapse" : "Expand"}
+              aria-expanded={isExpanded}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "var(--accent)",
+                fontSize: "0.7rem",
+                lineHeight: 1,
+                padding: 0,
+              }}
+            >
+              {isExpanded ? "▾" : "▴"}
+            </button>
+          )}
+          {timeLabel}
+        </span>
+        <span>{group.action ?? "unknown (before tracking)"}</span>
+        <span>{group.callType}</span>
+        {group.userEmail && <MutedText>{group.userEmail}</MutedText>}
+        <MutedText>{group.units.toLocaleString()} units</MutedText>
+      </div>
+
+      {isExpanded && (
+        <div style={{ display: "grid", gap: "0.25rem", paddingLeft: "1.1rem" }}>
+          {isLoading && <Spinner label="Loading calls..." />}
+          {error && <ErrorText>{error}</ErrorText>}
+          {!isLoading && !error && calls && calls.length === 0 && (
+            <MutedText>No calls recorded.</MutedText>
+          )}
+          {!isLoading &&
+            !error &&
+            calls &&
+            calls.map((call, index) => (
+              <div
+                key={`${call.calledAt}-${call.callType}-${index}`}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: "1rem",
+                  fontSize: "0.85rem",
+                }}
+              >
+                <span>{formatPacificTime(call.calledAt)}</span>
+                <span>{call.callType}</span>
+                <MutedText>{call.units.toLocaleString()} units</MutedText>
+              </div>
+            ))}
+        </div>
+      )}
+    </div>
   );
 }

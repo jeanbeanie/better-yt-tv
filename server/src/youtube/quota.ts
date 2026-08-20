@@ -94,26 +94,6 @@ export type QuotaCall = {
   units: number;
 };
 
-// individual calls for one pacific calendar date, newest first
-// reuses the youtube_quota_usage_usage_date_idx expression index
-export async function getQuotaCallsOnDate(date: string): Promise<QuotaCall[]> {
-  const result = await pool.query(
-    `
-    select call_type, units, called_at
-    from youtube_quota_usage
-    where timezone('America/Los_Angeles', called_at)::date = $1::date
-    order by called_at desc
-    `,
-    [date],
-  );
-
-  return result.rows.map((row) => ({
-    calledAt: (row.called_at as Date).toISOString(),
-    callType: row.call_type,
-    units: row.units,
-  }));
-}
-
 export type QuotaActionGroup = {
   action: string | null;
   callType: string;
