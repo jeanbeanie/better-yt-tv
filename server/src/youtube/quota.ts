@@ -3,21 +3,31 @@ import { pool } from "../db/pool.js";
 export const DAILY_QUOTA_BUDGET = 10_000;
 export const HISTORY_WINDOW_DAYS = 365;
 
-export type YoutubeQuotaCallType =
-  | "channels.list"
-  | "playlistItems.list"
-  | "subscriptions.list";
+// real array because the type alone vanishes at runtime so cant be checked against
+export const YOUTUBE_QUOTA_CALL_TYPES = [
+  "channels.list",
+  "playlistItems.list",
+  "subscriptions.list",
+] as const;
+export type YoutubeQuotaCallType = (typeof YOUTUBE_QUOTA_CALL_TYPES)[number];
+
+export type QuotaCallContext = {
+  action?: string;
+  userId?: string;
+  requestGroupId?: string;
+};
 
 // logs one row per call, before the resp.ok check (quota bills on receipt)
 // fails open so a logging error never breaks a real sync/refresh
 export async function recordQuotaUsage(
   callType: YoutubeQuotaCallType,
   units: number,
+  context: QuotaCallContext = {},
 ): Promise<void> {
   try {
     await pool.query(
-      `insert into youtube_quota_usage (call_type, units) values ($1, $2)`,
-      [callType, units],
+      `insert into youtube_quota_usage (call_type, units, action, user_id, request_group_id) values ($1, $2, $3, $4, $5)`,
+      [callType, units, context.action ?? null, context.userId ?? null, context.requestGroupId ?? null],
     );
   } catch (err) {
     console.error("Failed to record YouTube quota usage:", err);

@@ -184,8 +184,36 @@ describe("POST /api/youtube/sync-subscriptions", () => {
 
     expect(res.status).toBe(200);
     expect(recordQuotaUsage).toHaveBeenCalledTimes(2);
-    expect(recordQuotaUsage).toHaveBeenNthCalledWith(1, "subscriptions.list", 1);
-    expect(recordQuotaUsage).toHaveBeenNthCalledWith(2, "subscriptions.list", 1);
+    expect(recordQuotaUsage).toHaveBeenNthCalledWith(
+      1,
+      "subscriptions.list",
+      1,
+      expect.objectContaining({ action: "sync-subscriptions", userId: "test-user-id" }),
+    );
+    expect(recordQuotaUsage).toHaveBeenNthCalledWith(
+      2,
+      "subscriptions.list",
+      1,
+      expect.objectContaining({ action: "sync-subscriptions", userId: "test-user-id" }),
+    );
+  });
+
+  it("shares one requestGroupId across every page fetched in a sync", async () => {
+    mockPagedSubscriptionsFetch([
+      [{ channelId: "chan1", title: "Channel One" }],
+      [{ channelId: "chan2", title: "Channel Two" }],
+    ]);
+    mockOauthTokenLookup(async () => ({ rows: [], rowCount: 0 }));
+    vi.mocked(recordQuotaUsage).mockReset();
+
+    await request(buildApp())
+      .post("/api/youtube/sync-subscriptions")
+      .set("Cookie", "sid=fake-session");
+
+    const [, , firstContext] = vi.mocked(recordQuotaUsage).mock.calls[0];
+    const [, , secondContext] = vi.mocked(recordQuotaUsage).mock.calls[1];
+    expect(firstContext?.requestGroupId).toBeTruthy();
+    expect(secondContext?.requestGroupId).toBe(firstContext?.requestGroupId);
   });
 });
 
@@ -272,6 +300,29 @@ describe("POST /api/youtube/refresh-all-cache", () => {
     );
     expect(markChannelCacheRefreshed).toHaveBeenCalledWith("chan1", "UUchan1");
     expect(upsertVideosCache).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes an action, userId, and shared requestGroupId to every channel refreshed", async () => {
+    mockChannelIdsQuery(["chan1", "chan2"]);
+    vi.mocked(getChannelCacheState).mockResolvedValue({ stale: true, uploadsPlaylistId: null });
+    vi.mocked(fetchRecentVideosForChannel).mockResolvedValue({
+      videos: [],
+      uploadsPlaylistId: "UUresolved",
+    });
+
+    await request(buildApp())
+      .post("/api/youtube/refresh-all-cache")
+      .set("Cookie", "sid=fake-session");
+
+    expect(fetchRecentVideosForChannel).toHaveBeenCalledTimes(2);
+    const [firstCallArgs] = vi.mocked(fetchRecentVideosForChannel).mock.calls[0];
+    const [secondCallArgs] = vi.mocked(fetchRecentVideosForChannel).mock.calls[1];
+    expect(firstCallArgs.quotaContext).toEqual({
+      action: "refresh-all-cache",
+      userId: "test-user-id",
+      requestGroupId: expect.any(String),
+    });
+    expect(secondCallArgs.quotaContext?.requestGroupId).toBe(firstCallArgs.quotaContext?.requestGroupId);
   });
 
   it("passes a channel's cached uploads playlist id through to the fetch", async () => {

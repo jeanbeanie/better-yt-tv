@@ -19,14 +19,29 @@ describe("recordQuotaUsage", () => {
     vi.mocked(pool.query).mockReset();
   });
 
-  it("inserts one row with the given call type and units", async () => {
+  it("inserts one row with the given call type and units, and nulls when no context is given", async () => {
     vi.mocked(pool.query).mockResolvedValue({ rows: [], rowCount: 1 } as any);
 
     await recordQuotaUsage("channels.list", 1);
 
     expect(pool.query).toHaveBeenCalledWith(
       expect.stringContaining("insert into youtube_quota_usage"),
-      ["channels.list", 1],
+      ["channels.list", 1, null, null, null],
+    );
+  });
+
+  it("inserts action, userId, and requestGroupId when a context is given", async () => {
+    vi.mocked(pool.query).mockResolvedValue({ rows: [], rowCount: 1 } as any);
+
+    await recordQuotaUsage("channels.list", 1, {
+      action: "refresh-all-cache",
+      userId: "user-1",
+      requestGroupId: "group-1",
+    });
+
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("insert into youtube_quota_usage"),
+      ["channels.list", 1, "refresh-all-cache", "user-1", "group-1"],
     );
   });
 
