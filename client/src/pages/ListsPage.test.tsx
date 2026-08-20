@@ -246,7 +246,7 @@ describe("ListsPage", () => {
     renderPage();
 
     await screen.findAllByText("First Video");
-    await user.click(screen.getByRole("button", { name: "Watch" }));
+    await user.click(screen.getByRole("button", { name: /mark .* as watched/i }));
 
     expect(markVideoWatched).toHaveBeenCalledWith("v1");
   });
@@ -266,7 +266,7 @@ describe("ListsPage", () => {
     await screen.findAllByText("First Video");
     expect(screen.queryByText("Loading feed...")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Watch" }));
+    await user.click(screen.getByRole("button", { name: /mark .* as watched/i }));
 
     // The page should never flash back to the full-page loading state on a
     // watch/unwatch toggle -- only the initial load shows it

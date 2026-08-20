@@ -8,6 +8,35 @@ import CheckboxLabel from "./CheckboxLabel";
 import Thumbnail from "./Thumbnail";
 import ErrorText from "./ErrorText";
 
+// Outlined "open eye" glyph for an unwatched video
+function EyeOutlineIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+// Filled "open eye" glyph for a watched video
+function EyeIcon() {
+  return (
+    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" />
+    </svg>
+  );
+}
+
 type FeedViewProps = {
   items: FeedItem[];
   onSetWatched: (videoId: string, watched: boolean) => Promise<void>;
@@ -292,60 +321,63 @@ export default function FeedView({
                   .filter(Boolean)
                   .join(" ");
 
+                const toggleClassName = [
+                  "watch-toggle",
+                  !item.is_watched ? "watch-toggle-unwatched" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ");
+
                 return (
                   <Row
                     key={item.video_id}
                     onClick={() => setSelectedVideoId(item.video_id)}
                     className={rowClassName}
                   >
-                    <Thumbnail
-                      src={item.thumb_url}
-                      alt={item.title}
-                      width={120}
-                      style={{
-                        borderRadius: "8px",
-                        flexShrink: 0,
-                      }}
-                    />
+                    {isSelected && (
+                      <span className="queue-now-playing-marker" aria-hidden="true">
+                        ▶
+                      </span>
+                    )}
 
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: isSelected ? 700 : 500 }}>{item.title}</div>
-
-                      <MutedText style={{ fontSize: "0.8rem" }}>
-                        {item.channel_title} ·{" "}
-                        {new Date(item.published_at).toLocaleString()}
-                      </MutedText>
-                    </div>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "flex-end",
-                        gap: "0.5rem",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: "0.8rem",
-                          color: item.is_watched ? "var(--text)" : "var(--text-h)",
-                          paddingRight: ".5rem",
-                        }}
-                      >
-                        {item.is_watched ? "Watched" : "Unwatched"}
+                    <div className="queue-row-content">
+                      <span className="queue-thumb">
+                        <Thumbnail
+                          src={item.thumb_url}
+                          alt=""
+                          width={120}
+                          style={{
+                            borderRadius: "8px",
+                            flexShrink: 0,
+                          }}
+                        />
                       </span>
 
-                      <Button
-                        style={{ marginRight: ".5rem" }}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void onSetWatched(item.video_id, !item.is_watched);
-                        }}
-                      >
-                        {item.is_watched ? "Unwatch" : "Watch"}
-                      </Button>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: isSelected ? 700 : 500 }}>{item.title}</div>
+
+                        <MutedText style={{ fontSize: "0.8rem" }}>
+                          {item.channel_title} ·{" "}
+                          {new Date(item.published_at).toLocaleString()}
+                        </MutedText>
+                      </div>
                     </div>
+
+                    <button
+                      type="button"
+                      className={toggleClassName}
+                      aria-pressed={item.is_watched}
+                      aria-label={`Mark "${item.title}" as ${
+                        item.is_watched ? "unwatched" : "watched"
+                      }`}
+                      title={item.is_watched ? "Mark unwatched" : "Mark watched"}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void onSetWatched(item.video_id, !item.is_watched);
+                      }}
+                    >
+                      {item.is_watched ? <EyeOutlineIcon /> : <EyeIcon />}
+                    </button>
                   </Row>
                 );
               })}

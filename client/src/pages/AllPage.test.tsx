@@ -192,7 +192,7 @@ describe("AllPage", () => {
     await screen.findAllByText("First Video");
     expect(screen.queryByText("Loading feed...")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Watch" }));
+    await user.click(screen.getByRole("button", { name: /mark .* as watched/i }));
 
     // The page should never flash back to the full-page loading state on a
     // watch/unwatch toggle -- only the initial mount shows it
@@ -242,7 +242,7 @@ describe("AllPage", () => {
     vi.mocked(getAllFeed).mockClear();
 
     const user = userEvent.setup();
-    await user.click(screen.getAllByRole("button", { name: "Watch" })[0]);
+    await user.click(screen.getAllByRole("button", { name: /mark .* as watched/i })[0]);
 
     await waitFor(() => expect(getAllFeed).toHaveBeenCalled());
     expect(getAllFeed).toHaveBeenCalledWith({ limit: 51 });
