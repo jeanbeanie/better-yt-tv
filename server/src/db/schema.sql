@@ -1,6 +1,6 @@
 \restrict dbmate
 
--- Dumped from database version 18.4 (Debian 18.4-1.pgdg13+1)
+-- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
 -- Dumped by pg_dump version 18.3
 
 SET statement_timeout = 0;
@@ -216,7 +216,10 @@ CREATE TABLE public.youtube_quota_usage (
     id bigint NOT NULL,
     call_type text NOT NULL,
     units integer NOT NULL,
-    called_at timestamp with time zone DEFAULT now() NOT NULL
+    called_at timestamp with time zone DEFAULT now() NOT NULL,
+    action text,
+    user_id uuid,
+    request_group_id uuid
 );
 
 
@@ -428,13 +431,6 @@ CREATE INDEX videos_cache_channel_published_idx ON public.videos_cache USING btr
 
 
 --
--- Name: youtube_quota_usage_called_at_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX youtube_quota_usage_called_at_idx ON public.youtube_quota_usage USING btree (called_at);
-
-
---
 -- Name: youtube_quota_usage_usage_date_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -514,6 +510,14 @@ ALTER TABLE ONLY public.user_video_state
 
 
 --
+-- Name: youtube_quota_usage youtube_quota_usage_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.youtube_quota_usage
+    ADD CONSTRAINT youtube_quota_usage_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
 -- PostgreSQL database dump complete
 --
 
@@ -532,4 +536,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260817030003'),
     ('20260817190121'),
     ('20260818234304'),
-    ('20260819143543');
+    ('20260819143543'),
+    ('20260820012510');
