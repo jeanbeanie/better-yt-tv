@@ -402,3 +402,14 @@ export async function getQuotaSummary() {
     "get quota summary failed",
   );
 }
+
+export type QuotaCall = { calledAt: string; callType: string; units: number };
+
+// Get the individual quota calls logged on one pacific calendar date (YYYY-MM-DD)
+export async function getQuotaCallsForDate(date: string) {
+  return apiFetch<{ date: string; calls: QuotaCall[] }>(
+    `/api/admin/quota/calls?date=${date}`,
+    { method: "GET" },
+    "get quota calls failed",
+  );
+}
