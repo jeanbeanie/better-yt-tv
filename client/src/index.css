@@ -255,6 +255,10 @@ p {
   outline-offset: 2px;
 }
 
+.watch-toggle:disabled {
+  cursor: not-allowed;
+}
+
 .watch-toggle-unwatched {
   color: var(--accent);
 }

@@ -74,6 +74,37 @@ export default function FeedView({
   const [playerError, setPlayerError] = useState(false);
   const playerRef = useRef<YoutubePlayerHandle>(null);
 
+  // videoIds with a watch toggle request in flight, used to disable the
+  // button and suppress double-clicks while it's still resolving
+  const [pendingToggleIds, setPendingToggleIds] = useState<Set<string>>(new Set());
+  // videoIds whose toggle has been in flight long enough to show a spinner for
+  const [spinnerToggleIds, setSpinnerToggleIds] = useState<Set<string>>(new Set());
+
+  async function handleToggleClick(item: FeedItem) {
+    const videoId = item.video_id;
+
+    setPendingToggleIds((prev) => new Set(prev).add(videoId));
+    const spinnerTimer = setTimeout(() => {
+      setSpinnerToggleIds((prev) => new Set(prev).add(videoId));
+    }, 150);
+
+    try {
+      await onSetWatched(videoId, !item.is_watched);
+    } finally {
+      clearTimeout(spinnerTimer);
+      setPendingToggleIds((prev) => {
+        const next = new Set(prev);
+        next.delete(videoId);
+        return next;
+      });
+      setSpinnerToggleIds((prev) => {
+        const next = new Set(prev);
+        next.delete(videoId);
+        return next;
+      });
+    }
+  }
+
   useEffect(() => {
     // A playback error is specific to whatever video was selected when it
     // happened -- clear it as soon as the user moves on to a different one
@@ -321,6 +352,9 @@ export default function FeedView({
                   .filter(Boolean)
                   .join(" ");
 
+                const isTogglePending = pendingToggleIds.has(item.video_id);
+                const showToggleSpinner = spinnerToggleIds.has(item.video_id);
+
                 const toggleClassName = [
                   "watch-toggle",
                   !item.is_watched ? "watch-toggle-unwatched" : "",
@@ -366,17 +400,25 @@ export default function FeedView({
                     <button
                       type="button"
                       className={toggleClassName}
+                      disabled={isTogglePending}
                       aria-pressed={item.is_watched}
+                      aria-busy={isTogglePending}
                       aria-label={`Mark "${item.title}" as ${
                         item.is_watched ? "unwatched" : "watched"
                       }`}
                       title={item.is_watched ? "Mark unwatched" : "Mark watched"}
                       onClick={(event) => {
                         event.stopPropagation();
-                        void onSetWatched(item.video_id, !item.is_watched);
+                        void handleToggleClick(item);
                       }}
                     >
-                      {item.is_watched ? <EyeOutlineIcon /> : <EyeIcon />}
+                      {showToggleSpinner ? (
+                        <span className="spinner" aria-hidden="true" />
+                      ) : item.is_watched ? (
+                        <EyeOutlineIcon />
+                      ) : (
+                        <EyeIcon />
+                      )}
                     </button>
                   </Row>
                 );

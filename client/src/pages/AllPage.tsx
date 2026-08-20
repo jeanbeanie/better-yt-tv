@@ -105,6 +105,10 @@ export default function AllPage() {
 
   async function handleSetWatched(videoId: string, watched: boolean) {
     try {
+      // Clear any earlier toggle failure so a successful retry doesn't
+      // leave a stale error banner behind
+      setError(null);
+
       if (watched) {
         await markVideoWatched(videoId);
       } else {
@@ -129,11 +133,11 @@ export default function AllPage() {
       {loading && <Spinner label="Loading feed..." />}
       {error && <ErrorText>{error}</ErrorText>}
 
-      {!loading && !error && items.length === 0 && refreshing && (
+      {!loading && items.length === 0 && refreshing && (
         <Spinner label="Fetching your videos, this may take a moment the first time..." />
       )}
 
-      {!loading && !error && !(items.length === 0 && refreshing) && (
+      {!loading && !(items.length === 0 && refreshing) && (
         <FeedView
           items={items}
           onSetWatched={handleSetWatched}

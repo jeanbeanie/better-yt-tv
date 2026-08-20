@@ -155,6 +155,10 @@ export default function ListsPage() {
 
   async function handleSetWatched(videoId: string, watched: boolean) {
     try {
+      // Clear any earlier toggle failure so a successful retry doesn't
+      // leave a stale error banner behind
+      setError(null);
+
       if (watched) {
         await markVideoWatched(videoId);
       } else {
@@ -182,7 +186,7 @@ export default function ListsPage() {
         </p>
       )}
 
-      {!loadingLists && !error && lists.length > 0 && (
+      {!loadingLists && lists.length > 0 && (
         <>
           <div style={{ margin: "1rem 0" }}>
             <label>
