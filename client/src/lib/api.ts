@@ -131,17 +131,41 @@ export async function syncSubscriptions(): Promise<{ ok: boolean; syncedCount: n
   return resp.json();
 }
 
-export async function refreshAllCache() {
-  const resp = await fetch(`${API_BASE}/api/youtube/refresh-all-cache`, {
-    method: "POST",
-    credentials: "include", // tells browser to send cookies with this request, necessary for auth
-  });
+export type RefreshAllCacheResult = {
+  ok: true;
+  refreshedChannels: number;
+  skippedChannels: number;
+  failedChannels: number;
+  cachedVideos: number;
+};
 
-  if (!resp.ok) {
-    throw await parseApiError(resp, "refresh all cache failed");
+// tracks the request already in flight, so a second call while one
+// is pending shares it instead of firing a duplicate refresh
+let refreshAllCacheInFlight: Promise<RefreshAllCacheResult> | null = null;
+
+export async function refreshAllCache(): Promise<RefreshAllCacheResult> {
+  if (refreshAllCacheInFlight) return refreshAllCacheInFlight;
+
+  const inFlight = (async () => {
+    const resp = await fetch(`${API_BASE}/api/youtube/refresh-all-cache`, {
+      method: "POST",
+      credentials: "include", // tells browser to send cookies with this request, necessary for auth
+    });
+
+    if (!resp.ok) {
+      throw await parseApiError(resp, "refresh all cache failed");
+    }
+
+    return resp.json();
+  })();
+
+  refreshAllCacheInFlight = inFlight;
+  try {
+    return await inFlight;
+  } finally {
+    // only clear if a newer call hasnt already replaced it
+    if (refreshAllCacheInFlight === inFlight) refreshAllCacheInFlight = null;
   }
-
-  return resp.json();
 }
 
 

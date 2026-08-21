@@ -5,6 +5,7 @@ import {
   markVideoWatched,
   markVideoUnwatched,
   shouldRedirectToLogin,
+  refreshAllCache,
 } from "./api";
 
 function mockFetchOnce(body: string, status: number) {
@@ -78,5 +79,52 @@ describe("mark watched/unwatched auth handling", () => {
 
     expect(err).toBeInstanceOf(ApiError);
     expect(shouldRedirectToLogin(err)).toBe(true);
+  });
+});
+
+describe("refreshAllCache request dedup", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const resultBody = JSON.stringify({
+    ok: true,
+    refreshedChannels: 1,
+    skippedChannels: 0,
+    failedChannels: 0,
+    cachedVideos: 3,
+  });
+
+  it("shares one request across concurrent calls", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(resultBody, { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const [first, second] = await Promise.all([refreshAllCache(), refreshAllCache()]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(first).toEqual(second);
+  });
+
+  it("fires a new request once the previous one has resolved", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(resultBody, { status: 200 }))
+      .mockResolvedValueOnce(new Response(resultBody, { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await refreshAllCache();
+    await refreshAllCache();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("clears the in-flight request on failure, so a later call can retry", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status: 500 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(refreshAllCache()).rejects.toBeInstanceOf(ApiError);
+    await expect(refreshAllCache()).rejects.toBeInstanceOf(ApiError);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
