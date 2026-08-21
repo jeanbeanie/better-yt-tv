@@ -34,6 +34,19 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
+-- Name: app_settings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.app_settings (
+    id integer DEFAULT 1 NOT NULL,
+    refresh_paused boolean DEFAULT false NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by uuid,
+    CONSTRAINT app_settings_id_check CHECK ((id = 1))
+);
+
+
+--
 -- Name: billing_customers; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -238,6 +251,14 @@ ALTER TABLE public.youtube_quota_usage ALTER COLUMN id ADD GENERATED ALWAYS AS I
 
 
 --
+-- Name: app_settings app_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.app_settings
+    ADD CONSTRAINT app_settings_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: billing_customers billing_customers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -438,6 +459,14 @@ CREATE INDEX youtube_quota_usage_usage_date_idx ON public.youtube_quota_usage US
 
 
 --
+-- Name: app_settings app_settings_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.app_settings
+    ADD CONSTRAINT app_settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
 -- Name: billing_customers billing_customers_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -537,4 +566,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260817190121'),
     ('20260818234304'),
     ('20260819143543'),
-    ('20260820012510');
+    ('20260820012510'),
+    ('20260821071857');
