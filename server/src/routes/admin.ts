@@ -1,4 +1,5 @@
 import express from "express";
+import type { AuthedRequest } from "../auth/requireAuth.js";
 import { requireAuth } from "../auth/requireAuth.js";
 import { requireAdmin } from "../auth/requireAdmin.js";
 import {
@@ -8,6 +9,7 @@ import {
   summarizeToday,
   YOUTUBE_QUOTA_CALL_TYPES,
 } from "../youtube/quota.js";
+import { getAppSettings, setRefreshPaused } from "../settings/appSettings.js";
 
 export const adminRouter = express.Router();
 
@@ -79,6 +81,32 @@ adminRouter.get("/quota/group-calls", requireAuth, requireAdmin, async (req, res
       requestGroupId: optionalQueryParam(req.query.requestGroupId),
     });
     return res.json({ date, calls });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/admin/settings
+adminRouter.get("/settings", requireAuth, requireAdmin, async (_req, res, next) => {
+  try {
+    const settings = await getAppSettings();
+    return res.json(settings);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/admin/settings, body { refreshPaused: boolean }
+adminRouter.patch("/settings", requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const refreshPaused = req.body?.refreshPaused;
+    if (typeof refreshPaused !== "boolean") {
+      return res.status(400).json({ error: "refreshPaused must be a boolean" });
+    }
+
+    const userId = (req as AuthedRequest).userId;
+    const settings = await setRefreshPaused(refreshPaused, userId);
+    return res.json(settings);
   } catch (err) {
     next(err);
   }

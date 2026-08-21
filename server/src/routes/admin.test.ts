@@ -20,12 +20,19 @@ vi.mock("../youtube/quota.js", () => ({
   YOUTUBE_QUOTA_CALL_TYPES: ["channels.list", "playlistItems.list", "subscriptions.list"],
 }));
 
+vi.mock("../settings/appSettings.js", () => ({
+  getAppSettings: vi.fn(),
+  setRefreshPaused: vi.fn(),
+}));
+
 const { getQuotaHistory, getQuotaGroupsOnDate, getQuotaCallsInGroup, summarizeToday } =
   await import("../youtube/quota.js");
+const { getAppSettings, setRefreshPaused } = await import("../settings/appSettings.js");
 const { adminRouter } = await import("./admin.js");
 
 function buildApp() {
   const app = express();
+  app.use(express.json());
   app.use("/api/admin", adminRouter);
   return app;
 }
@@ -202,5 +209,92 @@ describe("GET /api/admin/quota/group-calls", () => {
 
     expect(res.status).toBe(403);
     expect(getQuotaCallsInGroup).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/admin/settings", () => {
+  it("returns the current settings for an admin", async () => {
+    mockIsAdmin = true;
+    vi.mocked(getAppSettings).mockResolvedValue({
+      refreshPaused: true,
+      updatedAt: "2026-08-20T12:00:00.000Z",
+      updatedBy: "user-1",
+    });
+
+    const res = await request(buildApp()).get("/api/admin/settings");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      refreshPaused: true,
+      updatedAt: "2026-08-20T12:00:00.000Z",
+      updatedBy: "user-1",
+    });
+  });
+
+  it("403s for a non-admin session without calling getAppSettings", async () => {
+    mockIsAdmin = false;
+    vi.mocked(getAppSettings).mockReset();
+
+    const res = await request(buildApp()).get("/api/admin/settings");
+
+    expect(res.status).toBe(403);
+    expect(getAppSettings).not.toHaveBeenCalled();
+  });
+});
+
+describe("PATCH /api/admin/settings", () => {
+  it("updates refreshPaused for an admin", async () => {
+    mockIsAdmin = true;
+    vi.mocked(setRefreshPaused).mockResolvedValue({
+      refreshPaused: true,
+      updatedAt: "2026-08-20T12:00:00.000Z",
+      updatedBy: "test-user-id",
+    });
+
+    const res = await request(buildApp())
+      .patch("/api/admin/settings")
+      .send({ refreshPaused: true });
+
+    expect(res.status).toBe(200);
+    expect(setRefreshPaused).toHaveBeenCalledWith(true, "test-user-id");
+    expect(res.body).toEqual({
+      refreshPaused: true,
+      updatedAt: "2026-08-20T12:00:00.000Z",
+      updatedBy: "test-user-id",
+    });
+  });
+
+  it("400s when refreshPaused is not a boolean", async () => {
+    mockIsAdmin = true;
+    vi.mocked(setRefreshPaused).mockReset();
+
+    const res = await request(buildApp())
+      .patch("/api/admin/settings")
+      .send({ refreshPaused: "yes" });
+
+    expect(res.status).toBe(400);
+    expect(setRefreshPaused).not.toHaveBeenCalled();
+  });
+
+  it("400s when refreshPaused is missing", async () => {
+    mockIsAdmin = true;
+    vi.mocked(setRefreshPaused).mockReset();
+
+    const res = await request(buildApp()).patch("/api/admin/settings").send({});
+
+    expect(res.status).toBe(400);
+    expect(setRefreshPaused).not.toHaveBeenCalled();
+  });
+
+  it("403s for a non-admin session without calling setRefreshPaused", async () => {
+    mockIsAdmin = false;
+    vi.mocked(setRefreshPaused).mockReset();
+
+    const res = await request(buildApp())
+      .patch("/api/admin/settings")
+      .send({ refreshPaused: true });
+
+    expect(res.status).toBe(403);
+    expect(setRefreshPaused).not.toHaveBeenCalled();
   });
 });
