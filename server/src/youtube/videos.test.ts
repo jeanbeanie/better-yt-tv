@@ -171,4 +171,13 @@ describe("markChannelCacheRefreshed", () => {
     expect(String(sql)).toContain("uploads_playlist_id");
     expect(params).toEqual(["chan1", expect.any(Date), "UUresolved"]);
   });
+
+  it("accepts a null playlist id, for a channel that never resolved one", async () => {
+    vi.mocked(pool.query).mockResolvedValue({ rows: [] } as any);
+
+    await markChannelCacheRefreshed("chan1", null);
+
+    const [, params] = vi.mocked(pool.query).mock.calls[0];
+    expect(params).toEqual(["chan1", expect.any(Date), null]);
+  });
 });

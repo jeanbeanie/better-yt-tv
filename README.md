@@ -66,3 +66,4 @@ A personal YouTube viewing dashboard that lets you watch the most recent uploads
 
 - Independent `pg_dump` backup script for the production database, separate from whatever Railway's managed Postgres provides by default
 - Rate limiting on `/api/auth/*` endpoints
+- Prune channels whose uploads playlist 404s from `channel_recent_cache_state` and `user_subscriptions`, since they currently just fail and retry indefinitely every ttl cycle

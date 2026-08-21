@@ -215,12 +215,14 @@ youtubeRouter.post(
         ok: true,
         refreshedChannels: 0,
         skippedChannels: 0,
+        failedChannels: 0,
         cachedVideos: 0,
       });
     }
 
     let refreshedChannels = 0;
     let skippedChannels = 0;
+    let failedChannels = 0;
     let cachedVideos = 0;
 
     // lazily request Google access token only if needed
@@ -241,29 +243,38 @@ youtubeRouter.post(
         accessToken = await getGoogleAccessToken(userId);
       }
 
-      // fetch recent videos from YouTube for this stale channel
-      const { videos, uploadsPlaylistId } = await fetchRecentVideosForChannel({
-        accessToken,
-        channelId,
-        cachedUploadsPlaylistId: cacheState.uploadsPlaylistId,
-        maxResults: 20,
-        quotaContext: { action: "refresh-all-cache", userId, requestGroupId },
-      });
+      try {
+        // fetch recent videos from YouTube for this stale channel
+        const { videos, uploadsPlaylistId } = await fetchRecentVideosForChannel({
+          accessToken,
+          channelId,
+          cachedUploadsPlaylistId: cacheState.uploadsPlaylistId,
+          maxResults: 20,
+          quotaContext: { action: "refresh-all-cache", userId, requestGroupId },
+        });
 
-      // save videos into cache table
-      await upsertVideosCache(videos);
+        // save videos into cache table
+        await upsertVideosCache(videos);
 
-      // mark channel's cache state as fresh again
-      await markChannelCacheRefreshed(channelId, uploadsPlaylistId);
+        // mark channel's cache state as fresh again
+        await markChannelCacheRefreshed(channelId, uploadsPlaylistId);
 
-      refreshedChannels += 1;
-      cachedVideos += videos.length;
+        refreshedChannels += 1;
+        cachedVideos += videos.length;
+      } catch (err) {
+        // do not throw for one bad channel
+        // treat it as refreshed so it waits the normal ttl before retrying
+        console.error(`Failed to refresh channel ${channelId}:`, err);
+        failedChannels += 1;
+        await markChannelCacheRefreshed(channelId, cacheState.uploadsPlaylistId);
+      }
     }
 
     return res.json({
       ok: true,
       refreshedChannels,
       skippedChannels,
+      failedChannels,
       cachedVideos,
     });
   }),

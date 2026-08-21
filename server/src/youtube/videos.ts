@@ -201,7 +201,7 @@ export async function getChannelCacheState(channelId: string): Promise<{
 // persist its uploads playlist id so future refreshes can reuse it
 export async function markChannelCacheRefreshed(
   channelId: string,
-  uploadsPlaylistId: string,
+  uploadsPlaylistId: string | null,
 ) {
   const ttlMinutes = env.YOUTUBE_CACHE_TTL_MINUTES;
   const cacheExpiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);

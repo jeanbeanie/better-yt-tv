@@ -271,7 +271,13 @@ describe("POST /api/youtube/refresh-all-cache", () => {
       .set("Cookie", "sid=fake-session");
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true, refreshedChannels: 0, skippedChannels: 0, cachedVideos: 0 });
+    expect(res.body).toEqual({
+      ok: true,
+      refreshedChannels: 0,
+      skippedChannels: 0,
+      failedChannels: 0,
+      cachedVideos: 0,
+    });
     expect(getChannelCacheState).not.toHaveBeenCalled();
   });
 
@@ -293,12 +299,55 @@ describe("POST /api/youtube/refresh-all-cache", () => {
       .set("Cookie", "sid=fake-session");
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true, refreshedChannels: 1, skippedChannels: 1, cachedVideos: 1 });
+    expect(res.body).toEqual({
+      ok: true,
+      refreshedChannels: 1,
+      skippedChannels: 1,
+      failedChannels: 0,
+      cachedVideos: 1,
+    });
     expect(fetchRecentVideosForChannel).toHaveBeenCalledTimes(1);
     expect(fetchRecentVideosForChannel).toHaveBeenCalledWith(
       expect.objectContaining({ channelId: "chan1" }),
     );
     expect(markChannelCacheRefreshed).toHaveBeenCalledWith("chan1", "UUchan1");
+    expect(upsertVideosCache).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips a channel that fails to refresh instead of aborting the whole run", async () => {
+    mockChannelIdsQuery(["chan1", "chan2"]);
+    vi.mocked(getChannelCacheState).mockImplementation(async (channelId) => ({
+      stale: true,
+      uploadsPlaylistId: channelId === "chan1" ? "UUchan1" : null,
+    }));
+    vi.mocked(fetchRecentVideosForChannel).mockImplementation(async (args) => {
+      if (args.channelId === "chan1") {
+        throw new Error("YouTube uploads playlist videos fetch failed: 404");
+      }
+      return {
+        videos: [
+          { videoId: "v2", channelId: "chan2", title: "t", publishedAt: "2026-01-01", thumbUrl: null },
+        ],
+        uploadsPlaylistId: "UUchan2",
+      };
+    });
+
+    const res = await request(buildApp())
+      .post("/api/youtube/refresh-all-cache")
+      .set("Cookie", "sid=fake-session");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      ok: true,
+      refreshedChannels: 1,
+      skippedChannels: 0,
+      failedChannels: 1,
+      cachedVideos: 1,
+    });
+    // the failed channel still gets marked refreshed, on its existing
+    // cached playlist id, so it waits the normal ttl before retrying
+    expect(markChannelCacheRefreshed).toHaveBeenCalledWith("chan1", "UUchan1");
+    expect(markChannelCacheRefreshed).toHaveBeenCalledWith("chan2", "UUchan2");
     expect(upsertVideosCache).toHaveBeenCalledTimes(1);
   });
 
