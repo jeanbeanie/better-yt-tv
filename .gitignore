@@ -6,3 +6,4 @@ dist
 .env.dbmate
 .env.dbmate.production
 .DS_Store
+backups/
