@@ -6,6 +6,8 @@ import {
   markVideoUnwatched,
   shouldRedirectToLogin,
   refreshAllCache,
+  getAppSettings,
+  updateAppSettings,
 } from "./api";
 
 function mockFetchOnce(body: string, status: number) {
@@ -89,6 +91,7 @@ describe("refreshAllCache request dedup", () => {
 
   const resultBody = JSON.stringify({
     ok: true,
+    refreshPaused: false,
     refreshedChannels: 1,
     skippedChannels: 0,
     failedChannels: 0,
@@ -126,5 +129,42 @@ describe("refreshAllCache request dedup", () => {
     await expect(refreshAllCache()).rejects.toBeInstanceOf(ApiError);
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("app settings", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const settingsBody = JSON.stringify({
+    refreshPaused: true,
+    updatedAt: "2026-08-21T00:00:00.000Z",
+    updatedBy: "admin-user-id",
+  });
+
+  it("getAppSettings returns the parsed settings", async () => {
+    mockFetchOnce(settingsBody, 200);
+
+    const settings = await getAppSettings();
+
+    expect(settings).toEqual({
+      refreshPaused: true,
+      updatedAt: "2026-08-21T00:00:00.000Z",
+      updatedBy: "admin-user-id",
+    });
+  });
+
+  it("updateAppSettings sends a PATCH with a JSON content-type header and the parsed body", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(settingsBody, { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const settings = await updateAppSettings({ refreshPaused: true });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.method).toBe("PATCH");
+    expect(init.headers).toEqual({ "Content-Type": "application/json" });
+    expect(init.body).toBe(JSON.stringify({ refreshPaused: true }));
+    expect(settings.refreshPaused).toBe(true);
   });
 });

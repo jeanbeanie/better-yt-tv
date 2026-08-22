@@ -3,12 +3,15 @@ import {
   getQuotaSummary,
   getQuotaGroupsForDate,
   getQuotaGroupCalls,
+  getAppSettings,
+  updateAppSettings,
   getLoginUrl,
   ApiError,
   type QuotaSummary,
   type QuotaHistoryDay,
   type QuotaCall,
   type QuotaActionGroup,
+  type AppSettings,
 } from "../lib/api";
 import ErrorText from "../components/ErrorText";
 import MutedText from "../components/MutedText";
@@ -33,6 +36,10 @@ export default function AdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [notAuthorized, setNotAuthorized] = useState(false);
   const [pendingLoginRedirect, setPendingLoginRedirect] = useState(false);
+
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [togglePending, setTogglePending] = useState(false);
 
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
   const [groupsByDate, setGroupsByDate] = useState<Record<string, QuotaActionGroup[]>>({});
@@ -77,6 +84,46 @@ export default function AdminPage() {
   useEffect(() => {
     void loadQuota();
   }, []);
+
+  // separate from loadQuota so a settings failure doesnt block quota
+  // display, or vice versa
+  async function loadSettings() {
+    try {
+      const data = await getAppSettings();
+      setSettings(data);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401 && err.code === "AUTH_REQUIRED") {
+        setPendingLoginRedirect(true);
+        return;
+      }
+      if (err instanceof ApiError && err.status === 403 && err.code === "ADMIN_REQUIRED") {
+        setNotAuthorized(true);
+        return;
+      }
+      setSettingsError(err instanceof Error ? err.message : "Failed to load settings");
+    }
+  }
+
+  useEffect(() => {
+    void loadSettings();
+  }, []);
+
+  // nothing to roll back on failure since settings state is only ever
+  // updated from a successful response
+  async function handleToggleRefreshPaused() {
+    if (!settings) return;
+
+    setSettingsError(null);
+    setTogglePending(true);
+    try {
+      const updated = await updateAppSettings({ refreshPaused: !settings.refreshPaused });
+      setSettings(updated);
+    } catch (err) {
+      setSettingsError(err instanceof Error ? err.message : "Failed to update setting");
+    } finally {
+      setTogglePending(false);
+    }
+  }
 
   // lazy-loads a day's quota groups on first expand, caches on success,
   // and clears any error on collapse so re-expanding retries a transient failure
@@ -186,6 +233,32 @@ export default function AdminPage() {
 
       {!loading && !error && !notAuthorized && today && (
         <>
+          <section
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "1rem",
+              border: "1px solid var(--border)",
+              borderRadius: "12px",
+              padding: "1rem",
+            }}
+          >
+            <div>
+              <div>Pause automatic refreshes</div>
+              {settings && (
+                <MutedText style={{ fontSize: "0.75rem" }}>
+                  {settings.refreshPaused ? "⚠️ Paused" : "✅ Running"}
+                  {settings.updatedBy ? " · last changed by an admin" : ""}
+                </MutedText>
+              )}
+            </div>
+            <button type="button" disabled={!settings || togglePending} onClick={() => void handleToggleRefreshPaused()}>
+              {settings?.refreshPaused ? "Resume" : "Pause"}
+            </button>
+          </section>
+          {settingsError && <ErrorText>{settingsError}</ErrorText>}
+
           <section
             style={{
               display: "grid",

@@ -133,6 +133,7 @@ export async function syncSubscriptions(): Promise<{ ok: boolean; syncedCount: n
 
 export type RefreshAllCacheResult = {
   ok: true;
+  refreshPaused: boolean;
   refreshedChannels: number;
   skippedChannels: number;
   failedChannels: number;
@@ -467,5 +468,29 @@ export async function getQuotaGroupCalls(args: {
     `/api/admin/quota/group-calls?${params.toString()}`,
     { method: "GET" },
     "get quota group calls failed",
+  );
+}
+
+export type AppSettings = {
+  refreshPaused: boolean;
+  updatedAt: string;
+  updatedBy: string | null;
+};
+
+export async function getAppSettings() {
+  return apiFetch<AppSettings>("/api/admin/settings", { method: "GET" }, "get app settings failed");
+}
+
+export async function updateAppSettings(args: { refreshPaused: boolean }) {
+  return apiFetch<AppSettings>(
+    "/api/admin/settings",
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(args),
+    },
+    "update app settings failed",
   );
 }

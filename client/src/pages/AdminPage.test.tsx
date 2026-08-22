@@ -2,7 +2,14 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import AdminPage from "./AdminPage";
-import { getQuotaSummary, getQuotaGroupsForDate, getQuotaGroupCalls, ApiError } from "../lib/api";
+import {
+  getQuotaSummary,
+  getQuotaGroupsForDate,
+  getQuotaGroupCalls,
+  getAppSettings,
+  updateAppSettings,
+  ApiError,
+} from "../lib/api";
 
 vi.mock("../lib/api", async () => {
   const actual = await vi.importActual<typeof import("../lib/api")>("../lib/api");
@@ -11,6 +18,8 @@ vi.mock("../lib/api", async () => {
     getQuotaSummary: vi.fn(),
     getQuotaGroupsForDate: vi.fn(),
     getQuotaGroupCalls: vi.fn(),
+    getAppSettings: vi.fn(),
+    updateAppSettings: vi.fn(),
     getLoginUrl: vi.fn(() => "http://localhost:5179/api/auth/login"),
   };
 });
@@ -38,6 +47,13 @@ describe("AdminPage", () => {
     vi.mocked(getQuotaSummary).mockReset();
     vi.mocked(getQuotaGroupsForDate).mockReset();
     vi.mocked(getQuotaGroupCalls).mockReset();
+    vi.mocked(getAppSettings).mockReset();
+    vi.mocked(updateAppSettings).mockReset();
+    vi.mocked(getAppSettings).mockResolvedValue({
+      refreshPaused: false,
+      updatedAt: "2026-08-21T00:00:00.000Z",
+      updatedBy: null,
+    });
   });
 
   afterEach(() => {
@@ -308,5 +324,43 @@ describe("AdminPage", () => {
     expect(await screen.findByText("80 units")).toBeInTheDocument();
     expect(screen.queryByText("network blip")).not.toBeInTheDocument();
     expect(getQuotaGroupsForDate).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows the current refresh-pause state from getAppSettings", async () => {
+    vi.mocked(getQuotaSummary).mockResolvedValue(HISTORY_RESPONSE);
+    vi.mocked(getAppSettings).mockResolvedValue({
+      refreshPaused: true,
+      updatedAt: "2026-08-21T00:00:00.000Z",
+      updatedBy: "admin-user-id",
+    });
+
+    render(<AdminPage />);
+
+    expect(await screen.findByText(/paused/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
+  });
+
+  it("clicking the toggle calls updateAppSettings with the flipped value and reflects the result", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getQuotaSummary).mockResolvedValue(HISTORY_RESPONSE);
+    vi.mocked(getAppSettings).mockResolvedValue({
+      refreshPaused: false,
+      updatedAt: "2026-08-21T00:00:00.000Z",
+      updatedBy: null,
+    });
+    vi.mocked(updateAppSettings).mockResolvedValue({
+      refreshPaused: true,
+      updatedAt: "2026-08-21T01:00:00.000Z",
+      updatedBy: "admin-user-id",
+    });
+
+    render(<AdminPage />);
+    const toggleButton = await screen.findByRole("button", { name: "Pause" });
+
+    await user.click(toggleButton);
+
+    expect(updateAppSettings).toHaveBeenCalledWith({ refreshPaused: true });
+    expect(await screen.findByRole("button", { name: "Resume" })).toBeInTheDocument();
+    expect(screen.getByText(/paused/i)).toBeInTheDocument();
   });
 });
