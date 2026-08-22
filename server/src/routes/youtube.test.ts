@@ -39,6 +39,10 @@ vi.mock("../youtube/videos.js", () => ({
   markChannelCacheRefreshed: vi.fn(),
 }));
 
+vi.mock("../settings/appSettings.js", () => ({
+  getAppSettings: vi.fn(),
+}));
+
 const { pool } = await import("../db/pool.js");
 const { recordQuotaUsage } = await import("../youtube/quota.js");
 const {
@@ -47,6 +51,7 @@ const {
   upsertVideosCache,
   markChannelCacheRefreshed,
 } = await import("../youtube/videos.js");
+const { getAppSettings } = await import("../settings/appSettings.js");
 const { youtubeRouter } = await import("./youtube.js");
 
 function buildApp() {
@@ -239,6 +244,12 @@ describe("POST /api/youtube/refresh-all-cache", () => {
     vi.mocked(fetchRecentVideosForChannel).mockReset();
     vi.mocked(upsertVideosCache).mockReset();
     vi.mocked(markChannelCacheRefreshed).mockReset();
+    vi.mocked(getAppSettings).mockReset();
+    vi.mocked(getAppSettings).mockResolvedValue({
+      refreshPaused: false,
+      updatedAt: "2026-08-21T00:00:00.000Z",
+      updatedBy: null,
+    });
   });
 
   // pool.query is mocked, so this can't prove the WHERE clause actually
@@ -273,12 +284,38 @@ describe("POST /api/youtube/refresh-all-cache", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
       ok: true,
+      refreshPaused: false,
       refreshedChannels: 0,
       skippedChannels: 0,
       failedChannels: 0,
       cachedVideos: 0,
     });
     expect(getChannelCacheState).not.toHaveBeenCalled();
+  });
+
+  it("returns early without touching the db or youtube when the kill switch is paused", async () => {
+    vi.mocked(getAppSettings).mockResolvedValue({
+      refreshPaused: true,
+      updatedAt: "2026-08-21T00:00:00.000Z",
+      updatedBy: "admin-user-id",
+    });
+
+    const res = await request(buildApp())
+      .post("/api/youtube/refresh-all-cache")
+      .set("Cookie", "sid=fake-session");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      ok: true,
+      refreshPaused: true,
+      refreshedChannels: 0,
+      skippedChannels: 0,
+      failedChannels: 0,
+      cachedVideos: 0,
+    });
+    expect(pool.query).not.toHaveBeenCalled();
+    expect(getChannelCacheState).not.toHaveBeenCalled();
+    expect(fetchRecentVideosForChannel).not.toHaveBeenCalled();
   });
 
   it("refreshes stale channels and skips fresh ones, tallying counts correctly", async () => {
@@ -301,6 +338,7 @@ describe("POST /api/youtube/refresh-all-cache", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
       ok: true,
+      refreshPaused: false,
       refreshedChannels: 1,
       skippedChannels: 1,
       failedChannels: 0,
@@ -339,6 +377,7 @@ describe("POST /api/youtube/refresh-all-cache", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
       ok: true,
+      refreshPaused: false,
       refreshedChannels: 1,
       skippedChannels: 0,
       failedChannels: 1,

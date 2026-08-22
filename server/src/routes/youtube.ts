@@ -13,6 +13,7 @@ import {
   markChannelCacheRefreshed,
 } from "../youtube/videos.js";
 import { recordQuotaUsage, type QuotaCallContext } from "../youtube/quota.js";
+import { getAppSettings } from "../settings/appSettings.js";
 
 export const youtubeRouter = express.Router();
 
@@ -181,6 +182,19 @@ youtubeRouter.post(
   requireAuth,
   withYoutubeReauthHandling(async (req, res) => {
      const userId = (req as AuthedRequest).userId;
+
+    const settings = await getAppSettings();
+    if (settings.refreshPaused) {
+      return res.json({
+        ok: true,
+        refreshPaused: true,
+        refreshedChannels: 0,
+        skippedChannels: 0,
+        failedChannels: 0,
+        cachedVideos: 0,
+      });
+    }
+
     const requestGroupId = crypto.randomUUID();
 
     // Grab this user's saved subscriptions from our DB, skipping channels
@@ -213,6 +227,7 @@ youtubeRouter.post(
     if (channelIds.length === 0) {
       return res.json({
         ok: true,
+        refreshPaused: false,
         refreshedChannels: 0,
         skippedChannels: 0,
         failedChannels: 0,
@@ -272,6 +287,7 @@ youtubeRouter.post(
 
     return res.json({
       ok: true,
+      refreshPaused: false,
       refreshedChannels,
       skippedChannels,
       failedChannels,
