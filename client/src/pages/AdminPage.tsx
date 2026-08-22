@@ -217,7 +217,7 @@ export default function AdminPage() {
   const callTypes = [...new Set(history.flatMap((d) => d.breakdown.map((b) => b.callType)))].sort();
 
   return (
-    <main style={{ maxWidth: "700px", margin: "0 auto", display: "grid", gap: "1.5rem" }}>
+    <main style={{ maxWidth: "950px", margin: "0 auto", display: "grid", gap: "1.5rem" }}>
       <header>
         <h1 style={{ marginBottom: "0.5rem" }}>Admin</h1>
       </header>
@@ -444,23 +444,34 @@ function QuotaDayDetail({
   if (groups.length === 0) return <MutedText>No calls recorded.</MutedText>;
 
   return (
-    <div style={{ display: "grid", gap: "0.25rem" }}>
-      {groups.map((group) => {
-        const key = groupKey(date, group);
-        return (
-          <QuotaGroupRow
-            key={key}
-            date={date}
-            group={group}
-            isExpanded={expandedGroups.has(key)}
-            isLoading={loadingGroups.has(key)}
-            error={groupErrors[key]}
-            calls={callsByGroup[key]}
-            onToggle={onToggleGroup}
-          />
-        );
-      })}
-    </div>
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <thead>
+        <tr>
+          <th style={{ textAlign: "left", padding: "0.35rem 0.5rem", fontSize: "0.8rem" }}>Time</th>
+          <th style={{ textAlign: "center", padding: "0.35rem 0.5rem", fontSize: "0.8rem" }}>Action</th>
+          <th style={{ textAlign: "center", padding: "0.35rem 0.5rem", fontSize: "0.8rem" }}>Call Type</th>
+          <th style={{ textAlign: "center", padding: "0.35rem 0.5rem", fontSize: "0.8rem" }}>User</th>
+          <th style={{ textAlign: "right", padding: "0.35rem 0.5rem", fontSize: "0.8rem" }}>Units</th>
+        </tr>
+      </thead>
+      <tbody>
+        {groups.map((group) => {
+          const key = groupKey(date, group);
+          return (
+            <QuotaGroupRow
+              key={key}
+              date={date}
+              group={group}
+              isExpanded={expandedGroups.has(key)}
+              isLoading={loadingGroups.has(key)}
+              error={groupErrors[key]}
+              calls={callsByGroup[key]}
+              onToggle={onToggleGroup}
+            />
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 
@@ -482,78 +493,76 @@ function QuotaGroupRow({
   onToggle: (date: string, group: QuotaActionGroup) => void;
 }) {
   const isDrillable = group.action === null;
-  const timeLabel =
-    group.firstAt === group.lastAt
-      ? formatPacificTime(group.firstAt)
-      : `${formatPacificTime(group.firstAt)}–${formatPacificTime(group.lastAt)}`;
+  const cellStyle = { padding: "0.35rem 0.5rem", fontSize: "0.85rem" };
 
   return (
-    <div style={{ display: "grid", gap: "0.25rem" }}>
-      <div
+    <>
+      <tr
         onClick={isDrillable ? () => onToggle(date, group) : undefined}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "1rem",
-          fontSize: "0.85rem",
-          cursor: isDrillable ? "pointer" : "default",
-        }}
+        style={{ cursor: isDrillable ? "pointer" : "default" }}
       >
-        <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-          {isDrillable && (
-            <button
-              type="button"
-              title={isExpanded ? "Collapse" : "Expand"}
-              aria-expanded={isExpanded}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "var(--accent)",
-                fontSize: "0.7rem",
-                lineHeight: 1,
-                padding: 0,
-              }}
-            >
-              {isExpanded ? "▾" : "▴"}
-            </button>
-          )}
-          {timeLabel}
-        </span>
-        <span>{group.action ?? "unknown (before tracking)"}</span>
-        <span>{group.callType}</span>
-        {group.userEmail && <MutedText>{group.userEmail}</MutedText>}
-        <MutedText>{group.units.toLocaleString()} units</MutedText>
-      </div>
-
-      {isExpanded && (
-        <div style={{ display: "grid", gap: "0.25rem", paddingLeft: "1.1rem" }}>
-          {isLoading && <Spinner label="Loading calls..." />}
-          {error && <ErrorText>{error}</ErrorText>}
-          {!isLoading && !error && calls && calls.length === 0 && (
-            <MutedText>No calls recorded.</MutedText>
-          )}
-          {!isLoading &&
-            !error &&
-            calls &&
-            calls.map((call, index) => (
-              <div
-                key={`${call.calledAt}-${call.callType}-${index}`}
+        <td style={cellStyle} title={group.firstAt !== group.lastAt ? `Started ${formatPacificTime(group.firstAt)}` : undefined}>
+          <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            {isDrillable && (
+              <button
+                type="button"
+                title={isExpanded ? "Collapse" : "Expand"}
+                aria-expanded={isExpanded}
                 style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: "1rem",
-                  fontSize: "0.85rem",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "var(--accent)",
+                  fontSize: "0.7rem",
+                  lineHeight: 1,
+                  padding: 0,
                 }}
               >
-                <span>{formatPacificTime(call.calledAt)}</span>
-                <span>{call.callType}</span>
-                <MutedText>{call.units.toLocaleString()} units</MutedText>
-              </div>
-            ))}
-        </div>
+                {isExpanded ? "▾" : "▴"}
+              </button>
+            )}
+            {formatPacificTime(group.lastAt)}
+          </span>
+        </td>
+        <td style={cellStyle}>{group.action ?? "unknown (before tracking)"}</td>
+        <td style={cellStyle}>{group.callType}</td>
+        <td style={cellStyle}>{group.userEmail && <MutedText>{group.userEmail}</MutedText>}</td>
+        <td style={{ ...cellStyle, textAlign: "right" }}>
+          <MutedText>{group.units.toLocaleString()} units</MutedText>
+        </td>
+      </tr>
+
+      {isExpanded && (
+        <tr>
+          <td colSpan={5} style={{ padding: "0.25rem 0.5rem 0.5rem 1.6rem" }}>
+            <div style={{ display: "grid", gap: "0.25rem" }}>
+              {isLoading && <Spinner label="Loading calls..." />}
+              {error && <ErrorText>{error}</ErrorText>}
+              {!isLoading && !error && calls && calls.length === 0 && (
+                <MutedText>No calls recorded.</MutedText>
+              )}
+              {!isLoading &&
+                !error &&
+                calls &&
+                calls.map((call, index) => (
+                  <div
+                    key={`${call.calledAt}-${call.callType}-${index}`}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "1rem",
+                      fontSize: "0.85rem",
+                    }}
+                  >
+                    <span>{formatPacificTime(call.calledAt)}</span>
+                    <span>{call.callType}</span>
+                    <MutedText>{call.units.toLocaleString()} units</MutedText>
+                  </div>
+                ))}
+            </div>
+          </td>
+        </tr>
       )}
-    </div>
+    </>
   );
 }
