@@ -15,6 +15,7 @@ import FeedView from "../components/FeedView";
 import ErrorText from "../components/ErrorText";
 import MutedText from "../components/MutedText";
 import Spinner from "../components/Spinner";
+import RefreshPausedNotice from "../components/RefreshPausedNotice";
 
 const SELECTED_LIST_STORAGE_KEY = "betterYtTv.selectedListId";
 const DEFAULT_LIMIT = 50;
@@ -28,6 +29,7 @@ export default function ListsPage() {
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingLoginRedirect, setPendingLoginRedirect] = useState(false);
+  const [refreshPaused, setRefreshPaused] = useState(false);
 
   useEffect(() => {
     if (!pendingLoginRedirect) return;
@@ -131,7 +133,8 @@ export default function ListsPage() {
   useEffect(() => {
     async function backgroundRefresh() {
       try {
-        await refreshAllCache();
+        const result = await refreshAllCache();
+        setRefreshPaused(result.refreshPaused);
         await refreshItemsRef.current();
       } catch (err) {
         console.error("Background cache refresh failed:", err);
@@ -179,6 +182,7 @@ export default function ListsPage() {
 
       {loadingLists && <Spinner label="Loading lists..." />}
       {error && <ErrorText>{error}</ErrorText>}
+      {refreshPaused && <RefreshPausedNotice />}
 
       {!loadingLists && !error && lists.length === 0 && (
         <p>

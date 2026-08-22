@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import ListsPage from "./ListsPage";
-import { getLists, getListFeed, markVideoWatched, markVideoUnwatched } from "../lib/api";
+import { getLists, getListFeed, markVideoWatched, markVideoUnwatched, refreshAllCache } from "../lib/api";
 
 vi.mock("../lib/api", () => ({
   getLists: vi.fn(),
@@ -12,8 +12,17 @@ vi.mock("../lib/api", () => ({
   markVideoUnwatched: vi.fn(),
   getLoginUrl: vi.fn(() => "http://localhost:5179/api/auth/login"),
   shouldRedirectToLogin: vi.fn(() => false),
-  refreshAllCache: vi.fn().mockResolvedValue(undefined),
+  refreshAllCache: vi.fn(),
 }));
+
+const REFRESH_RESULT = {
+  ok: true as const,
+  refreshPaused: false,
+  refreshedChannels: 0,
+  skippedChannels: 0,
+  failedChannels: 0,
+  cachedVideos: 0,
+};
 
 function renderPage() {
   return render(
@@ -67,6 +76,8 @@ describe("ListsPage", () => {
     vi.mocked(getListFeed).mockReset();
     vi.mocked(markVideoWatched).mockReset();
     vi.mocked(markVideoUnwatched).mockReset();
+    vi.mocked(refreshAllCache).mockReset();
+    vi.mocked(refreshAllCache).mockResolvedValue(REFRESH_RESULT);
     window.localStorage.clear();
   });
 
@@ -313,5 +324,33 @@ describe("ListsPage", () => {
 
     const catchUpCheckbox = await screen.findByLabelText(/catch-up mode/i);
     expect(catchUpCheckbox).not.toBeChecked();
+  });
+
+  it("shows a paused notice when refreshAllCache reports refreshPaused", async () => {
+    vi.mocked(getLists).mockResolvedValue({ lists: [NEWS_LIST] });
+    vi.mocked(getListFeed).mockResolvedValue({
+      list: { id: "l1", name: "News" },
+      items: [VIDEO_1],
+      hasMore: false,
+    });
+    vi.mocked(refreshAllCache).mockResolvedValue({ ...REFRESH_RESULT, refreshPaused: true });
+
+    renderPage();
+
+    expect(await screen.findByText(/temporarily paused/i)).toBeInTheDocument();
+  });
+
+  it("does not show a paused notice when refreshes are running normally", async () => {
+    vi.mocked(getLists).mockResolvedValue({ lists: [NEWS_LIST] });
+    vi.mocked(getListFeed).mockResolvedValue({
+      list: { id: "l1", name: "News" },
+      items: [VIDEO_1],
+      hasMore: false,
+    });
+
+    renderPage();
+
+    await screen.findAllByText("First Video");
+    expect(screen.queryByText(/temporarily paused/i)).not.toBeInTheDocument();
   });
 });

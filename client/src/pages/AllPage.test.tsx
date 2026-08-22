@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import AllPage from "./AllPage";
-import { getAllFeed, markVideoWatched, markVideoUnwatched } from "../lib/api";
+import { getAllFeed, markVideoWatched, markVideoUnwatched, refreshAllCache } from "../lib/api";
 
 function makeFeedItems(count: number) {
   return Array.from({ length: count }, (_, i) => ({
@@ -24,14 +24,25 @@ vi.mock("../lib/api", () => ({
   markVideoUnwatched: vi.fn(),
   getLoginUrl: vi.fn(() => "http://localhost:5179/api/auth/login"),
   shouldRedirectToLogin: vi.fn(() => false),
-  refreshAllCache: vi.fn().mockResolvedValue(undefined),
+  refreshAllCache: vi.fn(),
 }));
+
+const REFRESH_RESULT = {
+  ok: true as const,
+  refreshPaused: false,
+  refreshedChannels: 0,
+  skippedChannels: 0,
+  failedChannels: 0,
+  cachedVideos: 0,
+};
 
 describe("AllPage", () => {
   beforeEach(() => {
     vi.mocked(getAllFeed).mockReset();
     vi.mocked(markVideoWatched).mockReset();
     vi.mocked(markVideoUnwatched).mockReset();
+    vi.mocked(refreshAllCache).mockReset();
+    vi.mocked(refreshAllCache).mockResolvedValue(REFRESH_RESULT);
   });
 
   it("renders queue items from API", async () => {
@@ -246,5 +257,31 @@ describe("AllPage", () => {
 
     await waitFor(() => expect(getAllFeed).toHaveBeenCalled());
     expect(getAllFeed).toHaveBeenCalledWith({ limit: 51 });
+  });
+
+  it("shows a paused notice when refreshAllCache reports refreshPaused", async () => {
+    vi.mocked(getAllFeed).mockResolvedValue({ items: [], hasMore: false });
+    vi.mocked(refreshAllCache).mockResolvedValue({ ...REFRESH_RESULT, refreshPaused: true });
+
+    render(
+      <MemoryRouter>
+        <AllPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText(/temporarily paused/i)).toBeInTheDocument();
+  });
+
+  it("does not show a paused notice when refreshes are running normally", async () => {
+    vi.mocked(getAllFeed).mockResolvedValue({ items: [], hasMore: false });
+
+    render(
+      <MemoryRouter>
+        <AllPage />
+      </MemoryRouter>
+    );
+
+    await screen.findByText(/no videos yet/i);
+    expect(screen.queryByText(/temporarily paused/i)).not.toBeInTheDocument();
   });
 });
