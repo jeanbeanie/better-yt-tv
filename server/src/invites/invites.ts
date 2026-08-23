@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import type { Pool, PoolClient } from "pg";
 import { pool } from "../db/pool.js";
 
 export type Invite = {
@@ -9,20 +10,26 @@ export type Invite = {
   usedByEmail: string | null;
 };
 
-// true only if the code exists and hasn't been used yet
+// checked before we know who's asking, so this only confirms the code is
+// real, not that it's still claimable
 export async function validateInviteCode(code: string): Promise<boolean> {
-  const result = await pool.query(`select 1 from invites where code = $1 and used_at is null`, [
-    code,
-  ]);
+  const result = await pool.query(`select 1 from invites where code = $1`, [code]);
   return (result.rowCount ?? 0) > 0;
 }
 
-export async function consumeInviteCode(code: string, userId: string): Promise<boolean> {
-  const result = await pool.query(
+// succeeds for a fresh code or the same user reclaiming it, since the
+// client remembers a working code and reuses it on every login
+export async function consumeInviteCode(
+  code: string,
+  userId: string,
+  db: Pool | PoolClient,
+): Promise<boolean> {
+  const result = await db.query(
     `
     update invites
-    set used_by = $1, used_at = now()
-    where code = $2 and used_at is null
+    set used_by = $1, used_at = coalesce(used_at, now())
+    where code = $2
+      and (used_at is null or used_by = $1)
     `,
     [userId, code],
   );
@@ -75,8 +82,6 @@ export async function listInvites(): Promise<Invite[]> {
 }
 
 export async function deleteInvite(code: string): Promise<boolean> {
-  const result = await pool.query(`delete from invites where code = $1 and used_at is null`, [
-    code,
-  ]);
+  const result = await pool.query(`delete from invites where code = $1`, [code]);
   return (result.rowCount ?? 0) > 0;
 }
