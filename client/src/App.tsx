@@ -101,7 +101,7 @@ function App() {
         <Route path="/changelog" element={<ChangelogPage />}/>
         <Route path="/admin" element={<AdminPage />}/>
         {/*  SETTINGS ROUTES */}
-        <Route path="/settings" element={<SettingsLayout />}>
+        <Route path="/settings" element={<SettingsLayout user={user} />}>
           <Route index element={<ChannelsSettingsPage />} />
           <Route path="channels" element={<ChannelsSettingsPage />} />
           <Route path="lists" element={<ListsSettingsPage />} />

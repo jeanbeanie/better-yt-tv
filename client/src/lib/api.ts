@@ -92,6 +92,7 @@ export type User = {
   id: string;
   email: string | null;
   google_sub: string;
+  is_admin: boolean;
 };
 
 // get current user profile details

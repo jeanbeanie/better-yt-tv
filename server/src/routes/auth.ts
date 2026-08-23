@@ -202,6 +202,7 @@ authRouter.get("/whoami", async (req: Request, res: Response, next) => {
         u.id,
         u.email,
         u.google_sub,
+        u.is_admin,
         s.expires_at
       from sessions s
       join users u on u.id = s.user_id

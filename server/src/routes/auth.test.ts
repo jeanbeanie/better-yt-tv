@@ -252,6 +252,7 @@ describe("GET /api/auth/whoami", () => {
       id: "user-1",
       email: "user@example.com",
       google_sub: "google-sub-1",
+      is_admin: false,
       expires_at: "2026-09-01T00:00:00Z",
     };
     vi.mocked(pool.query).mockResolvedValue({ rows: [row], rowCount: 1 } as any);
