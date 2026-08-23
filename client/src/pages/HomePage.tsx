@@ -24,7 +24,7 @@ export default function HomePage(props:homePageProps) {
           Stop scrolling. Start watching.
         </p>
         <p style={{ maxWidth: "34rem", margin: "1rem auto 0" }}>
-          Every channel&apos;s latest video, queued round-robin — no algorithm, no
+          Every channel&apos;s latest video, queued round-robin. No algorithm, no
           more missing uploads you care about.
         </p>
 
