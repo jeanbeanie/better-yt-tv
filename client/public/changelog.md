@@ -2,6 +2,45 @@
 
 What shipped, by day.
 
+## 2026-08-22
+
+- Shrank queue row padding, thumbnail size, and touch targets on phone width screens
+- Replaced the queue's full timestamp with a short relative date and clamped long titles to 2 lines, so rows stop varying wildly in height
+- Widened Previous/Next to fill the row on phones instead of pinning to opposite edges, and gave the video title its own line above the channel name
+- Showed a Settings nav link to the admin panel for admin users
+- Swapped an em dash for a period in the homepage tagline
+
+## 2026-08-21
+
+- Added an admin kill switch that pauses refresh-all-cache across the app, backed by a new app_settings table and admin endpoints
+- Added a notice banner shown to users while refreshes are paused
+- refresh-all-cache now skips a channel that fails to refresh instead of aborting the whole run, retrying it on the normal TTL
+- refreshAllCache now shares its in-flight request so overlapping calls don't fire duplicate refreshes
+- Updated docker-compose to postgres:18 to match Railway's production version, moving the volume mount up a directory level to match what 18+ expects
+- Fixed uneven columns in the admin quota table
+
+## 2026-08-20
+
+- Switched the admin quota view from a per call table to grouped expanding rows, so one API action reads as one line
+
+## 2026-08-19
+
+- Added an admin panel with a daily YouTube API quota view
+- Made each quota row drillable into the grouped calls that made it up, tracking which action, user, and request triggered each call
+- Fixed quota date handling and bounded the history query
+- Moved queue row styling into CSS classes, adding a purple left border and a distinct hover color for the selected row
+- Replaced the queue watch button with an eye toggle that disables itself and shows a spinner while a toggle is still pending
+- Stopped the queue from unmounting on a watch toggle failure, showing the error banner alongside it instead
+
+## 2026-08-18
+
+- Added the youtube_quota_usage table and wired quota cost logging into every YouTube API call
+- Removed the hardcoded db container name from docker-compose so multiple worktrees don't collide on the same Postgres container
+
+## 2026-08-17
+
+- Cached each channel's uploads playlist ID so refresh-all-cache stops re-resolving it every time, cutting most refreshes from 2 API calls to 1
+
 ## 2026-08-16
 
 - Verified Google id_token signatures during login with google-auth-library instead of manually decoding the JWT payload
