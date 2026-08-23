@@ -270,34 +270,44 @@ export default function FeedView({
             onError={() => setPlayerError(true)}
           />
 
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div className="player-nav">
             <Button onClick={goToPreviousVideo} disabled={!findAdjacentVideo(-1)}>
               Previous
             </Button>
-
-            {playerError && (
-              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                <Button
-                  onClick={() => {
-                    setPlayerError(false);
-                    playerRef.current?.retry();
-                  }}
-                >
-                  Retry
-                </Button>
-                <ErrorText style={{ margin: 0 }}>Playback failed for this video.</ErrorText>
-              </div>
-            )}
 
             <Button onClick={goToNextVideo} disabled={!findAdjacentVideo(1)}>
               Next
             </Button>
           </div>
 
-          <p style={{ margin: "10px" }}>
-            <strong>{selectedItem.title} </strong>-
-            <strong> {selectedItem.channel_title}</strong>
-          </p>
+          {playerError && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.75rem",
+                justifyContent: "center",
+                marginTop: "0.75rem",
+              }}
+            >
+              <Button
+                onClick={() => {
+                  setPlayerError(false);
+                  playerRef.current?.retry();
+                }}
+              >
+                Retry
+              </Button>
+              <ErrorText style={{ margin: 0 }}>Playback failed for this video.</ErrorText>
+            </div>
+          )}
+
+          <div style={{ margin: "10px 0" }}>
+            <div className="player-title" style={{ color: "var(--text-h)", fontWeight: 700 }}>
+              {selectedItem.title}
+            </div>
+            <MutedText style={{ fontSize: "0.9rem" }}>{selectedItem.channel_title}</MutedText>
+          </div>
         </section>
       )}
 

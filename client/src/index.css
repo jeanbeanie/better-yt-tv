@@ -162,6 +162,34 @@ p {
   border: 0;
 }
 
+.player-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  justify-content: space-between;
+
+  @media (max-width: 640px) {
+    gap: 0.5rem;
+
+    .button {
+      flex: 1;
+      min-height: 44px;
+    }
+  }
+}
+
+.player-title {
+  overflow-wrap: anywhere;
+
+  @media (max-width: 640px) {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+  }
+}
+
 .error-text {
   color: var(--danger);
 }
