@@ -1,6 +1,6 @@
 \restrict dbmate
 
--- Dumped from database version 16.14 (Debian 16.14-1.pgdg13+1)
+-- Dumped from database version 18.6 (Debian 18.6-1.pgdg13+2)
 -- Dumped by pg_dump version 18.3
 
 SET statement_timeout = 0;
@@ -93,6 +93,20 @@ CREATE TABLE public.entitlements (
     source text NOT NULL,
     expires_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: invites; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.invites (
+    code text NOT NULL,
+    note text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by uuid,
+    used_by uuid,
+    used_at timestamp with time zone
 );
 
 
@@ -299,6 +313,14 @@ ALTER TABLE ONLY public.entitlements
 
 
 --
+-- Name: invites invites_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.invites
+    ADD CONSTRAINT invites_pkey PRIMARY KEY (code);
+
+
+--
 -- Name: list_channels list_channels_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -491,6 +513,22 @@ ALTER TABLE ONLY public.entitlements
 
 
 --
+-- Name: invites invites_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.invites
+    ADD CONSTRAINT invites_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: invites invites_used_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.invites
+    ADD CONSTRAINT invites_used_by_fkey FOREIGN KEY (used_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
 -- Name: list_channels list_channels_list_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -567,4 +605,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260818234304'),
     ('20260819143543'),
     ('20260820012510'),
-    ('20260821071857');
+    ('20260821071857'),
+    ('20260823163749');
