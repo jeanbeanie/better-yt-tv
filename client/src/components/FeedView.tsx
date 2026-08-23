@@ -7,6 +7,7 @@ import Button from "./Button";
 import CheckboxLabel from "./CheckboxLabel";
 import Thumbnail from "./Thumbnail";
 import ErrorText from "./ErrorText";
+import { formatPublishedAt } from "../lib/formatPublishedAt";
 
 // Outlined "open eye" glyph for an unwatched video
 function EyeOutlineIcon() {
@@ -388,11 +389,15 @@ export default function FeedView({
                       </span>
 
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: isSelected ? 700 : 500 }}>{item.title}</div>
+                        <div
+                          className="queue-row-title"
+                          style={{ fontWeight: isSelected ? 700 : 500 }}
+                        >
+                          {item.title}
+                        </div>
 
                         <MutedText style={{ fontSize: "0.8rem" }}>
-                          {item.channel_title} ·{" "}
-                          {new Date(item.published_at).toLocaleString()}
+                          {item.channel_title} · {formatPublishedAt(item.published_at)}
                         </MutedText>
                       </div>
                     </div>

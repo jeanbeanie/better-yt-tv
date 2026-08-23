@@ -267,6 +267,18 @@ p {
   opacity: 1;
 }
 
+.queue-row-title {
+  overflow-wrap: anywhere;
+
+  @media (max-width: 640px) {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+  }
+}
+
 .watch-toggle {
   background: none;
   border: none;
@@ -276,6 +288,14 @@ p {
   flex-shrink: 0;
   display: inline-flex;
   color: var(--text);
+
+  @media (max-width: 640px) {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0.625rem;
+    align-items: center;
+    justify-content: center;
+  }
 }
 
 .watch-toggle:hover {
