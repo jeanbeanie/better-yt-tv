@@ -66,7 +66,7 @@ function App() {
 
 
   return (
-    <div style={{ padding: "2rem", fontFamily: "sans-serif" }}>
+    <div className="layout">
       <header style={{ marginBottom: "2rem" }}>
         <nav style={{ display: "flex", gap: "1rem" }}>
           
