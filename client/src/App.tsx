@@ -12,6 +12,8 @@ import ListsSettingsPage from "./pages/Settings/ListsSettingsPage";
 import ListEditorPage from "./pages/Settings/ListEditorPage";
 import ChangelogPage from "./pages/ChangelogPage";
 import AdminPage from "./pages/AdminPage";
+import PrivacyPage from "./pages/PrivacyPage";
+import TermsPage from "./pages/TermsPage";
 
 function getInitialTheme(): "light" | "dark" {
   const stored = window.localStorage.getItem("betterYtTv.theme");
@@ -104,6 +106,8 @@ function App() {
         <Route path="/live" element={<LivePage />} />
         <Route path="/lists" element={<ListsPage />} />
         <Route path="/changelog" element={<ChangelogPage />}/>
+        <Route path="/privacy" element={<PrivacyPage />}/>
+        <Route path="/terms" element={<TermsPage />}/>
         <Route path="/admin" element={<AdminPage />}/>
         {/*  SETTINGS ROUTES */}
         <Route path="/settings" element={<SettingsLayout user={user} />}>
@@ -122,6 +126,8 @@ function App() {
         </div>
       )}
       <Link to="/changelog">Changelog</Link>
+      <Link to="/privacy">Privacy</Link>
+      <Link to="/terms">Terms</Link>
       </div>
 
     </div>

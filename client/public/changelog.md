@@ -1,7 +1,3 @@
-# Changelog
-
-What shipped, by day.
-
 ## 2026-08-22
 
 - Shrank queue row padding, thumbnail size, and touch targets on phone width screens

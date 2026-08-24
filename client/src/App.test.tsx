@@ -111,3 +111,21 @@ describe("nav Login link", () => {
     expect(screen.queryByRole("link", { name: "Login" })).not.toBeInTheDocument();
   });
 });
+
+describe("footer links", () => {
+  beforeEach(() => {
+    vi.mocked(getWhoAmI).mockReset();
+    vi.mocked(getWhoAmI).mockResolvedValue({ user: null });
+    window.history.pushState({}, "", "/");
+    window.localStorage.setItem("betterYtTv.theme", "light");
+  });
+
+  it("links to /privacy and /terms, reachable while logged out", async () => {
+    renderApp();
+
+    await screen.findByRole("link", { name: "Home" });
+
+    expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/privacy");
+    expect(screen.getByRole("link", { name: "Terms" })).toHaveAttribute("href", "/terms");
+  });
+});
