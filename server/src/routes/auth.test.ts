@@ -4,7 +4,7 @@ import request from "supertest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("../db/pool.js", () => ({
-  pool: { query: vi.fn() },
+  pool: { query: vi.fn(), connect: vi.fn() },
 }));
 
 vi.mock("../auth/google.js", async () => {
@@ -43,11 +43,22 @@ function getSetCookie(res: request.Response, name: string) {
   return { raw, value };
 }
 
-function mockCallbackQueries({ userId = "user-1", sessionId = "session-1" } = {}) {
+// covers the pool.query side of a callback: the google_sub lookup that
+// decides new vs returning, and the shared queries after that branch
+function mockCallbackQueries({
+  userId = "user-1",
+  sessionId = "session-1",
+  existingUser = false,
+} = {}) {
   vi.mocked(pool.query).mockImplementation(async (sql: any) => {
     const text = String(sql);
-    if (text.includes("insert into users")) {
-      return { rows: [{ id: userId }], rowCount: 1 } as any;
+    if (text.includes("select id from users where google_sub")) {
+      return existingUser
+        ? ({ rows: [{ id: userId }], rowCount: 1 } as any)
+        : ({ rows: [], rowCount: 0 } as any);
+    }
+    if (text.includes("update users set email")) {
+      return { rows: [], rowCount: 1 } as any;
     }
     if (text.includes("insert into oauth_tokens")) {
       return { rows: [], rowCount: 1 } as any;
@@ -62,13 +73,42 @@ function mockCallbackQueries({ userId = "user-1", sessionId = "session-1" } = {}
   });
 }
 
+// covers the pool.connect side: a new signup's user insert and invite
+// consumption, run on one checked-out client instead of the pool
+function mockNewUserTransaction({ userId = "user-1", inviteSucceeds = true } = {}) {
+  const clientQuery = vi.fn(async (sql: any) => {
+    const text = String(sql);
+    if (text === "BEGIN" || text === "COMMIT" || text === "ROLLBACK") {
+      return {} as any;
+    }
+    if (text.includes("insert into users")) {
+      return { rows: [{ id: userId }], rowCount: 1 } as any;
+    }
+    if (text.includes("update invites")) {
+      return { rowCount: inviteSucceeds ? 1 : 0 } as any;
+    }
+    throw new Error(`Unexpected client query in mockNewUserTransaction: ${text}`);
+  });
+  const client = { query: clientQuery, release: vi.fn() };
+  vi.mocked(pool.connect).mockResolvedValue(client as any);
+  return client;
+}
+
 describe("GET /api/auth/login", () => {
   beforeEach(() => {
     vi.mocked(pool.query).mockReset();
   });
 
-  it("sets a CSRF state cookie and redirects to a matching Google auth URL", async () => {
-    const res = await request(buildApp()).get("/api/auth/login");
+  function mockInviteLookup(exists: boolean) {
+    vi.mocked(pool.query).mockResolvedValue(
+      exists ? ({ rows: [{ "?column?": 1 }], rowCount: 1 } as any) : ({ rows: [], rowCount: 0 } as any),
+    );
+  }
+
+  it("sets CSRF state and invite cookies, redirecting to a matching Google auth URL", async () => {
+    mockInviteLookup(true);
+
+    const res = await request(buildApp()).get("/api/auth/login").query({ invite: "code-1" });
 
     expect(res.status).toBe(302);
 
@@ -79,9 +119,31 @@ describe("GET /api/auth/login", () => {
     expect(stateCookie!.raw).toContain("SameSite=Lax");
     expect(stateCookie!.raw).not.toContain("Secure"); // env.isSecureContext is false in dev/test
 
+    const inviteCookie = getSetCookie(res, "invite_code");
+    expect(inviteCookie).not.toBeNull();
+    expect(inviteCookie!.value).toBe("code-1");
+    expect(inviteCookie!.raw).toContain("HttpOnly");
+
     const location = new URL(res.headers.location);
     expect(location.hostname).toBe("accounts.google.com");
     expect(location.searchParams.get("state")).toBe(stateCookie!.value);
+  });
+
+  it("403s and never redirects when no invite code is given", async () => {
+    const res = await request(buildApp()).get("/api/auth/login");
+
+    expect(res.status).toBe(403);
+    expect(getSetCookie(res, "oauth_state")).toBeNull();
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it("403s and never redirects when the invite code doesn't exist", async () => {
+    mockInviteLookup(false);
+
+    const res = await request(buildApp()).get("/api/auth/login").query({ invite: "bogus" });
+
+    expect(res.status).toBe(403);
+    expect(getSetCookie(res, "oauth_state")).toBeNull();
   });
 });
 
@@ -117,6 +179,7 @@ describe("POST /api/auth/logout", () => {
 describe("GET /api/auth/callback", () => {
   beforeEach(() => {
     vi.mocked(pool.query).mockReset();
+    vi.mocked(pool.connect).mockReset();
     vi.mocked(exchangeCodeForTokens).mockReset();
     vi.mocked(getGoogleUserFromIdToken).mockReset();
     vi.mocked(encryptRefreshToken).mockClear();
@@ -165,8 +228,50 @@ describe("GET /api/auth/callback", () => {
     expect(exchangeCodeForTokens).not.toHaveBeenCalled();
   });
 
-  it("creates the user, stores the refresh token, and starts a session on the happy path", async () => {
-    mockCallbackQueries({ userId: "user-1", sessionId: "session-1" });
+  it("creates the user, consumes the invite, stores the refresh token, and starts a session for a new signup", async () => {
+    mockCallbackQueries({ userId: "user-1", sessionId: "session-1", existingUser: false });
+    const client = mockNewUserTransaction({ userId: "user-1", inviteSucceeds: true });
+    vi.mocked(exchangeCodeForTokens).mockResolvedValue({
+      id_token: "fake.id.token",
+      access_token: "fake-access-token",
+      refresh_token: "fake-refresh-token",
+      expires_in: 3600,
+      scope: "openid email",
+    });
+    vi.mocked(getGoogleUserFromIdToken).mockResolvedValue({ sub: "google-sub-1", email: "user@example.com" });
+
+    const res = await request(buildApp())
+      .get("/api/auth/callback")
+      .query({ code: "abc", state: "matching-state" })
+      .set("Cookie", ["oauth_state=matching-state", "invite_code=code-1"]);
+
+    expect(res.status).toBe(302);
+    expect(encryptRefreshToken).toHaveBeenCalledWith("fake-refresh-token", expect.any(String));
+
+    const clientCalls = client.query.mock.calls.map(([sql]) => String(sql));
+    expect(clientCalls).toEqual(
+      expect.arrayContaining([
+        "BEGIN",
+        expect.stringContaining("insert into users"),
+        expect.stringContaining("update invites"),
+        "COMMIT",
+      ]),
+    );
+
+    const poolCalls = vi.mocked(pool.query).mock.calls.map(([sql]) => String(sql));
+    expect(poolCalls.some((sql) => sql.includes("insert into oauth_tokens"))).toBe(true);
+    expect(poolCalls.some((sql) => sql.includes("update sessions") && sql.includes("user_id"))).toBe(true);
+    expect(poolCalls.some((sql) => sql.includes("insert into sessions"))).toBe(true);
+
+    const sidCookie = getSetCookie(res, "sid");
+    expect(sidCookie).not.toBeNull();
+    expect(sidCookie!.value).toBe("session-1");
+    expect(sidCookie!.raw).toContain("HttpOnly");
+    expect(sidCookie!.raw).toContain("SameSite=Lax");
+  });
+
+  it("lets a returning user in with no invite cookie, skipping the transaction entirely", async () => {
+    mockCallbackQueries({ userId: "user-1", sessionId: "session-1", existingUser: true });
     vi.mocked(exchangeCodeForTokens).mockResolvedValue({
       id_token: "fake.id.token",
       access_token: "fake-access-token",
@@ -182,23 +287,57 @@ describe("GET /api/auth/callback", () => {
       .set("Cookie", "oauth_state=matching-state");
 
     expect(res.status).toBe(302);
-    expect(encryptRefreshToken).toHaveBeenCalledWith("fake-refresh-token", expect.any(String));
+    expect(pool.connect).not.toHaveBeenCalled();
 
-    const calls = vi.mocked(pool.query).mock.calls.map(([sql]) => String(sql));
-    expect(calls.some((sql) => sql.includes("insert into users"))).toBe(true);
-    expect(calls.some((sql) => sql.includes("insert into oauth_tokens"))).toBe(true);
-    expect(calls.some((sql) => sql.includes("update sessions") && sql.includes("user_id"))).toBe(true);
-    expect(calls.some((sql) => sql.includes("insert into sessions"))).toBe(true);
+    const poolCalls = vi.mocked(pool.query).mock.calls.map(([sql]) => String(sql));
+    expect(poolCalls.some((sql) => sql.includes("update users set email"))).toBe(true);
+    expect(poolCalls.some((sql) => sql.includes("insert into sessions"))).toBe(true);
 
-    const sidCookie = getSetCookie(res, "sid");
-    expect(sidCookie).not.toBeNull();
-    expect(sidCookie!.value).toBe("session-1");
-    expect(sidCookie!.raw).toContain("HttpOnly");
-    expect(sidCookie!.raw).toContain("SameSite=Lax");
+    expect(getSetCookie(res, "sid")).not.toBeNull();
+  });
+
+  it("403s a new signup with no invite cookie, never touching the database", async () => {
+    mockCallbackQueries({ existingUser: false });
+    vi.mocked(exchangeCodeForTokens).mockResolvedValue({ id_token: "fake.id.token" });
+    vi.mocked(getGoogleUserFromIdToken).mockResolvedValue({ sub: "google-sub-1" });
+
+    const res = await request(buildApp())
+      .get("/api/auth/callback")
+      .query({ code: "abc", state: "matching-state" })
+      .set("Cookie", "oauth_state=matching-state");
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({ error: "An invite is required to sign in" });
+    expect(pool.connect).not.toHaveBeenCalled();
+    expect(getSetCookie(res, "sid")).toBeNull();
+  });
+
+  it("rolls back and 403s a new signup whose invite was already claimed by someone else", async () => {
+    mockCallbackQueries({ existingUser: false });
+    const client = mockNewUserTransaction({ userId: "user-1", inviteSucceeds: false });
+    vi.mocked(exchangeCodeForTokens).mockResolvedValue({ id_token: "fake.id.token" });
+    vi.mocked(getGoogleUserFromIdToken).mockResolvedValue({ sub: "google-sub-1" });
+
+    const res = await request(buildApp())
+      .get("/api/auth/callback")
+      .query({ code: "abc", state: "matching-state" })
+      .set("Cookie", ["oauth_state=matching-state", "invite_code=stale-code"]);
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({ error: "Invalid or already used invite code" });
+
+    const clientCalls = client.query.mock.calls.map(([sql]) => String(sql));
+    expect(clientCalls).toEqual(
+      expect.arrayContaining(["BEGIN", expect.stringContaining("update invites"), "ROLLBACK"]),
+    );
+    expect(clientCalls).not.toContain("COMMIT");
+    expect(client.release).toHaveBeenCalled();
+    expect(getSetCookie(res, "sid")).toBeNull();
   });
 
   it("skips storing oauth_tokens when Google doesn't return a refresh_token", async () => {
-    mockCallbackQueries();
+    mockCallbackQueries({ existingUser: false });
+    mockNewUserTransaction();
     vi.mocked(exchangeCodeForTokens).mockResolvedValue({
       id_token: "fake.id.token",
       access_token: "fake-access-token",
@@ -209,7 +348,7 @@ describe("GET /api/auth/callback", () => {
     const res = await request(buildApp())
       .get("/api/auth/callback")
       .query({ code: "abc", state: "matching-state" })
-      .set("Cookie", "oauth_state=matching-state");
+      .set("Cookie", ["oauth_state=matching-state", "invite_code=code-1"]);
 
     expect(res.status).toBe(302);
     expect(encryptRefreshToken).not.toHaveBeenCalled();

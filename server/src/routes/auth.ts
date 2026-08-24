@@ -4,16 +4,34 @@ import { env } from "../config/env.js";
 import { exchangeCodeForTokens, getGoogleUserFromIdToken, buildGoogleAuthUrl } from "../auth/google.js";
 import { encryptRefreshToken } from "../auth/crypto.js";
 import { pool } from "../db/pool.js";
+import { validateInviteCode, consumeInviteCode } from "../invites/invites.js";
 import crypto from "node:crypto";
 
 export const authRouter = express.Router();
 
 // GET /api/auth/login
 authRouter.get("/login", async (req: Request, res: Response) => {
+  // checked before redirecting, since an oauth slot burns the moment
+  // someone consents at Google, not whenever we decide to reject them after
+  const inviteCode = typeof req.query.invite === "string" ? req.query.invite : null;
+  if (!inviteCode || !(await validateInviteCode(inviteCode))) {
+    return res.status(403).json({ error: "An invite is required to sign in" });
+  }
+
   // Generate a random state to protect against CSRF
   const state = crypto.randomUUID();
   // Store it in an httpOnly cookie so we can validate on callback
   res.cookie("oauth_state", state, {
+    httpOnly: true,
+    sameSite: env.cookieSameSite,
+    secure: env.isSecureContext,
+    maxAge: 10 * 60 * 1000, // 10 minutes
+    path:"/",
+  });
+
+  // Carry the invite code to callback, where we'll know whether this is a
+  // returning user (no invite needed) or a new one (invite gets consumed)
+  res.cookie("invite_code", inviteCode, {
     httpOnly: true,
     sameSite: env.cookieSameSite,
     secure: env.isSecureContext,
@@ -106,18 +124,47 @@ authRouter.get("/callback", async (req: Request, res: Response, next) => {
     const googleSub = googleUser.sub;
     const email = googleUser.email ?? null;
 
-    // Upsert user
-    const userRes = await pool.query(
-      `
-      insert into users (google_sub, email)
-      values ($1, $2)
-      on conflict (google_sub) do update
-        set email = excluded.email
-      returning id
-      `,
-      [googleSub, email],
-    );
-    const userId: string = userRes.rows[0].id;
+    const existingUserRes = await pool.query(`select id from users where google_sub = $1`, [
+      googleSub,
+    ]);
+
+    let userId: string;
+
+    if (existingUserRes.rowCount) {
+      // returning user, no invite needed
+      userId = existingUserRes.rows[0].id;
+      await pool.query(`update users set email = $1 where id = $2`, [email, userId]);
+    } else {
+      // new signup, requires a valid invite consumed in the same transaction
+      const inviteCode = req.cookies?.invite_code as string | undefined;
+      if (!inviteCode) {
+        return res.status(403).json({ error: "An invite is required to sign in" });
+      }
+
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+
+        const userRes = await client.query(
+          `insert into users (google_sub, email) values ($1, $2) returning id`,
+          [googleSub, email],
+        );
+        userId = userRes.rows[0].id;
+
+        const consumed = await consumeInviteCode(inviteCode, userId, client);
+        if (!consumed) {
+          await client.query("ROLLBACK");
+          return res.status(403).json({ error: "Invalid or already used invite code" });
+        }
+
+        await client.query("COMMIT");
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      } finally {
+        client.release();
+      }
+    }
 
     // Store refresh token if provided (Google may not always return it unless prompt=consent)
     if (tokens.refresh_token) {
@@ -181,6 +228,7 @@ authRouter.get("/callback", async (req: Request, res: Response, next) => {
 
     // Clear state cookie
     res.clearCookie("oauth_state");
+    res.clearCookie("invite_code");
 
     // For now: redirect back to client
     // Later we’ll set a real session cookie and redirect with no JSON.
