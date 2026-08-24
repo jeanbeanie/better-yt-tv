@@ -3,12 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import App from "./App";
-import { getWhoAmI } from "./lib/api";
+import { getWhoAmI, saveInviteCode } from "./lib/api";
 
 vi.mock("./lib/api", () => ({
   getWhoAmI: vi.fn(),
   getLoginUrl: vi.fn(() => "http://localhost:5179/api/auth/login"),
   logout: vi.fn(),
+  saveInviteCode: vi.fn(),
 }));
 
 function renderApp() {
@@ -49,5 +50,33 @@ describe("theme toggle", () => {
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
     expect(window.localStorage.getItem("betterYtTv.theme")).toBe("dark");
     expect(screen.getByRole("button", { name: "Switch to light mode" })).toBeInTheDocument();
+  });
+});
+
+describe("invite code from the URL", () => {
+  beforeEach(() => {
+    vi.mocked(getWhoAmI).mockReset();
+    vi.mocked(getWhoAmI).mockResolvedValue({ user: null });
+    vi.mocked(saveInviteCode).mockClear();
+    window.history.pushState({}, "", "/");
+    // avoids getInitialTheme falling through to the unpolyfilled
+    // window.matchMedia, same as the theme toggle tests above
+    window.localStorage.setItem("betterYtTv.theme", "light");
+  });
+
+  it("saves an invite code found in the URL on mount", async () => {
+    window.history.pushState({}, "", "/?invite=code-1");
+
+    renderApp();
+
+    await screen.findByRole("link", { name: "Home" });
+    expect(saveInviteCode).toHaveBeenCalledWith("code-1");
+  });
+
+  it("doesn't call saveInviteCode when there's no invite param", async () => {
+    renderApp();
+
+    await screen.findByRole("link", { name: "Home" });
+    expect(saveInviteCode).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, Route, Routes, useNavigate } from "react-router-dom";
-import { getLoginUrl, getWhoAmI, logout, type User } from "./lib/api";
+import { getLoginUrl, getWhoAmI, logout, saveInviteCode, type User } from "./lib/api";
 import Button from "./components/Button";
 import HomePage from "./pages/HomePage";
 import AllPage from "./pages/AllPage";
@@ -62,6 +62,11 @@ function App() {
 
   useEffect(() => {
     void loadUser();
+  }, []);
+
+  useEffect(() => {
+    const invite = new URLSearchParams(window.location.search).get("invite");
+    if (invite) saveInviteCode(invite);
   }, []);
 
 

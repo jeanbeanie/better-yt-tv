@@ -70,9 +70,18 @@ async function apiFetch<T>(path: string, init: RequestInit, fallback: string): P
   return (await resp.json()) as T;
 }
 
-// returns URL string users needs to login
+const INVITE_CODE_STORAGE_KEY = "betterYtTv.inviteCode";
+
+export function saveInviteCode(code: string) {
+  window.localStorage.setItem(INVITE_CODE_STORAGE_KEY, code);
+}
+
+// returns URL string users needs to login, attaching a remembered invite
+// code if one is saved
 export function getLoginUrl() {
-  return `${API_BASE}/api/auth/login`;
+  const inviteCode = window.localStorage.getItem(INVITE_CODE_STORAGE_KEY);
+  const query = inviteCode ? `?invite=${encodeURIComponent(inviteCode)}` : "";
+  return `${API_BASE}/api/auth/login${query}`;
 }
 
 export function shouldRedirectToLogin(err: unknown): boolean {

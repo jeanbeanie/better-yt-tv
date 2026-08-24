@@ -8,6 +8,8 @@ import {
   refreshAllCache,
   getAppSettings,
   updateAppSettings,
+  getLoginUrl,
+  saveInviteCode,
 } from "./api";
 
 function mockFetchOnce(body: string, status: number) {
@@ -166,5 +168,25 @@ describe("app settings", () => {
     expect(init.headers).toEqual({ "Content-Type": "application/json" });
     expect(init.body).toBe(JSON.stringify({ refreshPaused: true }));
     expect(settings.refreshPaused).toBe(true);
+  });
+});
+
+describe("getLoginUrl", () => {
+  it("returns a bare login URL when no invite code is saved", () => {
+    expect(getLoginUrl()).toBe("http://localhost:5179/api/auth/login");
+  });
+
+  it("attaches a saved invite code as a query param", () => {
+    saveInviteCode("code-1");
+
+    expect(getLoginUrl()).toBe("http://localhost:5179/api/auth/login?invite=code-1");
+  });
+
+  it("percent-encodes a saved code that needs it", () => {
+    saveInviteCode("code with spaces");
+
+    expect(getLoginUrl()).toBe(
+      "http://localhost:5179/api/auth/login?invite=code%20with%20spaces",
+    );
   });
 });
