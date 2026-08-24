@@ -20,6 +20,7 @@ import {
 import ErrorText from "../components/ErrorText";
 import MutedText from "../components/MutedText";
 import Spinner from "../components/Spinner";
+import CheckboxLabel from "../components/CheckboxLabel";
 
 function formatPacificTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-US", {
@@ -33,6 +34,12 @@ function groupKey(date: string, group: QuotaActionGroup) {
   return `${date}|${group.callType}|${group.action ?? ""}|${group.requestGroupId ?? ""}`;
 }
 
+// masked by default
+function maskEmail(email: string | null, emailsVisible: boolean): string | null {
+  if (!email) return email;
+  return emailsVisible ? email : "•••••";
+}
+
 export default function AdminPage() {
   const [today, setToday] = useState<QuotaSummary | null>(null);
   const [history, setHistory] = useState<QuotaHistoryDay[]>([]);
@@ -40,6 +47,7 @@ export default function AdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [notAuthorized, setNotAuthorized] = useState(false);
   const [pendingLoginRedirect, setPendingLoginRedirect] = useState(false);
+  const [emailsVisible, setEmailsVisible] = useState(false);
 
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
@@ -294,8 +302,15 @@ export default function AdminPage() {
 
   return (
     <main style={{ maxWidth: "950px", margin: "0 auto", display: "grid", gap: "1.5rem" }}>
-      <header>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h1 style={{ marginBottom: "0.5rem" }}>Admin</h1>
+        <CheckboxLabel
+          checked={emailsVisible}
+          onChange={(e) => setEmailsVisible(e.target.checked)}
+          title="Emails are masked by default"
+        >
+          Show emails
+        </CheckboxLabel>
       </header>
 
       {loading && <Spinner label="Loading quota usage..." />}
@@ -419,7 +434,7 @@ export default function AdminPage() {
                           <td className="admin-table-td">
                             {isUsed ? (
                               <MutedText>
-                                Used by {invite.usedByEmail ?? "unknown"} on{" "}
+                                Used by {maskEmail(invite.usedByEmail, emailsVisible) ?? "unknown"} on{" "}
                                 {new Date(invite.usedAt!).toLocaleDateString()}
                               </MutedText>
                             ) : (
@@ -575,6 +590,7 @@ export default function AdminPage() {
                                   groupErrors={groupErrors}
                                   callsByGroup={callsByGroup}
                                   onToggleGroup={toggleGroup}
+                                  emailsVisible={emailsVisible}
                                 />
                               </td>
                             </tr>
@@ -593,6 +609,19 @@ export default function AdminPage() {
   );
 }
 
+type QuotaDayDetailProps = {
+  date: string;
+  isLoading: boolean;
+  error: string | undefined;
+  groups: QuotaActionGroup[] | undefined;
+  expandedGroups: Set<string>;
+  loadingGroups: Set<string>;
+  groupErrors: Record<string, string>;
+  callsByGroup: Record<string, QuotaCall[]>;
+  onToggleGroup: (date: string, group: QuotaActionGroup) => void;
+  emailsVisible: boolean;
+};
+
 function QuotaDayDetail({
   date,
   isLoading,
@@ -603,17 +632,8 @@ function QuotaDayDetail({
   groupErrors,
   callsByGroup,
   onToggleGroup,
-}: {
-  date: string;
-  isLoading: boolean;
-  error: string | undefined;
-  groups: QuotaActionGroup[] | undefined;
-  expandedGroups: Set<string>;
-  loadingGroups: Set<string>;
-  groupErrors: Record<string, string>;
-  callsByGroup: Record<string, QuotaCall[]>;
-  onToggleGroup: (date: string, group: QuotaActionGroup) => void;
-}) {
+  emailsVisible,
+}: QuotaDayDetailProps) {
   if (isLoading) return <Spinner label="Loading quota groups..." />;
   if (error) return <ErrorText>{error}</ErrorText>;
   if (!groups) return null;
@@ -643,6 +663,7 @@ function QuotaDayDetail({
               error={groupErrors[key]}
               calls={callsByGroup[key]}
               onToggle={onToggleGroup}
+              emailsVisible={emailsVisible}
             />
           );
         })}
@@ -650,6 +671,17 @@ function QuotaDayDetail({
     </table>
   );
 }
+
+type QuotaGroupRowProps = {
+  date: string;
+  group: QuotaActionGroup;
+  isExpanded: boolean;
+  isLoading: boolean;
+  error: string | undefined;
+  calls: QuotaCall[] | undefined;
+  onToggle: (date: string, group: QuotaActionGroup) => void;
+  emailsVisible: boolean;
+};
 
 function QuotaGroupRow({
   date,
@@ -659,15 +691,8 @@ function QuotaGroupRow({
   error,
   calls,
   onToggle,
-}: {
-  date: string;
-  group: QuotaActionGroup;
-  isExpanded: boolean;
-  isLoading: boolean;
-  error: string | undefined;
-  calls: QuotaCall[] | undefined;
-  onToggle: (date: string, group: QuotaActionGroup) => void;
-}) {
+  emailsVisible,
+}: QuotaGroupRowProps) {
   const isDrillable = group.action === null;
   const cellStyle = { padding: "0.35rem 0.5rem", fontSize: "0.85rem" };
 
@@ -702,7 +727,11 @@ function QuotaGroupRow({
         </td>
         <td style={cellStyle}>{group.action ?? "unknown (before tracking)"}</td>
         <td style={cellStyle}>{group.callType}</td>
-        <td style={cellStyle}>{group.userEmail && <MutedText>{group.userEmail}</MutedText>}</td>
+        <td style={cellStyle}>
+          {group.userEmail && (
+            <MutedText>{maskEmail(group.userEmail, emailsVisible)}</MutedText>
+          )}
+        </td>
         <td style={{ ...cellStyle, textAlign: "right" }}>
           <MutedText>{group.units.toLocaleString()} units</MutedText>
         </td>

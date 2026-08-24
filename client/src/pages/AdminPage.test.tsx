@@ -163,7 +163,7 @@ describe("AdminPage", () => {
 
     expect(getQuotaGroupsForDate).toHaveBeenCalledWith("2026-08-19");
     expect(await screen.findByText("refresh-all-cache")).toBeInTheDocument();
-    expect(screen.getByText("you@x.com")).toBeInTheDocument();
+    expect(screen.getByText("•••••")).toBeInTheDocument();
     expect(screen.getByText("800 units")).toBeInTheDocument();
 
     // an identified group has no drill-down, so only the day caret exists
@@ -199,6 +199,8 @@ describe("AdminPage", () => {
 
     render(<AdminPage />);
     await screen.findByText("2026-08-19");
+    // reveal emails so the two rows stay distinguishable by user
+    await user.click(screen.getByRole("checkbox", { name: "Show emails" }));
     await user.click(screen.getByTitle("Expand"));
 
     expect(await screen.findByText("a@x.com")).toBeInTheDocument();
@@ -400,7 +402,7 @@ describe("AdminPage", () => {
 
     expect(await screen.findByText(/37 of 100 OAuth slots used/i)).toBeInTheDocument();
     expect(screen.getByText("for a friend")).toBeInTheDocument();
-    expect(screen.getByText(/Used by friend@example.com/i)).toBeInTheDocument();
+    expect(screen.getByText(/Used by •••••/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Revoke" })).toBeInTheDocument();
   });
 
@@ -464,5 +466,63 @@ describe("AdminPage", () => {
     await waitFor(() => {
       expect(screen.queryByText("for a friend")).not.toBeInTheDocument();
     });
+  });
+
+  it("masks emails by default and reveals them via the Show emails toggle", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getQuotaSummary).mockResolvedValue(HISTORY_RESPONSE);
+    vi.mocked(getInvites).mockResolvedValue({
+      invites: [
+        {
+          code: "used-code",
+          note: null,
+          createdAt: "2026-08-18T00:00:00.000Z",
+          usedAt: "2026-08-19T00:00:00.000Z",
+          usedByEmail: "friend@example.com",
+        },
+      ],
+      usersCount: 1,
+    });
+
+    render(<AdminPage />);
+    await screen.findByText(/Used by •••••/i);
+
+    expect(screen.queryByText(/friend@example\.com/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: "Show emails" }));
+
+    expect(await screen.findByText(/Used by friend@example\.com/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: "Show emails" }));
+
+    expect(await screen.findByText(/Used by •••••/i)).toBeInTheDocument();
+    expect(screen.queryByText(/friend@example\.com/)).not.toBeInTheDocument();
+  });
+
+  it("keeps emails masked on a fresh mount, not remembering a previous reveal", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getQuotaSummary).mockResolvedValue(HISTORY_RESPONSE);
+    vi.mocked(getInvites).mockResolvedValue({
+      invites: [
+        {
+          code: "used-code",
+          note: null,
+          createdAt: "2026-08-18T00:00:00.000Z",
+          usedAt: "2026-08-19T00:00:00.000Z",
+          usedByEmail: "friend@example.com",
+        },
+      ],
+      usersCount: 1,
+    });
+
+    const { unmount } = render(<AdminPage />);
+    await screen.findByText(/Used by •••••/i);
+    await user.click(screen.getByRole("checkbox", { name: "Show emails" }));
+    await screen.findByText(/Used by friend@example\.com/);
+    unmount();
+
+    render(<AdminPage />);
+
+    expect(await screen.findByText(/Used by •••••/i)).toBeInTheDocument();
   });
 });
