@@ -106,3 +106,21 @@ export async function refreshAccessToken(args: {
   const expires_at = Date.now() + Number(json.expires_in) * 1000;
   return { access_token: String(json.access_token), expires_in: Number(json.expires_in), expires_at };
 }
+
+// revokes a refresh token at Google, ending the whole grant, not just this
+// token. Google returns 400 for an already revoked token
+export async function revokeGoogleToken(token: string): Promise<void> {
+  const body = new URLSearchParams();
+  body.set("token", token);
+
+  const resp = await fetch("https://oauth2.googleapis.com/revoke", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body,
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    console.error(`Google token revoke failed: ${resp.status} ${text}`);
+  }
+}

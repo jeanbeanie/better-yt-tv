@@ -13,16 +13,32 @@ vi.mock("../auth/google.js", async () => {
     ...actual,
     exchangeCodeForTokens: vi.fn(),
     getGoogleUserFromIdToken: vi.fn(),
+    revokeGoogleToken: vi.fn(),
   };
 });
 
 vi.mock("../auth/crypto.js", () => ({
   encryptRefreshToken: vi.fn(() => "fake-ciphertext"),
+  decryptRefreshToken: vi.fn(() => "fake-refresh-token"),
+}));
+
+let mockAuthPasses = true;
+
+vi.mock("../auth/requireAuth.js", () => ({
+  requireAuth: (req: any, res: any, next: any) => {
+    if (!mockAuthPasses) {
+      return res.status(401).json({ code: "AUTH_REQUIRED", message: "Not signed in" });
+    }
+    req.userId = "test-user-id";
+    next();
+  },
 }));
 
 const { pool } = await import("../db/pool.js");
-const { exchangeCodeForTokens, getGoogleUserFromIdToken } = await import("../auth/google.js");
-const { encryptRefreshToken } = await import("../auth/crypto.js");
+const { exchangeCodeForTokens, getGoogleUserFromIdToken, revokeGoogleToken } = await import(
+  "../auth/google.js"
+);
+const { encryptRefreshToken, decryptRefreshToken } = await import("../auth/crypto.js");
 const { authRouter } = await import("./auth.js");
 
 function buildApp() {
@@ -150,6 +166,7 @@ describe("GET /api/auth/login", () => {
 describe("POST /api/auth/logout", () => {
   beforeEach(() => {
     vi.mocked(pool.query).mockReset();
+    vi.mocked(pool.connect).mockReset();
   });
 
   it("clears the cookie and responds ok with no DB call when there's no sid", async () => {
@@ -161,18 +178,36 @@ describe("POST /api/auth/logout", () => {
     expect(pool.query).not.toHaveBeenCalled();
   });
 
-  it("revokes the session and clears the cookie when a sid is present", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rows: [], rowCount: 1 } as any);
+  it("deletes the local refresh token and revokes the session when a sid is present", async () => {
+    vi.mocked(pool.query).mockResolvedValue({ rows: [{ user_id: "user-1" }], rowCount: 1 } as any);
+    const client = { query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }), release: vi.fn() };
+    vi.mocked(pool.connect).mockResolvedValue(client as any);
 
     const res = await request(buildApp()).post("/api/auth/logout").set("Cookie", "sid=session-1");
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true });
     expect(getSetCookie(res, "sid")).not.toBeNull();
-    expect(pool.query).toHaveBeenCalledTimes(1);
+
     const [sql, params] = vi.mocked(pool.query).mock.calls[0];
-    expect(String(sql)).toContain("update sessions");
+    expect(String(sql)).toContain("select user_id from sessions");
     expect(params).toEqual(["session-1"]);
+
+    const clientCalls = client.query.mock.calls;
+    expect(clientCalls[1][0]).toContain("delete from oauth_tokens");
+    expect(clientCalls[1][1]).toEqual(["user-1"]);
+    expect(clientCalls[2][0]).toContain("update sessions");
+    expect(clientCalls[2][1]).toEqual(["session-1"]);
+  });
+
+  it("clears the cookie and responds ok without a transaction when the sid matches no session", async () => {
+    vi.mocked(pool.query).mockResolvedValue({ rows: [], rowCount: 0 } as any);
+
+    const res = await request(buildApp()).post("/api/auth/logout").set("Cookie", "sid=stale-session");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    expect(pool.connect).not.toHaveBeenCalled();
   });
 });
 
@@ -409,5 +444,82 @@ describe("GET /api/auth/whoami", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ user: null });
+  });
+});
+
+describe("DELETE /api/auth/account", () => {
+  beforeEach(() => {
+    mockAuthPasses = true;
+    vi.mocked(pool.query).mockReset();
+    vi.mocked(revokeGoogleToken).mockReset();
+    vi.mocked(decryptRefreshToken).mockReset();
+    vi.mocked(decryptRefreshToken).mockReturnValue("fake-refresh-token");
+  });
+
+  it("401s without calling the database, when unauthenticated", async () => {
+    mockAuthPasses = false;
+
+    const res = await request(buildApp()).delete("/api/auth/account");
+
+    expect(res.status).toBe(401);
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it("revokes the Google token and deletes the user when one is stored", async () => {
+    vi.mocked(pool.query).mockImplementation(async (sql: any) => {
+      const text = String(sql);
+      if (text.includes("select refresh_token_ciphertext")) {
+        return { rows: [{ refresh_token_ciphertext: "fake-ciphertext" }], rowCount: 1 } as any;
+      }
+      return { rows: [], rowCount: 1 } as any;
+    });
+
+    const res = await request(buildApp()).delete("/api/auth/account");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    expect(decryptRefreshToken).toHaveBeenCalledWith("fake-ciphertext", expect.any(String));
+    expect(revokeGoogleToken).toHaveBeenCalledWith("fake-refresh-token");
+
+    const calls = vi.mocked(pool.query).mock.calls.map(([sql]) => String(sql));
+    expect(calls.some((sql) => sql.includes("delete from users"))).toBe(true);
+    expect(getSetCookie(res, "sid")).not.toBeNull();
+  });
+
+  it("skips revoking when the user never had a refresh token stored, but still deletes the user", async () => {
+    vi.mocked(pool.query).mockImplementation(async (sql: any) => {
+      const text = String(sql);
+      if (text.includes("select refresh_token_ciphertext")) {
+        return { rows: [], rowCount: 0 } as any;
+      }
+      return { rows: [], rowCount: 1 } as any;
+    });
+
+    const res = await request(buildApp()).delete("/api/auth/account");
+
+    expect(res.status).toBe(200);
+    expect(revokeGoogleToken).not.toHaveBeenCalled();
+
+    const calls = vi.mocked(pool.query).mock.calls.map(([sql]) => String(sql));
+    expect(calls.some((sql) => sql.includes("delete from users"))).toBe(true);
+  });
+
+  it("still deletes the user even when revoking at Google throws", async () => {
+    vi.mocked(pool.query).mockImplementation(async (sql: any) => {
+      const text = String(sql);
+      if (text.includes("select refresh_token_ciphertext")) {
+        return { rows: [{ refresh_token_ciphertext: "fake-ciphertext" }], rowCount: 1 } as any;
+      }
+      return { rows: [], rowCount: 1 } as any;
+    });
+    vi.mocked(revokeGoogleToken).mockRejectedValue(new Error("network error"));
+
+    const res = await request(buildApp()).delete("/api/auth/account");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+
+    const calls = vi.mocked(pool.query).mock.calls.map(([sql]) => String(sql));
+    expect(calls.some((sql) => sql.includes("delete from users"))).toBe(true);
   });
 });

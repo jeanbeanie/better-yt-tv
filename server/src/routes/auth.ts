@@ -1,8 +1,15 @@
 import type { Request, Response } from "express";
 import express from "express";
 import { env } from "../config/env.js";
-import { exchangeCodeForTokens, getGoogleUserFromIdToken, buildGoogleAuthUrl } from "../auth/google.js";
-import { encryptRefreshToken } from "../auth/crypto.js";
+import {
+  exchangeCodeForTokens,
+  getGoogleUserFromIdToken,
+  buildGoogleAuthUrl,
+  revokeGoogleToken,
+} from "../auth/google.js";
+import { encryptRefreshToken, decryptRefreshToken } from "../auth/crypto.js";
+import { revokeSessionAndTokens } from "../auth/revoke.js";
+import { requireAuth, type AuthedRequest } from "../auth/requireAuth.js";
 import { pool } from "../db/pool.js";
 import { validateInviteCode, consumeInviteCode } from "../invites/invites.js";
 import crypto from "node:crypto";
@@ -69,16 +76,18 @@ authRouter.post("/logout", async (req: Request, res: Response, next) => {
     });
 
     if(!sid) return res.json({ ok:true });
-    
-    // update session row's revoked_at to now()
-    await pool.query(
-      `
-      update sessions
-      set revoked_at = now()
-      where id = $1
-      `,
+
+    // find who this session belongs to, so the local refresh token can be
+    // deleted alongside revoking the session itself
+    const sessionResult = await pool.query(
+      `select user_id from sessions where id = $1`,
       [sid],
     );
+    const userId = sessionResult.rows[0]?.user_id as string | undefined;
+
+    if (userId) {
+      await revokeSessionAndTokens(userId, sid);
+    }
 
     return res.json({ ok: true });
   } catch (err) {
@@ -264,6 +273,37 @@ authRouter.get("/whoami", async (req: Request, res: Response, next) => {
     if (r.rowCount === 0) return res.json({ user: null });
 
     return res.json({ user: r.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/auth/account
+// revokes the stored Google refresh token, then deletes the user row, which
+// cascades to every other table referencing it
+authRouter.delete("/account", requireAuth, async (req: Request, res: Response, next) => {
+  try {
+    const userId = (req as AuthedRequest).userId;
+
+    const tokenResult = await pool.query(
+      `select refresh_token_ciphertext from oauth_tokens where user_id = $1`,
+      [userId],
+    );
+    const ciphertext = tokenResult.rows[0]?.refresh_token_ciphertext as string | undefined;
+
+    if (ciphertext) {
+      try {
+        const refreshToken = decryptRefreshToken(ciphertext, env.TOKEN_ENCRYPTION_KEY);
+        await revokeGoogleToken(refreshToken);
+      } catch (err) {
+        console.error("Failed to revoke Google token during account deletion:", err);
+      }
+    }
+
+    await pool.query(`delete from users where id = $1`, [userId]);
+
+    res.clearCookie("sid", { path: "/" });
+    return res.json({ ok: true });
   } catch (err) {
     next(err);
   }
