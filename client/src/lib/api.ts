@@ -173,20 +173,50 @@ export type RefreshAllCacheResult = {
 // is pending shares it instead of firing a duplicate refresh
 let refreshAllCacheInFlight: Promise<RefreshAllCacheResult> | null = null;
 
-export async function refreshAllCache(): Promise<RefreshAllCacheResult> {
+// only refreshPaused matters on a skipped call, since it's the only field
+// AllPage/ListsPage read from the result
+let lastKnownRefreshPaused = false;
+
+const AUTO_REFRESH_STORAGE_KEY = "betterYtTv.lastAutoRefreshAt";
+const AUTO_REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
+
+export async function refreshAllCache(
+  options: { manual?: boolean } = {},
+): Promise<RefreshAllCacheResult> {
+  const manual = options.manual ?? false;
+
+  if (!manual) {
+    const lastAt = Number(window.localStorage.getItem(AUTO_REFRESH_STORAGE_KEY) ?? 0);
+    if (Date.now() - lastAt < AUTO_REFRESH_COOLDOWN_MS) {
+      return {
+        ok: true,
+        refreshPaused: lastKnownRefreshPaused,
+        refreshedChannels: 0,
+        skippedChannels: 0,
+        failedChannels: 0,
+        cachedVideos: 0,
+      };
+    }
+  }
+
   if (refreshAllCacheInFlight) return refreshAllCacheInFlight;
 
   const inFlight = (async () => {
     const resp = await fetch(`${API_BASE}/api/youtube/refresh-all-cache`, {
       method: "POST",
       credentials: "include", // tells browser to send cookies with this request, necessary for auth
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ manual }),
     });
 
     if (!resp.ok) {
       throw await parseApiError(resp, "refresh all cache failed");
     }
 
-    return resp.json();
+    const result = await resp.json();
+    lastKnownRefreshPaused = result.refreshPaused;
+    window.localStorage.setItem(AUTO_REFRESH_STORAGE_KEY, String(Date.now()));
+    return result;
   })();
 
   refreshAllCacheInFlight = inFlight;

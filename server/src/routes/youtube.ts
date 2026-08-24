@@ -182,6 +182,8 @@ youtubeRouter.post(
   requireAuth,
   withYoutubeReauthHandling(async (req, res) => {
      const userId = (req as AuthedRequest).userId;
+     const manual = req.body?.manual === true;
+     const action = manual ? "refresh-all-cache:manual" : "refresh-all-cache:auto";
 
     const settings = await getAppSettings();
     if (settings.refreshPaused) {
@@ -265,7 +267,7 @@ youtubeRouter.post(
           channelId,
           cachedUploadsPlaylistId: cacheState.uploadsPlaylistId,
           maxResults: 20,
-          quotaContext: { action: "refresh-all-cache", userId, requestGroupId },
+          quotaContext: { action, userId, requestGroupId },
         });
 
         // save videos into cache table

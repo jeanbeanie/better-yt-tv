@@ -73,6 +73,8 @@ export default function ChannelsSettingsPage() {
 
   // Refresh feed
   const [refreshing, setRefreshing] = useState(false);
+  // flips true if a refresh is still running after 30 seconds
+  const [refreshTakingLong, setRefreshTakingLong] = useState(false);
   // Holds the latest successful refresh summary so we can show feedback to the user
   const [refreshResult, setRefreshResult] = useState<RefreshResult | null>(null);
 
@@ -178,6 +180,8 @@ export default function ChannelsSettingsPage() {
   // HANDLER FUNCTIONS
 
   async function handleRefreshFeed() {
+    const longTimer = setTimeout(() => setRefreshTakingLong(true), 30_000);
+
     try {
       setRefreshing(true);
       setError(null);
@@ -186,7 +190,7 @@ export default function ChannelsSettingsPage() {
       setRefreshResult(null);
 
       // Call the API helper that refreshes cached uploads/feed data
-      const result = await refreshAllCache();
+      const result = await refreshAllCache({ manual: true });
 
       setRefreshResult(result);
     } catch (err) {
@@ -194,7 +198,9 @@ export default function ChannelsSettingsPage() {
         err instanceof Error ? err.message : "Failed to refresh feed",
       );
     } finally {
+      clearTimeout(longTimer);
       setRefreshing(false);
+      setRefreshTakingLong(false);
     }
   }
 
@@ -348,7 +354,12 @@ export default function ChannelsSettingsPage() {
             disabled={refreshing || syncing || bulkSaving || anyRowSaving}
             onClick={() => void handleRefreshFeed()}
           >
-            {refreshing ? "Refreshing..." : "Refresh feed"}
+            {refreshing && <span className="spinner" aria-hidden="true" style={{ marginRight: "0.5rem" }} />}
+            {refreshing
+              ? refreshTakingLong
+                ? "Still refreshing...I promise it isn't stuck!"
+                : "Refreshing..."
+              : "Refresh feed"}
           </Button>
 
           <Button
@@ -357,6 +368,7 @@ export default function ChannelsSettingsPage() {
             disabled={syncing || refreshing || bulkSaving || anyRowSaving}
             onClick={() => void handleSyncSubscriptions()}
           >
+            {syncing && <span className="spinner" aria-hidden="true" style={{ marginRight: "0.5rem" }} />}
             {syncing ? "Syncing..." : "Sync subscriptions"}
           </Button>
         </div>

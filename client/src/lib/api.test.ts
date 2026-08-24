@@ -117,8 +117,10 @@ describe("refreshAllCache request dedup", () => {
       .mockResolvedValueOnce(new Response(resultBody, { status: 200 }));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    await refreshAllCache();
-    await refreshAllCache();
+    // manual: true so neither call is blocked by the cooldown, this test is
+    // only about the in-flight guard clearing after resolution
+    await refreshAllCache({ manual: true });
+    await refreshAllCache({ manual: true });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -129,6 +131,83 @@ describe("refreshAllCache request dedup", () => {
 
     await expect(refreshAllCache()).rejects.toBeInstanceOf(ApiError);
     await expect(refreshAllCache()).rejects.toBeInstanceOf(ApiError);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("refreshAllCache cooldown", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const resultBody = JSON.stringify({
+    ok: true,
+    refreshPaused: false,
+    refreshedChannels: 1,
+    skippedChannels: 0,
+    failedChannels: 0,
+    cachedVideos: 3,
+  });
+
+  const pausedResultBody = JSON.stringify({
+    ok: true,
+    refreshPaused: true,
+    refreshedChannels: 0,
+    skippedChannels: 0,
+    failedChannels: 0,
+    cachedVideos: 0,
+  });
+
+  it("skips the network call on a second auto call within the cooldown, reusing the last refreshPaused value", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(pausedResultBody, { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const first = await refreshAllCache();
+    const second = await refreshAllCache();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(first.refreshPaused).toBe(true);
+    expect(second).toEqual({
+      ok: true,
+      refreshPaused: true,
+      refreshedChannels: 0,
+      skippedChannels: 0,
+      failedChannels: 0,
+      cachedVideos: 0,
+    });
+  });
+
+  it("lets a manual call through even right after an auto call", async () => {
+    // a fresh Response per call, since a Response body can only be read once
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(resultBody, { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await refreshAllCache();
+    await refreshAllCache({ manual: true });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("sends manual: true in the request body for a manual call, manual: false otherwise", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(resultBody, { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await refreshAllCache({ manual: true });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body)).toEqual({ manual: true });
+  });
+
+  it("does not start a cooldown on a failed call, so the next auto call still fires", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("{}", { status: 500 }))
+      .mockResolvedValueOnce(new Response(resultBody, { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(refreshAllCache()).rejects.toBeInstanceOf(ApiError);
+    await refreshAllCache();
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });

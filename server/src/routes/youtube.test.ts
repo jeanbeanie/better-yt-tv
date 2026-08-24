@@ -406,11 +406,28 @@ describe("POST /api/youtube/refresh-all-cache", () => {
     const [firstCallArgs] = vi.mocked(fetchRecentVideosForChannel).mock.calls[0];
     const [secondCallArgs] = vi.mocked(fetchRecentVideosForChannel).mock.calls[1];
     expect(firstCallArgs.quotaContext).toEqual({
-      action: "refresh-all-cache",
+      action: "refresh-all-cache:auto",
       userId: "test-user-id",
       requestGroupId: expect.any(String),
     });
     expect(secondCallArgs.quotaContext?.requestGroupId).toBe(firstCallArgs.quotaContext?.requestGroupId);
+  });
+
+  it("records action as refresh-all-cache:manual when the request body says manual", async () => {
+    mockChannelIdsQuery(["chan1"]);
+    vi.mocked(getChannelCacheState).mockResolvedValue({ stale: true, uploadsPlaylistId: null });
+    vi.mocked(fetchRecentVideosForChannel).mockResolvedValue({
+      videos: [],
+      uploadsPlaylistId: "UUresolved",
+    });
+
+    await request(buildApp())
+      .post("/api/youtube/refresh-all-cache")
+      .set("Cookie", "sid=fake-session")
+      .send({ manual: true });
+
+    const [callArgs] = vi.mocked(fetchRecentVideosForChannel).mock.calls[0];
+    expect(callArgs.quotaContext?.action).toBe("refresh-all-cache:manual");
   });
 
   it("passes a channel's cached uploads playlist id through to the fetch", async () => {
