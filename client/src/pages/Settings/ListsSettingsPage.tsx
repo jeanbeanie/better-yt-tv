@@ -4,7 +4,7 @@ import {
   getLists,
   createList,
   deleteList,
-  getLoginUrl,
+  redirectToLoginOrHome,
   shouldRedirectToLogin,
   type ListSummary,
 } from "../../lib/api";
@@ -27,7 +27,7 @@ export default function ListsSettingsPage() {
 
   useEffect(() => {
     if (!pendingLoginRedirect) return;
-    window.location.assign(getLoginUrl());
+    redirectToLoginOrHome();
   }, [pendingLoginRedirect]);
 
   function redirectIfAuthError(err: unknown): boolean {

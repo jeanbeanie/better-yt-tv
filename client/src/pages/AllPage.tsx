@@ -4,7 +4,7 @@ import {
   getAllFeed,
   markVideoWatched,
   markVideoUnwatched,
-  getLoginUrl,
+  redirectToLoginOrHome,
   shouldRedirectToLogin,
   refreshAllCache,
   type FeedItem,
@@ -27,7 +27,7 @@ export default function AllPage() {
 
   useEffect(() => {
     if (!pendingLoginRedirect) return;
-    window.location.assign(getLoginUrl());
+    redirectToLoginOrHome();
   }, [pendingLoginRedirect]);
 
   function redirectIfAuthError(err: unknown): boolean {

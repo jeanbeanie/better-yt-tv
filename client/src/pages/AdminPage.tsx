@@ -8,7 +8,7 @@ import {
   getInvites,
   createInvite,
   deleteInvite,
-  getLoginUrl,
+  redirectToLoginOrHome,
   ApiError,
   type QuotaSummary,
   type QuotaHistoryDay,
@@ -66,7 +66,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!pendingLoginRedirect) return;
-    window.location.assign(getLoginUrl());
+    redirectToLoginOrHome();
   }, [pendingLoginRedirect]);
 
   async function loadQuota() {

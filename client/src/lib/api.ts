@@ -88,6 +88,13 @@ export function getLoginUrl() {
   return `${API_BASE}/api/auth/login${query}`;
 }
 
+// used by every page's session expired redirect, sends to login when a
+// code is available, otherwise home where the invite required message
+// explains why instead of a bare 403
+export function redirectToLoginOrHome() {
+  window.location.assign(hasInviteCode() ? getLoginUrl() : "/");
+}
+
 export function shouldRedirectToLogin(err: unknown): boolean {
   return (
     err instanceof ApiError &&

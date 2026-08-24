@@ -5,7 +5,7 @@ import {
   getChannels,
   saveList,
   deleteList,
-  getLoginUrl,
+  redirectToLoginOrHome,
   shouldRedirectToLogin,
   ApiError,
   type ListChannel,
@@ -39,7 +39,7 @@ export default function ListEditorPage() {
 
   useEffect(() => {
     if (!pendingLoginRedirect) return;
-    window.location.assign(getLoginUrl());
+    redirectToLoginOrHome();
   }, [pendingLoginRedirect]);
 
   function redirectIfAuthError(err: unknown): boolean {

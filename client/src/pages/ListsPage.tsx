@@ -5,7 +5,7 @@ import {
   getListFeed,
   markVideoWatched,
   markVideoUnwatched,
-  getLoginUrl,
+  redirectToLoginOrHome,
   shouldRedirectToLogin,
   refreshAllCache,
   type ListSummary,
@@ -33,7 +33,7 @@ export default function ListsPage() {
 
   useEffect(() => {
     if (!pendingLoginRedirect) return;
-    window.location.assign(getLoginUrl());
+    redirectToLoginOrHome();
   }, [pendingLoginRedirect]);
 
   function redirectIfAuthError(err: unknown): boolean {
