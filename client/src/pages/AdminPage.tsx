@@ -5,6 +5,9 @@ import {
   getQuotaGroupCalls,
   getAppSettings,
   updateAppSettings,
+  getInvites,
+  createInvite,
+  deleteInvite,
   getLoginUrl,
   ApiError,
   type QuotaSummary,
@@ -12,6 +15,7 @@ import {
   type QuotaCall,
   type QuotaActionGroup,
   type AppSettings,
+  type Invite,
 } from "../lib/api";
 import ErrorText from "../components/ErrorText";
 import MutedText from "../components/MutedText";
@@ -40,6 +44,15 @@ export default function AdminPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [togglePending, setTogglePending] = useState(false);
+
+  const [invites, setInvites] = useState<Invite[]>([]);
+  const [usersCount, setUsersCount] = useState<number | null>(null);
+  const [invitesError, setInvitesError] = useState<string | null>(null);
+  const [noteInput, setNoteInput] = useState("");
+  const [creatingInvite, setCreatingInvite] = useState(false);
+  const [justCreated, setJustCreated] = useState<Invite | null>(null);
+  const [deletingCodes, setDeletingCodes] = useState<Set<string>>(new Set());
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
   const [groupsByDate, setGroupsByDate] = useState<Record<string, QuotaActionGroup[]>>({});
@@ -107,6 +120,69 @@ export default function AdminPage() {
   useEffect(() => {
     void loadSettings();
   }, []);
+
+  async function loadInvites() {
+    try {
+      const data = await getInvites();
+      setInvites(data.invites);
+      setUsersCount(data.usersCount);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401 && err.code === "AUTH_REQUIRED") {
+        setPendingLoginRedirect(true);
+        return;
+      }
+      if (err instanceof ApiError && err.status === 403 && err.code === "ADMIN_REQUIRED") {
+        setNotAuthorized(true);
+        return;
+      }
+      setInvitesError(err instanceof Error ? err.message : "Failed to load invites");
+    }
+  }
+
+  useEffect(() => {
+    void loadInvites();
+  }, []);
+
+  function inviteLink(code: string) {
+    return `${window.location.origin}/?invite=${code}`;
+  }
+
+  async function handleCreateInvite() {
+    setInvitesError(null);
+    setCreatingInvite(true);
+    try {
+      const invite = await createInvite(noteInput.trim() || null);
+      setInvites((prev) => [invite, ...prev]);
+      setJustCreated(invite);
+      setNoteInput("");
+    } catch (err) {
+      setInvitesError(err instanceof Error ? err.message : "Failed to create invite");
+    } finally {
+      setCreatingInvite(false);
+    }
+  }
+
+  async function handleDeleteInvite(code: string) {
+    setDeletingCodes((prev) => new Set(prev).add(code));
+    try {
+      await deleteInvite(code);
+      setInvites((prev) => prev.filter((invite) => invite.code !== code));
+    } catch (err) {
+      setInvitesError(err instanceof Error ? err.message : "Failed to revoke invite");
+    } finally {
+      setDeletingCodes((prev) => {
+        const next = new Set(prev);
+        next.delete(code);
+        return next;
+      });
+    }
+  }
+
+  async function handleCopyLink(code: string) {
+    await navigator.clipboard.writeText(inviteLink(code));
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode((prev) => (prev === code ? null : prev)), 1500);
+  }
 
   // nothing to roll back on failure since settings state is only ever
   // updated from a successful response
@@ -262,6 +338,122 @@ export default function AdminPage() {
           <section
             style={{
               display: "grid",
+              gap: "0.75rem",
+              border: "1px solid var(--border)",
+              borderRadius: "12px",
+              padding: "1rem",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <h2 style={{ margin: 0 }}>Invites</h2>
+              <MutedText style={{ fontSize: "0.75rem" }}>
+                {usersCount !== null ? `${usersCount} of 100 OAuth slots used (estimate)` : ""}
+              </MutedText>
+            </div>
+
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <input
+                type="text"
+                className="text-input"
+                placeholder="Note (optional)"
+                value={noteInput}
+                onChange={(e) => setNoteInput(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button type="button" disabled={creatingInvite} onClick={() => void handleCreateInvite()}>
+                Create invite
+              </button>
+            </div>
+
+            {justCreated && (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: "1rem",
+                  background: "var(--accent-bg)",
+                  border: "1px solid var(--accent-border)",
+                  borderRadius: "8px",
+                  padding: "0.5rem 0.75rem",
+                }}
+              >
+                <span style={{ overflowWrap: "anywhere" }}>
+                  ✅ Created. Share this link: {inviteLink(justCreated.code)}
+                </span>
+                <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
+                  <button type="button" onClick={() => void handleCopyLink(justCreated.code)}>
+                    {copiedCode === justCreated.code ? "Copied!" : "Copy"}
+                  </button>
+                  <button type="button" onClick={() => setJustCreated(null)}>
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {invitesError && <ErrorText>{invitesError}</ErrorText>}
+
+            {invites.length > 0 && (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      <th className="admin-table-th">Note</th>
+                      <th className="admin-table-th">Created</th>
+                      <th className="admin-table-th">Status</th>
+                      <th className="admin-table-th admin-table-th-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invites.map((invite) => {
+                      const isUsed = invite.usedAt !== null;
+                      const isDeleting = deletingCodes.has(invite.code);
+
+                      return (
+                        <tr key={invite.code}>
+                          <td className="admin-table-td">{invite.note ?? <MutedText>—</MutedText>}</td>
+                          <td className="admin-table-td">
+                            {new Date(invite.createdAt).toLocaleDateString()}
+                          </td>
+                          <td className="admin-table-td">
+                            {isUsed ? (
+                              <MutedText>
+                                Used by {invite.usedByEmail ?? "unknown"} on{" "}
+                                {new Date(invite.usedAt!).toLocaleDateString()}
+                              </MutedText>
+                            ) : (
+                              "Unused"
+                            )}
+                          </td>
+                          <td className="admin-table-td admin-table-td-right">
+                            {!isUsed && (
+                              <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+                                <button type="button" onClick={() => void handleCopyLink(invite.code)}>
+                                  {copiedCode === invite.code ? "Copied!" : "Copy"}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isDeleting}
+                                  onClick={() => void handleDeleteInvite(invite.code)}
+                                >
+                                  Revoke
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section
+            style={{
+              display: "grid",
               gap: "0.5rem",
               border: "1px solid var(--border)",
               borderRadius: "12px",
@@ -319,20 +511,13 @@ export default function AdminPage() {
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
-                      <th style={{ textAlign: "left", borderBottom: "1px solid var(--border)", padding: "0.5rem" }}>
-                        Date
-                      </th>
+                      <th className="admin-table-th">Date</th>
                       {callTypes.map((ct) => (
-                        <th
-                          key={ct}
-                          style={{ textAlign: "right", borderBottom: "1px solid var(--border)", padding: "0.5rem" }}
-                        >
+                        <th key={ct} className="admin-table-th admin-table-th-right">
                           {ct}
                         </th>
                       ))}
-                      <th style={{ textAlign: "right", borderBottom: "1px solid var(--border)", padding: "0.5rem" }}>
-                        Total
-                      </th>
+                      <th className="admin-table-th admin-table-th-right">Total</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -343,10 +528,9 @@ export default function AdminPage() {
                         <Fragment key={day.date}>
                           <tr>
                             <td
+                              className="admin-table-td"
                               onClick={() => void toggleDate(day.date)}
                               style={{
-                                padding: "0.5rem",
-                                borderBottom: "1px solid var(--border)",
                                 cursor: "pointer",
                                 display: "flex",
                                 alignItems: "center",
@@ -372,23 +556,15 @@ export default function AdminPage() {
                               {day.date}
                             </td>
                             {callTypes.map((ct) => (
-                              <td
-                                key={ct}
-                                style={{ textAlign: "right", padding: "0.5rem", borderBottom: "1px solid var(--border)" }}
-                              >
+                              <td key={ct} className="admin-table-td admin-table-td-right">
                                 {day.breakdown.find((b) => b.callType === ct)?.units ?? 0}
                               </td>
                             ))}
-                            <td style={{ textAlign: "right", padding: "0.5rem", borderBottom: "1px solid var(--border)" }}>
-                              {day.total}
-                            </td>
+                            <td className="admin-table-td admin-table-td-right">{day.total}</td>
                           </tr>
                           {isExpanded && (
                             <tr>
-                              <td
-                                colSpan={callTypes.length + 2}
-                                style={{ padding: "0.5rem", borderBottom: "1px solid var(--border)" }}
-                              >
+                              <td className="admin-table-td" colSpan={callTypes.length + 2}>
                                 <QuotaDayDetail
                                   date={day.date}
                                   isLoading={loadingDates.has(day.date)}

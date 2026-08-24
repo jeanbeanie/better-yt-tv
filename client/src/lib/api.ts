@@ -495,3 +495,41 @@ export async function updateAppSettings(args: { refreshPaused: boolean }) {
     "update app settings failed",
   );
 }
+
+export type Invite = {
+  code: string;
+  note: string | null;
+  createdAt: string;
+  usedAt: string | null;
+  usedByEmail: string | null;
+};
+
+export async function getInvites() {
+  return apiFetch<{ invites: Invite[]; usersCount: number }>(
+    "/api/admin/invites",
+    { method: "GET" },
+    "get invites failed",
+  );
+}
+
+export async function createInvite(note: string | null) {
+  return apiFetch<Invite>(
+    "/api/admin/invites",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ note }),
+    },
+    "create invite failed",
+  );
+}
+
+export async function deleteInvite(code: string) {
+  return apiFetch<{ ok: boolean }>(
+    `/api/admin/invites/${encodeURIComponent(code)}`,
+    { method: "DELETE" },
+    "delete invite failed",
+  );
+}

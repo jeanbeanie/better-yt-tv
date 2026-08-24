@@ -438,3 +438,22 @@ p {
   animation: spin 0.6s linear infinite;
 }
 
+.admin-table-th {
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  padding: 0.5rem;
+}
+
+.admin-table-th-right {
+  text-align: right;
+}
+
+.admin-table-td {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-table-td-right {
+  text-align: right;
+}
+

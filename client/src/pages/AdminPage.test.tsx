@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import AdminPage from "./AdminPage";
@@ -8,6 +8,9 @@ import {
   getQuotaGroupCalls,
   getAppSettings,
   updateAppSettings,
+  getInvites,
+  createInvite,
+  deleteInvite,
   ApiError,
 } from "../lib/api";
 
@@ -20,6 +23,9 @@ vi.mock("../lib/api", async () => {
     getQuotaGroupCalls: vi.fn(),
     getAppSettings: vi.fn(),
     updateAppSettings: vi.fn(),
+    getInvites: vi.fn(),
+    createInvite: vi.fn(),
+    deleteInvite: vi.fn(),
     getLoginUrl: vi.fn(() => "http://localhost:5179/api/auth/login"),
   };
 });
@@ -49,11 +55,15 @@ describe("AdminPage", () => {
     vi.mocked(getQuotaGroupCalls).mockReset();
     vi.mocked(getAppSettings).mockReset();
     vi.mocked(updateAppSettings).mockReset();
+    vi.mocked(getInvites).mockReset();
+    vi.mocked(createInvite).mockReset();
+    vi.mocked(deleteInvite).mockReset();
     vi.mocked(getAppSettings).mockResolvedValue({
       refreshPaused: false,
       updatedAt: "2026-08-21T00:00:00.000Z",
       updatedBy: null,
     });
+    vi.mocked(getInvites).mockResolvedValue({ invites: [], usersCount: 0 });
   });
 
   afterEach(() => {
@@ -362,5 +372,97 @@ describe("AdminPage", () => {
     expect(updateAppSettings).toHaveBeenCalledWith({ refreshPaused: true });
     expect(await screen.findByRole("button", { name: "Resume" })).toBeInTheDocument();
     expect(screen.getByText(/paused/i)).toBeInTheDocument();
+  });
+
+  it("renders the invite list and the slot usage estimate", async () => {
+    vi.mocked(getQuotaSummary).mockResolvedValue(HISTORY_RESPONSE);
+    vi.mocked(getInvites).mockResolvedValue({
+      invites: [
+        {
+          code: "unused-code",
+          note: "for a friend",
+          createdAt: "2026-08-20T00:00:00.000Z",
+          usedAt: null,
+          usedByEmail: null,
+        },
+        {
+          code: "used-code",
+          note: null,
+          createdAt: "2026-08-18T00:00:00.000Z",
+          usedAt: "2026-08-19T00:00:00.000Z",
+          usedByEmail: "friend@example.com",
+        },
+      ],
+      usersCount: 37,
+    });
+
+    render(<AdminPage />);
+
+    expect(await screen.findByText(/37 of 100 OAuth slots used/i)).toBeInTheDocument();
+    expect(screen.getByText("for a friend")).toBeInTheDocument();
+    expect(screen.getByText(/Used by friend@example.com/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Revoke" })).toBeInTheDocument();
+  });
+
+  it("creates an invite and shows the shareable link, copyable to the clipboard", async () => {
+    const user = userEvent.setup();
+    // userEvent.setup() installs its own navigator.clipboard stub, so this
+    // has to be spied on after setup rather than in the shared beforeEach
+    vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+    vi.mocked(getQuotaSummary).mockResolvedValue(HISTORY_RESPONSE);
+    vi.mocked(createInvite).mockResolvedValue({
+      code: "new-code",
+      note: "for a friend",
+      createdAt: "2026-08-23T00:00:00.000Z",
+      usedAt: null,
+      usedByEmail: null,
+    });
+
+    render(<AdminPage />);
+    await screen.findByText(/estimated used today/i);
+
+    await user.type(screen.getByPlaceholderText("Note (optional)"), "for a friend");
+    await user.click(screen.getByRole("button", { name: "Create invite" }));
+
+    expect(createInvite).toHaveBeenCalledWith("for a friend");
+    expect(await screen.findByText(/Created\. Share this link/i)).toBeInTheDocument();
+    expect(screen.getByText(/\/\?invite=new-code/)).toBeInTheDocument();
+
+    // the new invite shows in both the callout and its table row, so two
+    // Copy buttons exist, the callout's is first in the DOM
+    const [calloutCopyButton] = screen.getAllByRole("button", { name: "Copy" });
+    await user.click(calloutCopyButton);
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining("/?invite=new-code"),
+    );
+  });
+
+  it("revokes an unused invite and removes it from the list", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getQuotaSummary).mockResolvedValue(HISTORY_RESPONSE);
+    vi.mocked(getInvites).mockResolvedValue({
+      invites: [
+        {
+          code: "unused-code",
+          note: "for a friend",
+          createdAt: "2026-08-20T00:00:00.000Z",
+          usedAt: null,
+          usedByEmail: null,
+        },
+      ],
+      usersCount: 1,
+    });
+    vi.mocked(deleteInvite).mockResolvedValue({ ok: true });
+
+    render(<AdminPage />);
+    await screen.findByText("for a friend");
+
+    await user.click(screen.getByRole("button", { name: "Revoke" }));
+
+    expect(deleteInvite).toHaveBeenCalledWith("unused-code");
+    await waitFor(() => {
+      expect(screen.queryByText("for a friend")).not.toBeInTheDocument();
+    });
   });
 });
