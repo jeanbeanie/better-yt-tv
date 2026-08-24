@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, Route, Routes, useNavigate } from "react-router-dom";
-import { getLoginUrl, getWhoAmI, logout, saveInviteCode, type User } from "./lib/api";
+import { getLoginUrl, getWhoAmI, hasInviteCode, logout, saveInviteCode, type User } from "./lib/api";
 import Button from "./components/Button";
 import HomePage from "./pages/HomePage";
 import AllPage from "./pages/AllPage";
@@ -76,7 +76,7 @@ function App() {
         <nav style={{ display: "flex", gap: "1rem" }}>
           
           <Link to="/">Home</Link>
-          {!loading && !user && 
+          {!loading && !user && hasInviteCode() &&
             <a href={getLoginUrl()}>Login</a>
           }
           {!loading && user && (

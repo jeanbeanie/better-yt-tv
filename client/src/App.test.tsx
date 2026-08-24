@@ -1,15 +1,16 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import App from "./App";
-import { getWhoAmI, saveInviteCode } from "./lib/api";
+import { getWhoAmI, hasInviteCode, saveInviteCode } from "./lib/api";
 
 vi.mock("./lib/api", () => ({
   getWhoAmI: vi.fn(),
   getLoginUrl: vi.fn(() => "http://localhost:5179/api/auth/login"),
   logout: vi.fn(),
   saveInviteCode: vi.fn(),
+  hasInviteCode: vi.fn(() => true),
 }));
 
 function renderApp() {
@@ -78,5 +79,35 @@ describe("invite code from the URL", () => {
 
     await screen.findByRole("link", { name: "Home" });
     expect(saveInviteCode).not.toHaveBeenCalled();
+  });
+});
+
+describe("nav Login link", () => {
+  beforeEach(() => {
+    vi.mocked(getWhoAmI).mockReset();
+    vi.mocked(getWhoAmI).mockResolvedValue({ user: null });
+    vi.mocked(hasInviteCode).mockReset();
+    window.history.pushState({}, "", "/");
+    window.localStorage.setItem("betterYtTv.theme", "light");
+  });
+
+  it("shows Login in the nav when a code is available", async () => {
+    vi.mocked(hasInviteCode).mockReturnValue(true);
+
+    renderApp();
+
+    await screen.findByRole("link", { name: "Home" });
+    // HomePage renders its own Login button too, so scope to the nav
+    const nav = screen.getByRole("navigation");
+    expect(within(nav).getByRole("link", { name: "Login" })).toBeInTheDocument();
+  });
+
+  it("hides Login from the nav when no code is available", async () => {
+    vi.mocked(hasInviteCode).mockReturnValue(false);
+
+    renderApp();
+
+    await screen.findByRole("link", { name: "Home" });
+    expect(screen.queryByRole("link", { name: "Login" })).not.toBeInTheDocument();
   });
 });

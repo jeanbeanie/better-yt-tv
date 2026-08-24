@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { getLoginUrl, type User } from "../lib/api";
+import { getLoginUrl, hasInviteCode, type User } from "../lib/api";
 import ErrorText from "../components/ErrorText";
 import Spinner from "../components/Spinner";
 
@@ -12,6 +12,7 @@ type homePageProps = {
 
 export default function HomePage(props:homePageProps) {
   const {user, error, loading} = props;
+  const canLogin = hasInviteCode();
 
   return (
     <main>
@@ -32,12 +33,34 @@ export default function HomePage(props:homePageProps) {
 
         {error && <ErrorText>{error}</ErrorText>}
 
-        {!loading && !user && (
+        {!loading && !user && canLogin && (
           <div style={{ marginTop: "2rem" }}>
             <p style={{ fontSize: "0.875rem", marginBottom: "1rem" }}>Just hit play.</p>
             <a href={getLoginUrl()} className="button button-primary">
               Login
             </a>
+          </div>
+        )}
+
+        {!loading && !user && !canLogin && (
+          <div style={{ marginTop: "2rem" }}>
+            <p style={{ fontSize: "1.25rem", fontWeight: 600, color: "var(--text)", marginBottom: "0.75rem" }}>
+              This app requires an invite right now!
+            </p>
+            <p style={{ fontSize: "0.875rem" }}>
+              Reach out if you&apos;d like access:{" "}
+              <a href="https://github.com/jeanbeanie" target="_blank" rel="noreferrer">
+                GitHub
+              </a>
+              {" · "}
+              <a
+                href="https://www.linkedin.com/in/jeane-ramos-83339399/"
+                target="_blank"
+                rel="noreferrer"
+              >
+                LinkedIn
+              </a>
+            </p>
           </div>
         )}
 

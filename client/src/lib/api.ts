@@ -76,6 +76,10 @@ export function saveInviteCode(code: string) {
   window.localStorage.setItem(INVITE_CODE_STORAGE_KEY, code);
 }
 
+export function hasInviteCode(): boolean {
+  return window.localStorage.getItem(INVITE_CODE_STORAGE_KEY) !== null;
+}
+
 // returns URL string users needs to login, attaching a remembered invite
 // code if one is saved
 export function getLoginUrl() {
