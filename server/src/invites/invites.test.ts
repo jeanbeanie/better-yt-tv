@@ -124,13 +124,13 @@ describe("listInvites", () => {
 });
 
 describe("deleteInvite", () => {
-  it("returns true when the code is deleted, used or not", async () => {
+  it("returns true when an unused code is deleted", async () => {
     vi.mocked(pool.query).mockResolvedValue({ rowCount: 1 } as any);
 
     expect(await deleteInvite("code-1")).toBe(true);
   });
 
-  it("returns false when the code never existed", async () => {
+  it("returns false when the code was already used or never existed", async () => {
     vi.mocked(pool.query).mockResolvedValue({ rowCount: 0 } as any);
 
     expect(await deleteInvite("code-1")).toBe(false);

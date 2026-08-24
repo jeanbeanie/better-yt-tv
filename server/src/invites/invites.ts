@@ -82,6 +82,8 @@ export async function listInvites(): Promise<Invite[]> {
 }
 
 export async function deleteInvite(code: string): Promise<boolean> {
-  const result = await pool.query(`delete from invites where code = $1`, [code]);
+  const result = await pool.query(`delete from invites where code = $1 and used_at is null`, [
+    code,
+  ]);
   return (result.rowCount ?? 0) > 0;
 }
