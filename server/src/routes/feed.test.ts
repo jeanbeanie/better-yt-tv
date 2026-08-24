@@ -6,8 +6,13 @@ vi.mock("../db/pool.js", () => ({
   pool: { query: vi.fn() },
 }));
 
+let mockAuthPasses = true;
+
 vi.mock("../auth/requireAuth.js", () => ({
-  requireAuth: (req: any, _res: any, next: any) => {
+  requireAuth: (req: any, res: any, next: any) => {
+    if (!mockAuthPasses) {
+      return res.status(401).json({ code: "AUTH_REQUIRED", message: "Not signed in" });
+    }
     req.userId = "test-user-id";
     next();
   },
@@ -37,6 +42,7 @@ function makeRows() {
 
 describe("GET /api/feed/all", () => {
   beforeEach(() => {
+    mockAuthPasses = true;
     vi.mocked(pool.query).mockReset();
   });
 
@@ -80,6 +86,7 @@ function mockListLookup(rows: Row[]) {
 
 describe("GET /api/feed/lists/:listId", () => {
   beforeEach(() => {
+    mockAuthPasses = true;
     vi.mocked(pool.query).mockReset();
   });
 
@@ -103,6 +110,25 @@ describe("GET /api/feed/lists/:listId", () => {
     const secondPage = await request(buildApp()).get(`/api/feed/lists/${LIST_ID}?offset=2&limit=2`);
     expect(secondPage.body.items.map((r: Row) => r.video_id)).toEqual(["c1", "a2"]);
     expect(secondPage.body.hasMore).toBe(true);
+  });
+
+  // listId format must be checked after requireAuth, not via
+  // router.param() (that ran before route middleware, so a malformed id
+  // would 404 without ever checking auth)
+  it("401s a malformed listId without touching the database, when unauthenticated", async () => {
+    mockAuthPasses = false;
+
+    const res = await request(buildApp()).get("/api/feed/lists/not-a-uuid");
+
+    expect(res.status).toBe(401);
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it("404s a malformed listId once authenticated", async () => {
+    const res = await request(buildApp()).get("/api/feed/lists/not-a-uuid");
+
+    expect(res.status).toBe(404);
+    expect(pool.query).not.toHaveBeenCalled();
   });
 });
 

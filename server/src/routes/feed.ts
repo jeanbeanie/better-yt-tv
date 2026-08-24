@@ -39,16 +39,6 @@ function parsePagination(query: express.Request["query"]) {
   return { offset, limit: Math.min(limit, 200) };
 }
 
-// Reject a malformed listId before it ever reaches a query, same fix as
-// listsRouter.param("listId", ...) in routes/lists.ts, needed separately
-// here since Express param hooks are per-router, not global
-feedRouter.param("listId", (req, res, next, value) => {
-  if (!isValidUuid(value)) {
-    return res.status(404).json({ error: "List not found" });
-  }
-  next();
-});
-
 // Shared by GET /all and GET /live, filtered by a per-channel boolean
 // preference (enabled_all or enabled_live) plus excluded_shorts.
 // preferenceColumn is interpolated directly (not a $N placeholder) since
@@ -120,8 +110,8 @@ feedRouter.get("/all", requireAuth, async (req, res, next) => {
 
 // GET /api/feed/live
 // Return recent cached videos for channels the user has flagged with
-// "Enable in Live" in channel settings. Same shape as /all, just filtered
-// by enabled_live instead of enabled_all.
+// "Enable in Live" in channel settings, same shape as /all, just filtered
+// by enabled_live instead of enabled_all
 feedRouter.get("/live", requireAuth, async (req, res, next) => {
   try {
     const userId = (req as AuthedRequest).userId;
@@ -139,15 +129,21 @@ feedRouter.get("/live", requireAuth, async (req, res, next) => {
 });
 
 // GET /api/feed/lists/:listId
-// Return recent cached videos for channels in a specific list.
-// Ignores channel_preferences.enabled_all (a channel can be off in the All
-// feed but still deliberately in a list) but still respects excluded_shorts,
-// and reuses watched state, same as /all.
+// Return recent cached videos for channels in a specific list, ignoring
+// channel_preferences.enabled_all (a channel can be off in the All feed
+// but still deliberately in a list) but still respecting excluded_shorts,
+// and reusing watched state, same as /all
 feedRouter.get("/lists/:listId", requireAuth, async (req, res, next) => {
   try {
     const userId = (req as AuthedRequest).userId;
     const { listId } = req.params;
     const { offset, limit } = parsePagination(req.query);
+
+    // checked after requireAuth, not before: lists.id is a uuid column, and
+    // an invalid value would otherwise throw a raw Postgres error (22P02)
+    if (typeof listId !== "string" || !isValidUuid(listId)) {
+      return res.status(404).json({ error: "List not found" });
+    }
 
     const listResult = await pool.query(
       `select id, name from lists where id = $1 and user_id = $2`,
