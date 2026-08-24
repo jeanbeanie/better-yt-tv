@@ -133,6 +133,14 @@ export async function logout() {
   );
 }
 
+export async function deleteAccount() {
+  return apiFetch<{ ok: boolean }>(
+    "/api/auth/account",
+    { method: "DELETE" },
+    "delete account failed",
+  );
+}
+
 
   ///////////////////////////////
  //          YOUTUBE          //
