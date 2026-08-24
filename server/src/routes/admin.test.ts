@@ -25,9 +25,19 @@ vi.mock("../settings/appSettings.js", () => ({
   setRefreshPaused: vi.fn(),
 }));
 
+vi.mock("../invites/invites.js", () => ({
+  createInvite: vi.fn(),
+  listInvites: vi.fn(),
+  deleteInvite: vi.fn(),
+  countUsers: vi.fn(),
+}));
+
 const { getQuotaHistory, getQuotaGroupsOnDate, getQuotaCallsInGroup, summarizeToday } =
   await import("../youtube/quota.js");
 const { getAppSettings, setRefreshPaused } = await import("../settings/appSettings.js");
+const { createInvite, listInvites, deleteInvite, countUsers } = await import(
+  "../invites/invites.js"
+);
 const { adminRouter } = await import("./admin.js");
 
 function buildApp() {
@@ -296,5 +306,126 @@ describe("PATCH /api/admin/settings", () => {
 
     expect(res.status).toBe(403);
     expect(setRefreshPaused).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/admin/invites", () => {
+  it("returns the invite list alongside the user count for an admin", async () => {
+    mockIsAdmin = true;
+    vi.mocked(listInvites).mockResolvedValue([
+      {
+        code: "code-1",
+        note: "for a friend",
+        createdAt: "2026-08-20T00:00:00.000Z",
+        usedAt: null,
+        usedByEmail: null,
+      },
+    ]);
+    vi.mocked(countUsers).mockResolvedValue(37);
+
+    const res = await request(buildApp()).get("/api/admin/invites");
+
+    expect(res.status).toBe(200);
+    expect(res.body.usersCount).toBe(37);
+    expect(res.body.invites).toHaveLength(1);
+  });
+
+  it("403s for a non-admin session without calling listInvites", async () => {
+    mockIsAdmin = false;
+    vi.mocked(listInvites).mockReset();
+
+    const res = await request(buildApp()).get("/api/admin/invites");
+
+    expect(res.status).toBe(403);
+    expect(listInvites).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/admin/invites", () => {
+  it("creates an invite with the acting admin's id", async () => {
+    mockIsAdmin = true;
+    vi.mocked(createInvite).mockResolvedValue({
+      code: "new-code",
+      note: "for a friend",
+      createdAt: "2026-08-23T00:00:00.000Z",
+      usedAt: null,
+      usedByEmail: null,
+    });
+
+    const res = await request(buildApp())
+      .post("/api/admin/invites")
+      .send({ note: "for a friend" });
+
+    expect(res.status).toBe(200);
+    expect(createInvite).toHaveBeenCalledWith("for a friend", "test-user-id");
+    expect(res.body.code).toBe("new-code");
+  });
+
+  it("creates an invite with no note when none is given", async () => {
+    mockIsAdmin = true;
+    vi.mocked(createInvite).mockResolvedValue({
+      code: "new-code",
+      note: null,
+      createdAt: "2026-08-23T00:00:00.000Z",
+      usedAt: null,
+      usedByEmail: null,
+    });
+
+    const res = await request(buildApp()).post("/api/admin/invites").send({});
+
+    expect(res.status).toBe(200);
+    expect(createInvite).toHaveBeenCalledWith(null, "test-user-id");
+  });
+
+  it("400s when note is not a string or null", async () => {
+    mockIsAdmin = true;
+    vi.mocked(createInvite).mockReset();
+
+    const res = await request(buildApp()).post("/api/admin/invites").send({ note: 5 });
+
+    expect(res.status).toBe(400);
+    expect(createInvite).not.toHaveBeenCalled();
+  });
+
+  it("403s for a non-admin session without calling createInvite", async () => {
+    mockIsAdmin = false;
+    vi.mocked(createInvite).mockReset();
+
+    const res = await request(buildApp()).post("/api/admin/invites").send({});
+
+    expect(res.status).toBe(403);
+    expect(createInvite).not.toHaveBeenCalled();
+  });
+});
+
+describe("DELETE /api/admin/invites/:code", () => {
+  it("deletes an unused code for an admin", async () => {
+    mockIsAdmin = true;
+    vi.mocked(deleteInvite).mockResolvedValue(true);
+
+    const res = await request(buildApp()).delete("/api/admin/invites/code-1");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    expect(deleteInvite).toHaveBeenCalledWith("code-1");
+  });
+
+  it("404s when the code is already used or doesn't exist", async () => {
+    mockIsAdmin = true;
+    vi.mocked(deleteInvite).mockResolvedValue(false);
+
+    const res = await request(buildApp()).delete("/api/admin/invites/code-1");
+
+    expect(res.status).toBe(404);
+  });
+
+  it("403s for a non-admin session without calling deleteInvite", async () => {
+    mockIsAdmin = false;
+    vi.mocked(deleteInvite).mockReset();
+
+    const res = await request(buildApp()).delete("/api/admin/invites/code-1");
+
+    expect(res.status).toBe(403);
+    expect(deleteInvite).not.toHaveBeenCalled();
   });
 });

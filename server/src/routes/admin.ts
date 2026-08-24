@@ -10,6 +10,7 @@ import {
   YOUTUBE_QUOTA_CALL_TYPES,
 } from "../youtube/quota.js";
 import { getAppSettings, setRefreshPaused } from "../settings/appSettings.js";
+import { createInvite, listInvites, deleteInvite, countUsers } from "../invites/invites.js";
 
 export const adminRouter = express.Router();
 
@@ -107,6 +108,51 @@ adminRouter.patch("/settings", requireAuth, requireAdmin, async (req, res, next)
     const userId = (req as AuthedRequest).userId;
     const settings = await setRefreshPaused(refreshPaused, userId);
     return res.json(settings);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/admin/invites
+adminRouter.get("/invites", requireAuth, requireAdmin, async (_req, res, next) => {
+  try {
+    const [invites, usersCount] = await Promise.all([listInvites(), countUsers()]);
+    return res.json({ invites, usersCount });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/admin/invites, body { note?: string | null }
+adminRouter.post("/invites", requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const note = req.body?.note;
+    if (note !== undefined && note !== null && typeof note !== "string") {
+      return res.status(400).json({ error: "note must be a string or null" });
+    }
+
+    const userId = (req as AuthedRequest).userId;
+    const invite = await createInvite(note ?? null, userId);
+    return res.json(invite);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/admin/invites/:code, only removes an unused code
+adminRouter.delete("/invites/:code", requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const code = req.params.code;
+    if (typeof code !== "string") {
+      return res.status(400).json({ error: "code must be a string" });
+    }
+
+    const deleted = await deleteInvite(code);
+    if (!deleted) {
+      return res.status(404).json({ error: "Invite not found or already used" });
+    }
+
+    return res.json({ ok: true });
   } catch (err) {
     next(err);
   }

@@ -5,7 +5,7 @@ vi.mock("../db/pool.js", () => ({
 }));
 
 const { pool } = await import("../db/pool.js");
-const { validateInviteCode, consumeInviteCode, createInvite, listInvites, deleteInvite } =
+const { validateInviteCode, consumeInviteCode, createInvite, listInvites, deleteInvite, countUsers } =
   await import("./invites.js");
 
 beforeEach(() => {
@@ -134,5 +134,13 @@ describe("deleteInvite", () => {
     vi.mocked(pool.query).mockResolvedValue({ rowCount: 0 } as any);
 
     expect(await deleteInvite("code-1")).toBe(false);
+  });
+});
+
+describe("countUsers", () => {
+  it("returns the count from the query", async () => {
+    vi.mocked(pool.query).mockResolvedValue({ rows: [{ count: 37 }] } as any);
+
+    expect(await countUsers()).toBe(37);
   });
 });

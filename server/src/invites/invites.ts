@@ -81,6 +81,13 @@ export async function listInvites(): Promise<Invite[]> {
   }));
 }
 
+// google doesn't show a real count for the 100 user cap, so this is the
+// closest estimate available
+export async function countUsers(): Promise<number> {
+  const result = await pool.query(`select count(*)::int as count from users`);
+  return result.rows[0].count;
+}
+
 export async function deleteInvite(code: string): Promise<boolean> {
   const result = await pool.query(`delete from invites where code = $1 and used_at is null`, [
     code,
