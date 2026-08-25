@@ -407,6 +407,27 @@ p {
   opacity: 0.85;
 }
 
+.button-glow {
+  position: relative;
+}
+
+.button-glow::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  z-index: -1;
+  border-radius: 9px;
+  background: conic-gradient(from 0deg, transparent 0%, var(--accent) 15%, transparent 30%);
+  filter: blur(3px);
+  animation: button-glow-spin 2.5s linear infinite;
+}
+
+@keyframes button-glow-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .theme-toggle {
   font: inherit;
   font-size: 1.1rem;

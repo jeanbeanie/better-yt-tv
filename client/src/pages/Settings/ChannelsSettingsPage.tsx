@@ -386,6 +386,8 @@ export default function ChannelsSettingsPage() {
 
           <Button
             type="button"
+            variant={!loading && channels.length === 0 ? "primary" : "default"}
+            className={!loading && channels.length === 0 ? "button-glow" : undefined}
             title="Import/update your subscriptions from YouTube."
             disabled={syncing || refreshing || bulkSaving || anyRowSaving}
             onClick={() => void handleSyncSubscriptions()}
@@ -465,7 +467,16 @@ export default function ChannelsSettingsPage() {
       </div>
 
       {!loading && !error && channels.length === 0 && (
-        <p>No synced channels yet. Sync subscriptions first.</p>
+        <p
+          style={{
+            background: "var(--accent-bg)",
+            border: "1px solid var(--accent-border)",
+            borderRadius: "12px",
+            padding: "1rem",
+          }}
+        >
+          ↑ No synced channels yet: click <strong>Sync subscriptions</strong> above to import your YouTube subscriptions and get started.
+        </p>
       )}
 
       {!loading && channels.length > 0 && (

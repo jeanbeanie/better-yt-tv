@@ -104,7 +104,7 @@ describe("ChannelsSettingsPage", () => {
     await user.type(screen.getByPlaceholderText("Search your channels"), "nonexistent-xyz");
 
     expect(await screen.findByText("No channels match your search.")).toBeInTheDocument();
-    expect(screen.queryByText("No synced channels yet. Sync subscriptions first.")).not.toBeInTheDocument();
+    expect(screen.queryByText(/No synced channels yet/)).not.toBeInTheDocument();
   });
 
   it("shows the no-synced-channels state when there are no channels at all", async () => {
@@ -113,7 +113,7 @@ describe("ChannelsSettingsPage", () => {
     render(<ChannelsSettingsPage />);
 
     expect(
-      await screen.findByText("No synced channels yet. Sync subscriptions first."),
+      await screen.findByText(/No synced channels yet/),
     ).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("Search your channels")).not.toBeInTheDocument();
   });
