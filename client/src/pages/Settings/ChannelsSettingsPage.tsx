@@ -4,7 +4,9 @@ import {
   updateChannel,
   bulkUpdateChannels,
   refreshAllCache,
-  syncSubscriptions
+  syncSubscriptions,
+  redirectToLoginOrHome,
+  shouldRedirectToLogin
 } from "../../lib/api";
 import ErrorText from "../../components/ErrorText";
 import MutedText from "../../components/MutedText";
@@ -51,6 +53,21 @@ export default function ChannelsSettingsPage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pendingLoginRedirect, setPendingLoginRedirect] = useState(false);
+
+  useEffect(() => {
+    if (!pendingLoginRedirect) return;
+    redirectToLoginOrHome();
+  }, [pendingLoginRedirect]);
+
+  function redirectIfAuthError(err: unknown): boolean {
+    if (shouldRedirectToLogin(err)) {
+      setError("Your session expired. Redirecting to sign in...");
+      setPendingLoginRedirect(true);
+      return true;
+    }
+    return false;
+  }
 
   // search + how many of the (possibly filtered) channels are currently rendered
   const [searchText, setSearchText] = useState("");
@@ -164,6 +181,7 @@ export default function ChannelsSettingsPage() {
       const data = await getChannels();
       setChannels(data.channels ?? []);
     } catch (err) {
+      if (redirectIfAuthError(err)) return;
       setError(
         err instanceof Error ? err.message : "Failed to load channel settings",
       );
@@ -194,6 +212,7 @@ export default function ChannelsSettingsPage() {
 
       setRefreshResult(result);
     } catch (err) {
+      if (redirectIfAuthError(err)) return;
       setError(
         err instanceof Error ? err.message : "Failed to refresh feed",
       );
@@ -220,6 +239,7 @@ export default function ChannelsSettingsPage() {
       // Pick up any newly-synced channels in the visible list
       await loadChannels();
     } catch (err) {
+      if (redirectIfAuthError(err)) return;
       setError(
         err instanceof Error ? err.message : "Failed to sync subscriptions",
       );
@@ -265,6 +285,7 @@ export default function ChannelsSettingsPage() {
       // If the save fails, restore previous UI state
       setChannels(previousChannels);
 
+      if (redirectIfAuthError(err)) return;
       setError(
         err instanceof Error ? err.message : "Failed to save channel settings",
       );
@@ -313,6 +334,7 @@ export default function ChannelsSettingsPage() {
       // Restore previous state if the bulk update fails
       setChannels(previousChannels);
 
+      if (redirectIfAuthError(err)) return;
       setError(
         err instanceof Error ? err.message : "Failed to save bulk channel settings",
       );
@@ -479,6 +501,7 @@ export default function ChannelsSettingsPage() {
                   borderRadius: "12px",
                   padding: "1rem",
                   display: "flex",
+                  flexWrap: "wrap",
                   gap: "1rem",
                 }}
               >
@@ -488,7 +511,7 @@ export default function ChannelsSettingsPage() {
                     display: "flex",
                     gap: "0.75rem",
                     alignItems: "center",
-                    width: "20rem"
+                    flex: "1 1 16rem"
                   }}
                 >
                   <Thumbnail
@@ -522,7 +545,7 @@ export default function ChannelsSettingsPage() {
                 </div>
 
                 {/* Channel preference toggles */}
-                <div style={{ display: "flex", gap: "0.5rem" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
                   <CheckboxLabel
                     checked={channel.enabledAll}
                     disabled={isSaving || bulkSaving || syncing}

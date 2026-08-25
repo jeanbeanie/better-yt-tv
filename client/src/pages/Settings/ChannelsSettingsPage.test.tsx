@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import ChannelsSettingsPage from "./ChannelsSettingsPage";
-import { getChannels } from "../../lib/api";
+import { getChannels, redirectToLoginOrHome, shouldRedirectToLogin } from "../../lib/api";
 
 vi.mock("../../lib/api", () => ({
   getChannels: vi.fn(),
@@ -10,6 +10,8 @@ vi.mock("../../lib/api", () => ({
   bulkUpdateChannels: vi.fn(),
   refreshAllCache: vi.fn(),
   syncSubscriptions: vi.fn(),
+  redirectToLoginOrHome: vi.fn(),
+  shouldRedirectToLogin: vi.fn(() => false),
 }));
 
 function makeChannel(i: number, title: string) {
@@ -34,6 +36,18 @@ const MANY_CHANNELS = [
 describe("ChannelsSettingsPage", () => {
   beforeEach(() => {
     vi.mocked(getChannels).mockReset();
+    vi.mocked(redirectToLoginOrHome).mockReset();
+    vi.mocked(shouldRedirectToLogin).mockReset().mockReturnValue(false);
+  });
+
+  it("redirects to login instead of showing a raw error when the session has expired", async () => {
+    vi.mocked(getChannels).mockRejectedValue(new Error("401"));
+    vi.mocked(shouldRedirectToLogin).mockReturnValue(true);
+
+    render(<ChannelsSettingsPage />);
+
+    await screen.findByText("Your session expired. Redirecting to sign in...");
+    expect(redirectToLoginOrHome).toHaveBeenCalled();
   });
 
   it("renders only the first page of channels initially, with a count indicator", async () => {
