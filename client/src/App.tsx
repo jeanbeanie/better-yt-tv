@@ -10,6 +10,7 @@ import SettingsLayout from "./pages/Settings/SettingsLayout";
 import ChannelsSettingsPage from "./pages/Settings/ChannelsSettingsPage";
 import ListsSettingsPage from "./pages/Settings/ListsSettingsPage";
 import ListEditorPage from "./pages/Settings/ListEditorPage";
+import AdvancedSettingsPage from "./pages/Settings/AdvancedSettingsPage";
 import ChangelogPage from "./pages/ChangelogPage";
 import AdminPage from "./pages/AdminPage";
 import PrivacyPage from "./pages/PrivacyPage";
@@ -115,6 +116,7 @@ function App() {
           <Route path="channels" element={<ChannelsSettingsPage />} />
           <Route path="lists" element={<ListsSettingsPage />} />
           <Route path="lists/:listId" element={<ListEditorPage />} />
+          <Route path="advanced" element={<AdvancedSettingsPage />} />
         </Route>
       </Routes>
       
