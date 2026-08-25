@@ -372,6 +372,17 @@ export default function ChannelsSettingsPage() {
         <div style={{ display: "flex", flex: 1, gap: "1rem", justifyContent: "center" }}>
           <Button
             type="button"
+            className={!loading && channels.length === 0 ? "button-glow" : undefined}
+            title="Import/update your subscriptions from YouTube."
+            disabled={syncing || refreshing || bulkSaving || anyRowSaving}
+            onClick={() => void handleSyncSubscriptions()}
+          >
+            {syncing && <span className="spinner" aria-hidden="true" style={{ marginRight: "0.5rem" }} />}
+            {syncing ? "Syncing..." : "Sync Subscriptions"}
+          </Button>
+
+          <Button
+            type="button"
             title="Manually refresh cached uploads for your subscribed channels."
             disabled={refreshing || syncing || bulkSaving || anyRowSaving}
             onClick={() => void handleRefreshFeed()}
@@ -381,19 +392,7 @@ export default function ChannelsSettingsPage() {
               ? refreshTakingLong
                 ? "Still refreshing...I promise it isn't stuck!"
                 : "Refreshing..."
-              : "Refresh feed"}
-          </Button>
-
-          <Button
-            type="button"
-            variant={!loading && channels.length === 0 ? "primary" : "default"}
-            className={!loading && channels.length === 0 ? "button-glow" : undefined}
-            title="Import/update your subscriptions from YouTube."
-            disabled={syncing || refreshing || bulkSaving || anyRowSaving}
-            onClick={() => void handleSyncSubscriptions()}
-          >
-            {syncing && <span className="spinner" aria-hidden="true" style={{ marginRight: "0.5rem" }} />}
-            {syncing ? "Syncing..." : "Sync subscriptions"}
+              : "Refresh Feed"}
           </Button>
         </div>
       </div>
@@ -475,7 +474,7 @@ export default function ChannelsSettingsPage() {
             padding: "1rem",
           }}
         >
-          ↑ No synced channels yet: click <strong>Sync subscriptions</strong> above to import your YouTube subscriptions and get started.
+          ↑ No synced channels yet: click <strong>Sync Subscriptions</strong> above to import your YouTube subscriptions and get started.
         </p>
       )}
 

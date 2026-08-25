@@ -407,24 +407,33 @@ p {
   opacity: 0.85;
 }
 
-.button-glow {
-  position: relative;
+@property --button-glow-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
 }
 
-.button-glow::before {
-  content: "";
-  position: absolute;
-  inset: -3px;
-  z-index: -1;
-  border-radius: 9px;
-  background: conic-gradient(from 0deg, transparent 0%, var(--accent) 15%, transparent 30%);
-  filter: blur(3px);
-  animation: button-glow-spin 2.5s linear infinite;
+.button-glow {
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background:
+    linear-gradient(var(--bg), var(--bg)) padding-box,
+    conic-gradient(
+      from var(--button-glow-angle),
+      transparent 0%,
+      var(--accent) 20%,
+      transparent 45%
+    ) border-box;
+  animation: button-glow-spin 1.2s linear infinite;
+}
+
+.button-glow:hover:not(:disabled) {
+  border-color: transparent;
 }
 
 @keyframes button-glow-spin {
   to {
-    transform: rotate(360deg);
+    --button-glow-angle: 360deg;
   }
 }
 
