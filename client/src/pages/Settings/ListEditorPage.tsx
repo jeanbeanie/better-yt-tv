@@ -7,6 +7,7 @@ import {
   deleteList,
   redirectToLoginOrHome,
   shouldRedirectToLogin,
+  refreshAllCache,
   ApiError,
   type ListChannel,
 } from "../../lib/api";
@@ -139,6 +140,10 @@ export default function ListEditorPage() {
 
       setSaveMessage("Saved");
       await reconcileAfterSave();
+
+      // Force a fresh refresh here rather than relying on the next page's
+      // auto-refresh, since the refresh cooldown is shared across pages
+      void refreshAllCache({ manual: true }).catch(() => {});
     } catch (err) {
       if (redirectIfAuthError(err)) return;
       setSaveError(err instanceof Error ? err.message : "Failed to save list");

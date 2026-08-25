@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import ListEditorPage from "./ListEditorPage";
-import { getList, getChannels, saveList, deleteList, ApiError } from "../../lib/api";
+import { getList, getChannels, saveList, deleteList, refreshAllCache, ApiError } from "../../lib/api";
 
 vi.mock("../../lib/api", async () => {
   const actual = await vi.importActual<typeof import("../../lib/api")>("../../lib/api");
@@ -13,6 +13,7 @@ vi.mock("../../lib/api", async () => {
     getChannels: vi.fn(),
     saveList: vi.fn(),
     deleteList: vi.fn(),
+    refreshAllCache: vi.fn(),
     getLoginUrl: vi.fn(() => "http://localhost:5179/api/auth/login"),
     shouldRedirectToLogin: vi.fn(() => false),
   };
@@ -36,6 +37,14 @@ describe("ListEditorPage", () => {
     vi.mocked(getChannels).mockResolvedValue({ channels: [] });
     vi.mocked(saveList).mockReset();
     vi.mocked(deleteList).mockReset();
+    vi.mocked(refreshAllCache).mockReset().mockResolvedValue({
+      ok: true,
+      refreshPaused: false,
+      refreshedChannels: 0,
+      skippedChannels: 0,
+      failedChannels: 0,
+      cachedVideos: 0,
+    });
   });
 
   it("loads and displays the list name", async () => {
@@ -342,6 +351,7 @@ describe("ListEditorPage", () => {
     expect(saveList).toHaveBeenCalledWith("l1", { name: "Music", channelIds: ["c1"] });
     expect(await screen.findByText("Saved")).toBeInTheDocument();
     expect(getList).toHaveBeenCalledTimes(2);
+    expect(refreshAllCache).toHaveBeenCalledWith({ manual: true });
   });
 
   it("shows a clean error and keeps current edits when save fails (e.g. duplicate name)", async () => {
