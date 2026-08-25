@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import ChannelsSettingsPage from "./ChannelsSettingsPage";
@@ -47,7 +47,7 @@ describe("ChannelsSettingsPage", () => {
     render(<ChannelsSettingsPage />);
 
     await screen.findByText("Your session expired. Redirecting to sign in...");
-    expect(redirectToLoginOrHome).toHaveBeenCalled();
+    await waitFor(() => expect(redirectToLoginOrHome).toHaveBeenCalled());
   });
 
   it("renders only the first page of channels initially, with a count indicator", async () => {
