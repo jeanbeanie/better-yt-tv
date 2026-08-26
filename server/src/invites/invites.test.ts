@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+  createMockPool,
+  createMockPoolClient,
+  mockedQuery,
+  mockQueryResult,
+} from "../testUtils/pgMocks.js";
 
 vi.mock("../db/pool.js", () => ({
-  pool: { query: vi.fn() },
+  pool: createMockPool(),
 }));
 
 const { pool } = await import("../db/pool.js");
@@ -14,13 +20,17 @@ beforeEach(() => {
 
 describe("validateInviteCode", () => {
   it("returns true when a matching code exists, even if already used", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rows: [{ "?column?": 1 }], rowCount: 1 } as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(
+      mockQueryResult({ rows: [{ "?column?": 1 }], rowCount: 1 }),
+    );
 
     expect(await validateInviteCode("code-1")).toBe(true);
   });
 
   it("returns false when no matching code exists", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rows: [], rowCount: 0 } as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(
+      mockQueryResult({ rows: [], rowCount: 0 }),
+    );
 
     expect(await validateInviteCode("code-1")).toBe(false);
   });
@@ -28,9 +38,9 @@ describe("validateInviteCode", () => {
 
 describe("consumeInviteCode", () => {
   it("returns true when the update affects a row", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rowCount: 1 } as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rowCount: 1 }));
 
-    expect(await consumeInviteCode("code-1", "user-1", pool as any)).toBe(true);
+    expect(await consumeInviteCode("code-1", "user-1", pool)).toBe(true);
     expect(pool.query).toHaveBeenCalledWith(expect.stringContaining("used_by = $1"), [
       "user-1",
       "code-1",
@@ -38,15 +48,16 @@ describe("consumeInviteCode", () => {
   });
 
   it("returns false when the code belongs to someone else or never existed", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rowCount: 0 } as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rowCount: 0 }));
 
-    expect(await consumeInviteCode("code-1", "user-1", pool as any)).toBe(false);
+    expect(await consumeInviteCode("code-1", "user-1", pool)).toBe(false);
   });
 
   it("runs its query on whichever client it's given, not the shared pool", async () => {
-    const client = { query: vi.fn().mockResolvedValue({ rowCount: 1 }) };
+    const client = createMockPoolClient();
+    mockedQuery(vi.mocked(client.query)).mockResolvedValue(mockQueryResult({ rowCount: 1 }));
 
-    expect(await consumeInviteCode("code-1", "user-1", client as any)).toBe(true);
+    expect(await consumeInviteCode("code-1", "user-1", client)).toBe(true);
     expect(client.query).toHaveBeenCalled();
     expect(pool.query).not.toHaveBeenCalled();
   });
@@ -54,7 +65,7 @@ describe("consumeInviteCode", () => {
 
 describe("createInvite", () => {
   it("inserts a new code and returns it unused", async () => {
-    vi.mocked(pool.query).mockResolvedValue({
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({
       rows: [
         {
           code: "generated-code",
@@ -62,7 +73,7 @@ describe("createInvite", () => {
           created_at: new Date("2026-08-23T12:00:00Z"),
         },
       ],
-    } as any);
+    }));
 
     const invite = await createInvite("for a friend", "admin-1");
 
@@ -83,7 +94,7 @@ describe("createInvite", () => {
 
 describe("listInvites", () => {
   it("maps joined rows, including an invite nobody has used yet", async () => {
-    vi.mocked(pool.query).mockResolvedValue({
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({
       rows: [
         {
           code: "used-code",
@@ -100,7 +111,7 @@ describe("listInvites", () => {
           used_by_email: null,
         },
       ],
-    } as any);
+    }));
 
     const invites = await listInvites();
 
@@ -125,13 +136,13 @@ describe("listInvites", () => {
 
 describe("deleteInvite", () => {
   it("returns true when an unused code is deleted", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rowCount: 1 } as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rowCount: 1 }));
 
     expect(await deleteInvite("code-1")).toBe(true);
   });
 
   it("returns false when the code was already used or never existed", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rowCount: 0 } as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rowCount: 0 }));
 
     expect(await deleteInvite("code-1")).toBe(false);
   });
@@ -139,7 +150,9 @@ describe("deleteInvite", () => {
 
 describe("countUsers", () => {
   it("returns the count from the query", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rows: [{ count: 37 }] } as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(
+      mockQueryResult({ rows: [{ count: 37 }] }),
+    );
 
     expect(await countUsers()).toBe(37);
   });

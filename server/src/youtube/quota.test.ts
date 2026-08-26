@@ -22,7 +22,9 @@ describe("recordQuotaUsage", () => {
   });
 
   it("inserts one row with the given call type and units, and nulls when no context is given", async () => {
-    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rows: [], rowCount: 1 }));
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(
+      mockQueryResult({ rows: [], rowCount: 1 }),
+    );
 
     await recordQuotaUsage("channels.list", 1);
 
@@ -33,7 +35,9 @@ describe("recordQuotaUsage", () => {
   });
 
   it("inserts action, userId, and requestGroupId when a context is given", async () => {
-    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rows: [], rowCount: 1 }));
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(
+      mockQueryResult({ rows: [], rowCount: 1 }),
+    );
 
     await recordQuotaUsage("channels.list", 1, {
       action: "refresh-all-cache",
@@ -128,7 +132,9 @@ describe("getQuotaGroupsOnDate", () => {
   });
 
   it("filters on the pacific-date expression, passing the date through as a parameter", async () => {
-    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rows: [] }));
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(
+      mockQueryResult({ rows: [] }),
+    );
 
     await getQuotaGroupsOnDate("2026-08-17");
 
@@ -252,7 +258,9 @@ describe("getQuotaCallsInGroup", () => {
   });
 
   it("filters on date, call type, action, user, and run, in that parameter order", async () => {
-    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rows: [] }));
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(
+      mockQueryResult({ rows: [] }),
+    );
 
     await getQuotaCallsInGroup({
       date: "2026-08-17",
@@ -269,7 +277,9 @@ describe("getQuotaCallsInGroup", () => {
   });
 
   it("passes null action, userId, and requestGroupId through for pre migration rows", async () => {
-    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rows: [] }));
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(
+      mockQueryResult({ rows: [] }),
+    );
 
     await getQuotaCallsInGroup({
       date: "2026-08-17",

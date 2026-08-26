@@ -1,19 +1,22 @@
 import express from "express";
 import request from "supertest";
+import type { Request, Response, NextFunction } from "express";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createMockPool, mockedQuery, mockQueryResult } from "../testUtils/pgMocks.js";
+import type { AuthedRequest } from "../auth/requireAuth.js";
 
 vi.mock("../db/pool.js", () => ({
-  pool: { query: vi.fn() },
+  pool: createMockPool(),
 }));
 
 let mockAuthPasses = true;
 
 vi.mock("../auth/requireAuth.js", () => ({
-  requireAuth: (req: any, res: any, next: any) => {
+  requireAuth: (req: Request, res: Response, next: NextFunction) => {
     if (!mockAuthPasses) {
       return res.status(401).json({ code: "AUTH_REQUIRED", message: "Not signed in" });
     }
-    req.userId = "test-user-id";
+    (req as AuthedRequest).userId = "test-user-id";
     next();
   },
 }));
@@ -47,7 +50,9 @@ describe("GET /api/feed/all", () => {
   });
 
   it("returns videos spread across channels instead of grouped by date alone", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rows: makeRows() } as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(
+      mockQueryResult({ rows: makeRows() }),
+    );
 
     const res = await request(buildApp()).get("/api/feed/all");
 
@@ -57,7 +62,9 @@ describe("GET /api/feed/all", () => {
   });
 
   it("paginates with offset and limit, reporting hasMore correctly", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rows: makeRows() } as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(
+      mockQueryResult({ rows: makeRows() }),
+    );
 
     const firstPage = await request(buildApp()).get("/api/feed/all?limit=2");
     expect(firstPage.body.items.map((r: Row) => r.video_id)).toEqual(["a3", "b1"]);
@@ -76,11 +83,14 @@ describe("GET /api/feed/all", () => {
 const LIST_ID = "11111111-1111-1111-1111-111111111111";
 
 function mockListLookup(rows: Row[]) {
-  vi.mocked(pool.query).mockImplementation(async (sql: any) => {
-    if (String(sql).includes("from lists")) {
-      return { rows: [{ id: LIST_ID, name: "My List" }], rowCount: 1 } as any;
+  mockedQuery(vi.mocked(pool.query)).mockImplementation(async (sql) => {
+    if (sql.includes("from lists")) {
+      return mockQueryResult({
+        rows: [{ id: LIST_ID, name: "My List" }],
+        rowCount: 1,
+      });
     }
-    return { rows } as any;
+    return mockQueryResult({ rows });
   });
 }
 

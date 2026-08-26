@@ -61,7 +61,9 @@ describe("listId auth-before-validation ordering", () => {
     });
 
     it("404s a well-formed but nonexistent listId once authenticated", async () => {
-      mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rows: [], rowCount: 0 }));
+      mockedQuery(vi.mocked(pool.query)).mockResolvedValue(
+        mockQueryResult({ rows: [], rowCount: 0 }),
+      );
 
       const res = await request(buildApp()).get(`/api/lists/${VALID_LIST_ID}`);
 
@@ -111,7 +113,9 @@ describe("listId auth-before-validation ordering", () => {
     });
 
     it("404s a well-formed but nonexistent listId once authenticated", async () => {
-      mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rows: [], rowCount: 0 }));
+      mockedQuery(vi.mocked(pool.query)).mockResolvedValue(
+        mockQueryResult({ rows: [], rowCount: 0 }),
+      );
 
       const res = await request(buildApp()).delete(`/api/lists/${VALID_LIST_ID}`);
 

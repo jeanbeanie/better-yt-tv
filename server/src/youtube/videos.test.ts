@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createMockPool, mockedQuery, mockQueryResult } from "../testUtils/pgMocks.js";
 
 vi.mock("../db/pool.js", () => ({
-  pool: { query: vi.fn() },
+  pool: createMockPool(),
 }));
 
 vi.mock("./quota.js", () => ({
@@ -22,7 +23,7 @@ function mockChannelAndPlaylistFetch(
   const channelStatus = opts.channelStatus ?? 200;
   const playlistStatus = opts.playlistStatus ?? 200;
 
-  global.fetch = vi.fn(async (input: any) => {
+  global.fetch = vi.fn(async (input: string | URL) => {
     const url = String(input);
 
     if (url.includes("/youtube/v3/channels")) {
@@ -127,7 +128,9 @@ describe("getChannelCacheState", () => {
   });
 
   it("treats a missing row as stale with no cached id", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rows: [], rowCount: 0 } as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(
+      mockQueryResult({ rows: [], rowCount: 0 }),
+    );
 
     const result = await getChannelCacheState("chan1");
 
@@ -135,10 +138,10 @@ describe("getChannelCacheState", () => {
   });
 
   it("reports stale when cache_expires_at is in the past, but still returns the cached id", async () => {
-    vi.mocked(pool.query).mockResolvedValue({
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({
       rows: [{ cache_expires_at: new Date(Date.now() - 1000), uploads_playlist_id: "UUold" }],
       rowCount: 1,
-    } as any);
+    }));
 
     const result = await getChannelCacheState("chan1");
 
@@ -146,10 +149,10 @@ describe("getChannelCacheState", () => {
   });
 
   it("reports fresh when cache_expires_at is in the future", async () => {
-    vi.mocked(pool.query).mockResolvedValue({
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({
       rows: [{ cache_expires_at: new Date(Date.now() + 60_000), uploads_playlist_id: "UUfresh" }],
       rowCount: 1,
-    } as any);
+    }));
 
     const result = await getChannelCacheState("chan1");
 
@@ -163,7 +166,7 @@ describe("markChannelCacheRefreshed", () => {
   });
 
   it("persists the uploads playlist id alongside the expiry timestamp", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rows: [] } as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rows: [] }));
 
     await markChannelCacheRefreshed("chan1", "UUresolved");
 
@@ -173,7 +176,7 @@ describe("markChannelCacheRefreshed", () => {
   });
 
   it("accepts a null playlist id, for a channel that never resolved one", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rows: [] } as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rows: [] }));
 
     await markChannelCacheRefreshed("chan1", null);
 

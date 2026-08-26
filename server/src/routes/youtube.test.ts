@@ -1,17 +1,21 @@
 import express from "express";
 import cookieParser from "cookie-parser";
 import request from "supertest";
+import type { Request, Response, NextFunction } from "express";
+import type { QueryResult } from "pg";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createMockPool, mockedQuery, mockQueryResult } from "../testUtils/pgMocks.js";
+import type { AuthedRequest } from "../auth/requireAuth.js";
 
 // Mock the DB pool so no real Postgres connection is needed
 vi.mock("../db/pool.js", () => ({
-  pool: { query: vi.fn() },
+  pool: createMockPool(),
 }));
 
-// Bypass real session lookup -- attach a fake userId like requireAuth would
+// Bypass real session lookup, attach a fake userId like requireAuth would
 vi.mock("../auth/requireAuth.js", () => ({
-  requireAuth: (req: any, _res: any, next: any) => {
-    req.userId = "test-user-id";
+  requireAuth: (req: Request, _res: Response, next: NextFunction) => {
+    (req as AuthedRequest).userId = "test-user-id";
     next();
   },
 }));
@@ -80,7 +84,7 @@ function mockSubscriptionsFetch(items: Array<{ channelId: string; title: string;
 }
 
 function mockPagedSubscriptionsFetch(pages: Array<Array<{ channelId: string; title: string }>>) {
-  global.fetch = vi.fn(async (url: any) => {
+  global.fetch = vi.fn(async (url: string | URL) => {
     const pageIndex = new URL(url).searchParams.get("pageToken") === "page2" ? 1 : 0;
     const items = pages[pageIndex];
     const isLastPage = pageIndex === pages.length - 1;
@@ -98,21 +102,26 @@ function mockPagedSubscriptionsFetch(pages: Array<Array<{ channelId: string; tit
 }
 
 // getGoogleAccessToken always looks up oauth_tokens first, regardless of
-// what the sync insert itself does -- stub that lookup so tests can focus
-// on the subscriptions/preferences insert in isolation.
-function mockOauthTokenLookup(onSyncInsert: (params: any[]) => any) {
-  vi.mocked(pool.query).mockImplementation(async (sql: any, params: any) => {
-    if (String(sql).includes("oauth_tokens")) {
-      return { rows: [{ refresh_token_ciphertext: "fake-ciphertext" }], rowCount: 1 } as any;
+// what the sync insert itself does, stub that lookup so tests can focus
+// on the subscriptions/preferences insert in isolation
+function mockOauthTokenLookup(
+  onSyncInsert: (params: unknown[]) => Promise<QueryResult>,
+) {
+  mockedQuery(vi.mocked(pool.query)).mockImplementation(async (sql, params) => {
+    if (sql.includes("oauth_tokens")) {
+      return mockQueryResult({
+        rows: [{ refresh_token_ciphertext: "fake-ciphertext" }],
+        rowCount: 1,
+      });
     }
-    return onSyncInsert(params);
+    return onSyncInsert(params ?? []);
   });
 }
 
 function syncInsertCalls() {
-  return vi
-    .mocked(pool.query)
-    .mock.calls.filter(([sql]) => String(sql).includes("with subs as"));
+  return mockedQuery(vi.mocked(pool.query)).mock.calls.filter(([sql]) =>
+    sql.includes("with subs as"),
+  );
 }
 
 describe("POST /api/youtube/sync-subscriptions", () => {
@@ -125,7 +134,7 @@ describe("POST /api/youtube/sync-subscriptions", () => {
       { channelId: "chan1", title: "Channel One", thumbUrl: "https://example.com/1.jpg" },
       { channelId: "chan2", title: "Channel Two", thumbUrl: null },
     ]);
-    mockOauthTokenLookup(async () => ({ rows: [], rowCount: 0 }));
+    mockOauthTokenLookup(async () => mockQueryResult({ rows: [], rowCount: 0 }));
 
     const res = await request(buildApp())
       .post("/api/youtube/sync-subscriptions")
@@ -150,7 +159,7 @@ describe("POST /api/youtube/sync-subscriptions", () => {
 
   it("skips the insert entirely when there are no subscriptions", async () => {
     mockSubscriptionsFetch([]);
-    mockOauthTokenLookup(async () => ({ rows: [], rowCount: 0 }));
+    mockOauthTokenLookup(async () => mockQueryResult({ rows: [], rowCount: 0 }));
 
     const res = await request(buildApp())
       .post("/api/youtube/sync-subscriptions")
@@ -180,7 +189,7 @@ describe("POST /api/youtube/sync-subscriptions", () => {
       [{ channelId: "chan1", title: "Channel One" }],
       [{ channelId: "chan2", title: "Channel Two" }],
     ]);
-    mockOauthTokenLookup(async () => ({ rows: [], rowCount: 0 }));
+    mockOauthTokenLookup(async () => mockQueryResult({ rows: [], rowCount: 0 }));
     vi.mocked(recordQuotaUsage).mockReset();
 
     const res = await request(buildApp())
@@ -208,7 +217,7 @@ describe("POST /api/youtube/sync-subscriptions", () => {
       [{ channelId: "chan1", title: "Channel One" }],
       [{ channelId: "chan2", title: "Channel Two" }],
     ]);
-    mockOauthTokenLookup(async () => ({ rows: [], rowCount: 0 }));
+    mockOauthTokenLookup(async () => mockQueryResult({ rows: [], rowCount: 0 }));
     vi.mocked(recordQuotaUsage).mockReset();
 
     await request(buildApp())
@@ -223,17 +232,20 @@ describe("POST /api/youtube/sync-subscriptions", () => {
 });
 
 function mockChannelIdsQuery(channelIds: string[]) {
-  vi.mocked(pool.query).mockImplementation(async (sql: any) => {
-    if (String(sql).includes("oauth_tokens")) {
-      return { rows: [{ refresh_token_ciphertext: "fake-ciphertext" }], rowCount: 1 } as any;
+  mockedQuery(vi.mocked(pool.query)).mockImplementation(async (sql) => {
+    if (sql.includes("oauth_tokens")) {
+      return mockQueryResult({
+        rows: [{ refresh_token_ciphertext: "fake-ciphertext" }],
+        rowCount: 1,
+      });
     }
-    if (String(sql).includes("from user_subscriptions us")) {
-      return {
+    if (sql.includes("from user_subscriptions us")) {
+      return mockQueryResult({
         rows: channelIds.map((channel_id) => ({ channel_id })),
         rowCount: channelIds.length,
-      } as any;
+      });
     }
-    throw new Error(`Unexpected query in mockChannelIdsQuery: ${String(sql)}`);
+    throw new Error(`Unexpected query in mockChannelIdsQuery: ${sql}`);
   });
 }
 
@@ -253,7 +265,7 @@ describe("POST /api/youtube/refresh-all-cache", () => {
   });
 
   // pool.query is mocked, so this can't prove the WHERE clause actually
-  // filters correctly against real data -- it guards the query's shape,
+  // filters correctly against real data, it guards the query's shape,
   // so a future edit can't silently drop the list_channels override or
   // reintroduce enabled_live (see the comment above this query in
   // youtube.ts for why enabled_live is deliberately excluded)
@@ -264,11 +276,11 @@ describe("POST /api/youtube/refresh-all-cache", () => {
       .post("/api/youtube/refresh-all-cache")
       .set("Cookie", "sid=fake-session");
 
-    const call = vi
-      .mocked(pool.query)
-      .mock.calls.find(([sql]) => String(sql).includes("from user_subscriptions us"));
+    const call = mockedQuery(vi.mocked(pool.query)).mock.calls.find(([sql]) =>
+      sql.includes("from user_subscriptions us"),
+    );
     expect(call).toBeDefined();
-    const sql = String(call![0]);
+    const sql = call![0];
     expect(sql).toContain("channel_preferences");
     expect(sql).toContain("list_channels");
     expect(sql).not.toContain("enabled_live");

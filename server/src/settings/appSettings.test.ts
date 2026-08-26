@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createMockPool, mockedQuery, mockQueryResult } from "../testUtils/pgMocks.js";
 
 vi.mock("../db/pool.js", () => ({
-  pool: { query: vi.fn() },
+  pool: createMockPool(),
 }));
 
 const { pool } = await import("../db/pool.js");
@@ -13,7 +14,7 @@ describe("getAppSettings", () => {
   });
 
   it("returns the settings row when one exists", async () => {
-    vi.mocked(pool.query).mockResolvedValue({
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({
       rows: [
         {
           refresh_paused: true,
@@ -21,7 +22,7 @@ describe("getAppSettings", () => {
           updated_by: "user-1",
         },
       ],
-    } as any);
+    }));
 
     const settings = await getAppSettings();
 
@@ -33,7 +34,9 @@ describe("getAppSettings", () => {
   });
 
   it("fails open to refreshPaused: false when the row is missing", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rows: [] } as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(
+      mockQueryResult({ rows: [] }),
+    );
 
     const settings = await getAppSettings();
 
@@ -48,7 +51,7 @@ describe("setRefreshPaused", () => {
   });
 
   it("updates the row and returns the new state", async () => {
-    vi.mocked(pool.query).mockResolvedValue({
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({
       rows: [
         {
           refresh_paused: true,
@@ -56,7 +59,7 @@ describe("setRefreshPaused", () => {
           updated_by: "user-1",
         },
       ],
-    } as any);
+    }));
 
     const settings = await setRefreshPaused(true, "user-1");
 
