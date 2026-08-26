@@ -320,6 +320,20 @@ export default function ListEditorPage() {
               </Button>
             )}
           </section>
+
+          <div style={{ margin: "1rem 0" }}>
+            <Button
+              type="button"
+              onClick={() => void handleSave()}
+              disabled={saving || !name.trim()}
+            >
+              {saving ? "Saving..." : "Save list"}
+            </Button>
+            {saveMessage && <span style={{ marginLeft: "0.75rem" }}>{saveMessage}</span>}
+            {saveError && (
+              <ErrorText style={{ margin: "0.5rem 0 0" }}>{saveError}</ErrorText>
+            )}
+          </div>
         </>
       )}
     </div>

@@ -376,10 +376,10 @@ describe("ListEditorPage", () => {
     const nameInput = await screen.findByDisplayValue("News");
     await user.clear(nameInput);
     await user.type(nameInput, "  Music  ");
-    await user.click(screen.getByRole("button", { name: "Save list" }));
+    await user.click(screen.getAllByRole("button", { name: "Save list" })[0]);
 
     expect(saveList).toHaveBeenCalledWith("l1", { name: "Music", channelIds: ["c1"] });
-    expect(await screen.findByText("Saved")).toBeInTheDocument();
+    expect(await screen.findAllByText("Saved")).toHaveLength(2);
     expect(getList).toHaveBeenCalledTimes(2);
     expect(refreshAllCache).toHaveBeenCalledWith({ manual: true });
   });
@@ -405,16 +405,16 @@ describe("ListEditorPage", () => {
     const nameInput = await screen.findByDisplayValue("News");
     await user.clear(nameInput);
     await user.type(nameInput, "Music");
-    await user.click(screen.getByRole("button", { name: "Save list" }));
+    await user.click(screen.getAllByRole("button", { name: "Save list" })[0]);
 
     expect(
-      await screen.findByText("You already have a list with this name."),
-    ).toBeInTheDocument();
+      await screen.findAllByText("You already have a list with this name."),
+    ).toHaveLength(2);
     expect(screen.getByDisplayValue("Music")).toBeInTheDocument();
     expect(getList).toHaveBeenCalledTimes(1);
   });
 
-  it("disables the Save button when the name is empty or whitespace-only", async () => {
+  it("disables both Save buttons when the name is empty or whitespace-only", async () => {
     vi.mocked(getList).mockResolvedValue({
       list: {
         id: "l1",
@@ -430,12 +430,48 @@ describe("ListEditorPage", () => {
     renderPage("l1");
 
     const nameInput = await screen.findByDisplayValue("News");
-    const saveButton = screen.getByRole("button", { name: "Save list" });
-    expect(saveButton).not.toBeDisabled();
+    const saveButtons = screen.getAllByRole("button", { name: "Save list" });
+    expect(saveButtons).toHaveLength(2);
+    saveButtons.forEach((button) => expect(button).not.toBeDisabled());
 
     await user.clear(nameInput);
     await user.type(nameInput, "   ");
-    expect(saveButton).toBeDisabled();
+    screen
+      .getAllByRole("button", { name: "Save list" })
+      .forEach((button) => expect(button).toBeDisabled());
+  });
+
+  it("saves when the bottom Save button is clicked", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+    vi.mocked(saveList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-02T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+
+    const user = userEvent.setup();
+    renderPage("l1");
+
+    await screen.findByDisplayValue("News");
+    const saveButtons = screen.getAllByRole("button", { name: "Save list" });
+    await user.click(saveButtons[saveButtons.length - 1]);
+
+    expect(saveList).toHaveBeenCalledWith("l1", { name: "News", channelIds: [] });
+    expect(await screen.findAllByText("Saved")).toHaveLength(2);
   });
 
   it("confirms, deletes, and navigates back to the lists overview on success", async () => {
