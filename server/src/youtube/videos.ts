@@ -1,6 +1,11 @@
 import { pool } from "../db/pool.js";
 import { env } from "../config/env.js";
 import { recordQuotaUsage, type QuotaCallContext } from "./quota.js";
+import type {
+  YoutubeChannelsListResponse,
+  YoutubePlaylistItem,
+  YoutubePlaylistItemsListResponse,
+} from "./apiTypes.js";
 
 // shape we want to send into database
 export type CachedVideo = {
@@ -40,7 +45,7 @@ async function fetchUploadsPlaylistId(args: {
     );
   }
 
-  const data: any = await resp.json();
+  const data = (await resp.json()) as YoutubeChannelsListResponse;
 
   const uploadsPlaylistId =
     data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
@@ -86,10 +91,10 @@ async function fetchRecentVideosFromUploadsPlaylist(args: {
     );
   }
 
-  const data: any = await resp.json();
+  const data = (await resp.json()) as YoutubePlaylistItemsListResponse;
 
   return (data.items ?? [])
-    .map((item: any) => ({
+    .map((item: YoutubePlaylistItem) => ({
       // In playlistItems.list are an [] of items => item.snippet.resourceId.videoId
       videoId: item.snippet?.resourceId?.videoId,
 
@@ -108,7 +113,7 @@ async function fetchRecentVideosFromUploadsPlaylist(args: {
     .filter(
       // drop any items missing required fields to avoid storing broken records
       // incomplete items can come from deleted/privated uploads, etc
-      (item: CachedVideo) =>
+      (item): item is CachedVideo =>
         Boolean(item.videoId && item.channelId && item.title && item.publishedAt),
     );
 }

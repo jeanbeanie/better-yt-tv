@@ -1,4 +1,5 @@
 import express from "express";
+import { DatabaseError } from "pg";
 import { pool } from "../db/pool.js";
 import { requireAuth, type AuthedRequest } from "../auth/requireAuth.js";
 import { isValidUuid } from "../lib/uuid.js";
@@ -135,8 +136,8 @@ listsRouter.post("/", requireAuth, async (req, res, next) => {
         channelIds: [],
       },
     });
-  } catch (err: any) {
-    if (err?.code === "23505") {
+  } catch (err) {
+    if (err instanceof DatabaseError && err.code === "23505") {
       return res.status(409).json({ error: "You already have a list with this name." });
     }
     next(err);
@@ -245,9 +246,9 @@ listsRouter.put("/:listId", requireAuth, async (req, res, next) => {
     }
 
     await client.query("COMMIT");
-  } catch (err: any) {
+  } catch (err) {
     await client.query("ROLLBACK");
-    if (err?.code === "23505") {
+    if (err instanceof DatabaseError && err.code === "23505") {
       return res.status(409).json({ error: "You already have a list with this name." });
     }
     return next(err);

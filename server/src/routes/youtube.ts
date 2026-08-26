@@ -14,6 +14,10 @@ import {
 } from "../youtube/videos.js";
 import { recordQuotaUsage, type QuotaCallContext } from "../youtube/quota.js";
 import { getAppSettings } from "../settings/appSettings.js";
+import type {
+  YoutubeSubscriptionListItem,
+  YoutubeSubscriptionsListResponse,
+} from "../youtube/apiTypes.js";
 
 export const youtubeRouter = express.Router();
 
@@ -93,11 +97,11 @@ async function fetchYoutubeSubscriptions(
         throw new Error(`YouTube API error: ${ytResponse.status} ${text}`);
       }
 
-      const data: any = await ytResponse.json();
+      const data = (await ytResponse.json()) as YoutubeSubscriptionsListResponse;
 
       // shape this page's items into our YoutubeSubscription type
       const pageItems = (data.items ?? [])
-        .map((item: any) => ({
+        .map((item: YoutubeSubscriptionListItem) => ({
           channelId: item.snippet?.resourceId?.channelId,
           title: item.snippet?.title,
           thumbUrl:
@@ -105,7 +109,7 @@ async function fetchYoutubeSubscriptions(
             item.snippet?.thumbnails?.default?.url ??
             null,
         }))
-        .filter((item: YoutubeSubscription) => Boolean(
+        .filter((item): item is YoutubeSubscription => Boolean(
           // Filter out malformed items so one bad row doesn't break everything
           item.channelId && item.title
         ));

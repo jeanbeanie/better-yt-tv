@@ -10,6 +10,17 @@ type BuildAuthUrlArgs = {
   scope: string[];
 };
 
+// shape of Google's token endpoint response (used by both the initial
+// code exchange and subsequent refreshes)
+type GoogleTokenResponse = {
+  access_token?: string;
+  expires_in?: number;
+  refresh_token?: string;
+  scope?: string;
+  token_type?: string;
+  id_token?: string;
+};
+
 // generate initial login link for the user
 export function buildGoogleAuthUrl(args: BuildAuthUrlArgs) {
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
@@ -57,7 +68,7 @@ export async function exchangeCodeForTokens(args: {
   }
 
   // wait for access token from Google and return with calcualted expires_at timestamp
-  const json = (await resp.json()) as any;
+  const json = (await resp.json()) as GoogleTokenResponse;
   const expires_at =
     typeof json.expires_in === "number" ? Date.now() + json.expires_in * 1000 : undefined;
 
@@ -102,7 +113,7 @@ export async function refreshAccessToken(args: {
     throw new Error(`Refresh failed: ${resp.status} ${text}`);
   }
 
-  const json = (await resp.json()) as any;
+  const json = (await resp.json()) as GoogleTokenResponse;
   const expires_at = Date.now() + Number(json.expires_in) * 1000;
   return { access_token: String(json.access_token), expires_in: Number(json.expires_in), expires_at };
 }
