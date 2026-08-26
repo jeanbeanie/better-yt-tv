@@ -2,6 +2,7 @@ import { useState } from "react";
 import { deleteAccount } from "../../lib/api";
 import Button from "../../components/Button";
 import ErrorText from "../../components/ErrorText";
+import MutedText from "../../components/MutedText";
 
 export default function AdvancedSettingsPage() {
   const [deleting, setDeleting] = useState(false);
@@ -24,16 +25,24 @@ export default function AdvancedSettingsPage() {
   }
 
   return (
-    <div style={{ marginTop: "1rem", textAlign: "center" }}>
-      <Button
-        variant="danger"
-        onClick={() => void handleDeleteAccount()}
-        disabled={deleting}
-        style={{ fontSize: "0.8rem", opacity: 0.7 }}
-      >
-        {deleting ? "Deleting..." : "Delete my account and data"}
-      </Button>
-      {deleteError && <ErrorText style={{ marginTop: "0.5rem" }}>{deleteError}</ErrorText>}
+    <div>
+      <header>
+        <MutedText>
+          Advanced account settings, including permanently deleting your account and data.
+        </MutedText>
+      </header>
+
+      <div style={{ marginTop: "2rem", textAlign: "center" }}>
+        <Button
+          variant="danger"
+          onClick={() => void handleDeleteAccount()}
+          disabled={deleting}
+          style={{ fontSize: "0.8rem", opacity: 0.7 }}
+        >
+          {deleting ? "Deleting..." : "Delete my account and data"}
+        </Button>
+        {deleteError && <ErrorText style={{ marginTop: "0.5rem" }}>{deleteError}</ErrorText>}
+      </div>
     </div>
   );
 }
