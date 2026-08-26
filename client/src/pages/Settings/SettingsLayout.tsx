@@ -1,5 +1,6 @@
-import {NavLink, Outlet} from "react-router-dom";
+import { Outlet } from "react-router-dom";
 import { type User } from "../../lib/api";
+import GuardedNavLink from "../../components/GuardedNavLink";
 
 type SettingsLayoutProps = {
   user: User | null;
@@ -14,10 +15,10 @@ export default function SettingsLayout({ user }: SettingsLayoutProps) {
       </header>
 
       <nav style={{display:"flex", gap:"1rem", justifyContent:"center", margin:"1rem"}}>
-        <NavLink to="/settings/channels">Channels</NavLink>
-        <NavLink to="/settings/lists">Lists</NavLink>
-        <NavLink to="/settings/advanced">Advanced</NavLink>
-        {user?.is_admin && <NavLink to="/admin">Admin</NavLink>}
+        <GuardedNavLink to="/settings/channels">Channels</GuardedNavLink>
+        <GuardedNavLink to="/settings/lists">Lists</GuardedNavLink>
+        <GuardedNavLink to="/settings/advanced">Advanced</GuardedNavLink>
+        {user?.is_admin && <GuardedNavLink to="/admin">Admin</GuardedNavLink>}
       </nav>
 
       <Outlet/>

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { Link, Route, Routes, useNavigate } from "react-router-dom";
+import { Route, Routes, useNavigate } from "react-router-dom";
 import { getLoginUrl, getWhoAmI, hasInviteCode, logout, saveInviteCode, type User } from "./lib/api";
+import { isNavigationAllowed } from "./lib/navigationGuard";
 import Button from "./components/Button";
+import GuardedLink from "./components/GuardedLink";
 import HomePage from "./pages/HomePage";
 import AllPage from "./pages/AllPage";
 import LivePage from "./pages/LivePage";
@@ -53,6 +55,8 @@ function App() {
   }
 
   async function handleLogout() {
+    if (!isNavigationAllowed()) return;
+
     try {
       await logout();
       setUser(null);
@@ -78,16 +82,16 @@ function App() {
       <header style={{ marginBottom: "2rem" }}>
         <nav style={{ display: "flex", gap: "1rem" }}>
           
-          <Link to="/">Home</Link>
+          <GuardedLink to="/">Home</GuardedLink>
           {!loading && !user && hasInviteCode() &&
             <a href={getLoginUrl()}>Login</a>
           }
           {!loading && user && (
             <>
-            <Link to="/all">All</Link>
-            <Link to="/live">Streams</Link>
-            <Link to="/lists">Lists</Link>
-            <Link to="/settings">Settings</Link>
+            <GuardedLink to="/all">All</GuardedLink>
+            <GuardedLink to="/live">Streams</GuardedLink>
+            <GuardedLink to="/lists">Lists</GuardedLink>
+            <GuardedLink to="/settings">Settings</GuardedLink>
             </>
           )}
           <button
@@ -127,9 +131,9 @@ function App() {
           <Button onClick={() => void handleLogout()}>Logout</Button>
         </div>
       )}
-      <Link to="/changelog">Changelog</Link>
-      <Link to="/privacy">Privacy</Link>
-      <Link to="/terms">Terms</Link>
+      <GuardedLink to="/changelog">Changelog</GuardedLink>
+      <GuardedLink to="/privacy">Privacy</GuardedLink>
+      <GuardedLink to="/terms">Terms</GuardedLink>
       </div>
 
     </div>

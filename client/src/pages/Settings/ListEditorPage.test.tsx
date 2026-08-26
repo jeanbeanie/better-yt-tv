@@ -553,4 +553,121 @@ describe("ListEditorPage", () => {
 
     confirmSpy.mockRestore();
   });
+
+  it("leaves via Back to Lists without asking when there are no unsaved edits", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+    const confirmSpy = vi.spyOn(window, "confirm");
+
+    const user = userEvent.setup();
+    renderPage("l1");
+
+    await screen.findByDisplayValue("News");
+    await user.click(screen.getByRole("link", { name: "← Back to Lists" }));
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(await screen.findByText("Lists overview page")).toBeInTheDocument();
+
+    confirmSpy.mockRestore();
+  });
+
+  it("asks for confirmation before leaving via Back to Lists with unsaved edits", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    const user = userEvent.setup();
+    renderPage("l1");
+
+    const nameInput = await screen.findByDisplayValue("News");
+    await user.type(nameInput, " Update");
+    await user.click(screen.getByRole("link", { name: "← Back to Lists" }));
+
+    expect(confirmSpy).toHaveBeenCalledWith("You have unsaved changes. Leave this page?");
+    expect(await screen.findByText("Lists overview page")).toBeInTheDocument();
+
+    confirmSpy.mockRestore();
+  });
+
+  it("stays on the page when the unsaved changes prompt is cancelled", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    const user = userEvent.setup();
+    renderPage("l1");
+
+    const nameInput = await screen.findByDisplayValue("News");
+    await user.type(nameInput, " Update");
+    await user.click(screen.getByRole("link", { name: "← Back to Lists" }));
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(screen.queryByText("Lists overview page")).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue("News Update")).toBeInTheDocument();
+
+    confirmSpy.mockRestore();
+  });
+
+  it("no longer asks for confirmation after a successful save", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+    vi.mocked(saveList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News Update",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-02T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+    const confirmSpy = vi.spyOn(window, "confirm");
+
+    const user = userEvent.setup();
+    renderPage("l1");
+
+    const nameInput = await screen.findByDisplayValue("News");
+    await user.type(nameInput, " Update");
+    await user.click(screen.getAllByRole("button", { name: "Save list" })[0]);
+    await screen.findAllByText("Saved");
+
+    await user.click(screen.getByRole("link", { name: "← Back to Lists" }));
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(await screen.findByText("Lists overview page")).toBeInTheDocument();
+
+    confirmSpy.mockRestore();
+  });
 });

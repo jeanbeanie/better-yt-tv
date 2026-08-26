@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   getList,
   getChannels,
@@ -11,12 +11,14 @@ import {
   ApiError,
   type ListChannel,
 } from "../../lib/api";
+import { setNavigationGuard, clearNavigationGuard } from "../../lib/navigationGuard";
 import ErrorText from "../../components/ErrorText";
 import MutedText from "../../components/MutedText";
 import Row from "../../components/Row";
 import Spinner from "../../components/Spinner";
 import Button from "../../components/Button";
 import Thumbnail from "../../components/Thumbnail";
+import GuardedLink from "../../components/GuardedLink";
 
 const PAGE_SIZE = 25;
 
@@ -31,6 +33,12 @@ export default function ListEditorPage() {
   const [pendingLoginRedirect, setPendingLoginRedirect] = useState(false);
   const [allChannels, setAllChannels] = useState<ListChannel[]>([]);
   const [selectedChannels, setSelectedChannels] = useState<ListChannel[]>([]);
+  // last name/channels we know are saved on the server, compared against
+  // current state below to tell whether there are unsaved edits
+  const [savedSnapshot, setSavedSnapshot] = useState<{
+    name: string;
+    channelIds: string[];
+  } | null>(null);
   const [searchText, setSearchText] = useState("");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
@@ -60,6 +68,15 @@ export default function ListEditorPage() {
     return false;
   }
 
+  function applyServerList(list: { name: string; channels: ListChannel[] }) {
+    setName(list.name);
+    setSelectedChannels(list.channels);
+    setSavedSnapshot({
+      name: list.name,
+      channelIds: list.channels.map((c) => c.channelId),
+    });
+  }
+
   async function loadList() {
     if (!listId) return;
 
@@ -69,8 +86,7 @@ export default function ListEditorPage() {
       setNotFound(false);
 
       const data = await getList(listId);
-      setName(data.list.name);
-      setSelectedChannels(data.list.channels);
+      applyServerList(data.list);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         setNotFound(true);
@@ -107,6 +123,30 @@ export default function ListEditorPage() {
 
   const visibleSearchResults = searchResults.slice(0, visibleCount);
 
+  const isDirty = useMemo(() => {
+    if (!savedSnapshot) return false;
+    if (name.trim() !== savedSnapshot.name) return true;
+
+    const currentIds = selectedChannels.map((c) => c.channelId).sort();
+    const savedIds = [...savedSnapshot.channelIds].sort();
+    if (currentIds.length !== savedIds.length) return true;
+    return currentIds.some((id, i) => id !== savedIds[i]);
+  }, [name, selectedChannels, savedSnapshot]);
+
+  // isDirty is read through a ref rather than a useEffect dependency, so
+  // the registered guard function keeps a stable identity across renders
+  // and clearNavigationGuard can match it by reference on unmount
+  const isDirtyRef = useRef(isDirty);
+  useEffect(() => {
+    isDirtyRef.current = isDirty;
+  });
+
+  useEffect(() => {
+    const checkDirty = () => isDirtyRef.current;
+    setNavigationGuard(checkDirty);
+    return () => clearNavigationGuard(checkDirty);
+  }, []);
+
   function addChannel(channel: ListChannel) {
     setSelectedChannels((prev) => [...prev, channel]);
   }
@@ -124,8 +164,7 @@ export default function ListEditorPage() {
     if (!listId) return;
     try {
       const data = await getList(listId);
-      setName(data.list.name);
-      setSelectedChannels(data.list.channels);
+      applyServerList(data.list);
     } catch {
       // best-effort, the save itself already succeeded, so a reconcile
       // failure shouldn't surface as a save error
@@ -182,7 +221,7 @@ export default function ListEditorPage() {
   return (
     <div>
       <p>
-        <Link to="/settings/lists">&larr; Back to Lists</Link>
+        <GuardedLink to="/settings/lists">&larr; Back to Lists</GuardedLink>
       </p>
 
       {listLoading && <Spinner label="Loading list..." />}
