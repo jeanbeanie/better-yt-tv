@@ -66,6 +66,27 @@ describe("ListEditorPage", () => {
     });
   });
 
+  it("links View list to the watch page with this list preselected", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+
+    renderPage("l1");
+
+    await screen.findByDisplayValue("News");
+    expect(screen.getByRole("link", { name: "View list" })).toHaveAttribute(
+      "href",
+      "/lists?listId=l1",
+    );
+  });
+
   it("loads and displays the list name", async () => {
     vi.mocked(getList).mockResolvedValue({
       list: {

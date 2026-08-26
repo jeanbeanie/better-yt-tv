@@ -24,9 +24,9 @@ const REFRESH_RESULT = {
   cachedVideos: 0,
 };
 
-function renderPage() {
+function renderPage(initialPath = "/lists") {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialPath]}>
       <ListsPage />
     </MemoryRouter>,
   );
@@ -169,6 +169,37 @@ describe("ListsPage", () => {
     expect(
       await screen.findByText("No videos available for this list right now."),
     ).toBeInTheDocument();
+    expect(screen.getByLabelText("Select list:")).toHaveValue("l1");
+  });
+
+  it("selects the list from a ?listId= URL param, ahead of the stored selection", async () => {
+    window.localStorage.setItem("betterYtTv.selectedListId", "l1");
+    vi.mocked(getLists).mockResolvedValue({ lists: [NEWS_LIST, MUSIC_LIST] });
+    vi.mocked(getListFeed).mockResolvedValue({
+      list: { id: "l2", name: "Music" },
+      items: [],
+      hasMore: false,
+    });
+
+    renderPage("/lists?listId=l2");
+
+    await waitFor(() => expect(getListFeed).toHaveBeenCalledWith("l2", { limit: 50 }));
+    expect(screen.getByLabelText("Select list:")).toHaveValue("l2");
+    // picking it up also persists it, the same as a manual dropdown selection
+    expect(window.localStorage.getItem("betterYtTv.selectedListId")).toBe("l2");
+  });
+
+  it("ignores a ?listId= that doesn't match any of the loaded lists", async () => {
+    vi.mocked(getLists).mockResolvedValue({ lists: [NEWS_LIST, MUSIC_LIST] });
+    vi.mocked(getListFeed).mockResolvedValue({
+      list: { id: "l1", name: "News" },
+      items: [],
+      hasMore: false,
+    });
+
+    renderPage("/lists?listId=nonexistent");
+
+    await waitFor(() => expect(getListFeed).toHaveBeenCalledWith("l1", { limit: 50 }));
     expect(screen.getByLabelText("Select list:")).toHaveValue("l1");
   });
 

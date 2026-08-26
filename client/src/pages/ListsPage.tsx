@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   getLists,
   getListFeed,
@@ -21,6 +21,7 @@ const SELECTED_LIST_STORAGE_KEY = "betterYtTv.selectedListId";
 const DEFAULT_LIMIT = 50;
 
 export default function ListsPage() {
+  const [searchParams] = useSearchParams();
   const [lists, setLists] = useState<ListSummary[]>([]);
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
   const [items, setItems] = useState<FeedItem[]>([]);
@@ -55,10 +56,22 @@ export default function ListsPage() {
       setLists(loadedLists);
 
       if (loadedLists.length > 0) {
-        // restore the previously selected list if it still exists, else default to the first
-        const stored = window.localStorage.getItem(SELECTED_LIST_STORAGE_KEY);
-        const isStoredStillValid = stored && loadedLists.some((list) => list.id === stored);
-        setSelectedListId(isStoredStillValid ? stored : loadedLists[0].id);
+        // a listId in the URL (from the View link on the list settings page)
+        // takes priority over the remembered selection
+        const requestedListId = searchParams.get("listId");
+        const isRequestedValid =
+          requestedListId &&
+          loadedLists.some((list) => list.id === requestedListId);
+
+        if (isRequestedValid) {
+          setSelectedListId(requestedListId);
+        } else {
+          // restore the previously selected list if it still exists, else default to the first
+          const stored = window.localStorage.getItem(SELECTED_LIST_STORAGE_KEY);
+          const isStoredStillValid =
+            stored && loadedLists.some((list) => list.id === stored);
+          setSelectedListId(isStoredStillValid ? stored : loadedLists[0].id);
+        }
       }
     } catch (err) {
       if (redirectIfAuthError(err)) return;

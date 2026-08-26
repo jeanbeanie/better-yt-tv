@@ -240,10 +240,13 @@ export default function ListEditorPage() {
           />
 
           <div style={{ margin: "1rem 0" }}>
+            <GuardedLink to={`/lists?listId=${listId}`}>View list</GuardedLink>
+
             <Button
               type="button"
               onClick={() => void handleSave()}
               disabled={saving || !name.trim()}
+              style={{ marginLeft: "0.75rem" }}
             >
               {saving ? "Saving..." : "Save list"}
             </Button>

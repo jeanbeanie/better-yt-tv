@@ -182,6 +182,10 @@ describe("ListsSettingsPage", () => {
       "href",
       "/settings/lists/l1",
     );
+    expect(screen.getByRole("link", { name: "View" })).toHaveAttribute(
+      "href",
+      "/lists?listId=l1",
+    );
   });
 
   it("confirms, deletes, and refetches the list on success", async () => {

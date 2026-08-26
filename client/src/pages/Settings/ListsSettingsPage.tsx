@@ -144,6 +144,7 @@ export default function ListsSettingsPage() {
                 </MutedText>
               </div>
               <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+                <Link to={`/lists?listId=${list.id}`}>View</Link>
                 <Link to={`/settings/lists/${list.id}`}>Edit</Link>
                 <Button
                   type="button"
