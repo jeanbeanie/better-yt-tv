@@ -1,19 +1,22 @@
 import express from "express";
 import request from "supertest";
+import type { Request, Response, NextFunction } from "express";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createMockPool, mockedQuery, mockQueryResult } from "../testUtils/pgMocks.js";
+import type { AuthedRequest } from "../auth/requireAuth.js";
 
 vi.mock("../db/pool.js", () => ({
-  pool: { query: vi.fn(), connect: vi.fn() },
+  pool: createMockPool(),
 }));
 
 let mockAuthPasses = true;
 
 vi.mock("../auth/requireAuth.js", () => ({
-  requireAuth: (req: any, res: any, next: any) => {
+  requireAuth: (req: Request, res: Response, next: NextFunction) => {
     if (!mockAuthPasses) {
       return res.status(401).json({ code: "AUTH_REQUIRED", message: "Not signed in" });
     }
-    req.userId = "test-user-id";
+    (req as AuthedRequest).userId = "test-user-id";
     next();
   },
 }));
@@ -58,7 +61,7 @@ describe("listId auth-before-validation ordering", () => {
     });
 
     it("404s a well-formed but nonexistent listId once authenticated", async () => {
-      vi.mocked(pool.query).mockResolvedValue({ rows: [], rowCount: 0 } as any);
+      mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rows: [], rowCount: 0 }));
 
       const res = await request(buildApp()).get(`/api/lists/${VALID_LIST_ID}`);
 
@@ -108,7 +111,7 @@ describe("listId auth-before-validation ordering", () => {
     });
 
     it("404s a well-formed but nonexistent listId once authenticated", async () => {
-      vi.mocked(pool.query).mockResolvedValue({ rows: [], rowCount: 0 } as any);
+      mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rows: [], rowCount: 0 }));
 
       const res = await request(buildApp()).delete(`/api/lists/${VALID_LIST_ID}`);
 

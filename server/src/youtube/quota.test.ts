@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createMockPool, mockedQuery, mockQueryResult } from "../testUtils/pgMocks.js";
 
 vi.mock("../db/pool.js", () => ({
-  pool: { query: vi.fn() },
+  pool: createMockPool(),
 }));
 
 const { pool } = await import("../db/pool.js");
@@ -21,7 +22,7 @@ describe("recordQuotaUsage", () => {
   });
 
   it("inserts one row with the given call type and units, and nulls when no context is given", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rows: [], rowCount: 1 } as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rows: [], rowCount: 1 }));
 
     await recordQuotaUsage("channels.list", 1);
 
@@ -32,7 +33,7 @@ describe("recordQuotaUsage", () => {
   });
 
   it("inserts action, userId, and requestGroupId when a context is given", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rows: [], rowCount: 1 } as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rows: [], rowCount: 1 }));
 
     await recordQuotaUsage("channels.list", 1, {
       action: "refresh-all-cache",
@@ -58,12 +59,14 @@ describe("getQuotaHistory", () => {
     vi.mocked(pool.query).mockReset();
   });
 
-  function mockRows(historyRows: any[], todayDate: string) {
-    vi.mocked(pool.query).mockImplementation(async (sql: any) => {
-      if (String(sql).includes("group by usage_date")) {
-        return { rows: historyRows } as any;
+  type HistoryRow = { usage_date: string; call_type: string; units: number };
+
+  function mockRows(historyRows: HistoryRow[], todayDate: string) {
+    mockedQuery(vi.mocked(pool.query)).mockImplementation(async (sql) => {
+      if (sql.includes("group by usage_date")) {
+        return mockQueryResult({ rows: historyRows });
       }
-      return { rows: [{ today_date: todayDate }] } as any;
+      return mockQueryResult({ rows: [{ today_date: todayDate }] });
     });
   }
 
@@ -125,7 +128,7 @@ describe("getQuotaGroupsOnDate", () => {
   });
 
   it("filters on the pacific-date expression, passing the date through as a parameter", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rows: [] } as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rows: [] }));
 
     await getQuotaGroupsOnDate("2026-08-17");
 
@@ -136,7 +139,7 @@ describe("getQuotaGroupsOnDate", () => {
   });
 
   it("keeps two users running the same action and call type on one day as separate rows", async () => {
-    vi.mocked(pool.query).mockResolvedValue({
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({
       rows: [
         {
           action: "refresh-all-cache",
@@ -159,7 +162,7 @@ describe("getQuotaGroupsOnDate", () => {
           last_at: new Date("2026-08-17T19:02:00.000Z"),
         },
       ],
-    } as any);
+    }));
 
     const groups = await getQuotaGroupsOnDate("2026-08-17");
 
@@ -186,7 +189,7 @@ describe("getQuotaGroupsOnDate", () => {
   });
 
   it("passes through a null action for pre migration rows", async () => {
-    vi.mocked(pool.query).mockResolvedValue({
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({
       rows: [
         {
           action: null,
@@ -199,7 +202,7 @@ describe("getQuotaGroupsOnDate", () => {
           last_at: new Date("2026-08-17T10:00:00.000Z"),
         },
       ],
-    } as any);
+    }));
 
     const groups = await getQuotaGroupsOnDate("2026-08-17");
 
@@ -210,7 +213,7 @@ describe("getQuotaGroupsOnDate", () => {
 
   it("gives two same-day runs of the same action by the same user separate lines", async () => {
     // regression test: two refresh-all-cache runs differ only by request_group_id
-    vi.mocked(pool.query).mockResolvedValue({
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({
       rows: [
         {
           action: "refresh-all-cache",
@@ -233,7 +236,7 @@ describe("getQuotaGroupsOnDate", () => {
           last_at: new Date("2026-08-17T09:03:00.000Z"),
         },
       ],
-    } as any);
+    }));
 
     const groups = await getQuotaGroupsOnDate("2026-08-17");
 
@@ -249,7 +252,7 @@ describe("getQuotaCallsInGroup", () => {
   });
 
   it("filters on date, call type, action, user, and run, in that parameter order", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rows: [] } as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rows: [] }));
 
     await getQuotaCallsInGroup({
       date: "2026-08-17",
@@ -266,7 +269,7 @@ describe("getQuotaCallsInGroup", () => {
   });
 
   it("passes null action, userId, and requestGroupId through for pre migration rows", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rows: [] } as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rows: [] }));
 
     await getQuotaCallsInGroup({
       date: "2026-08-17",
@@ -283,12 +286,12 @@ describe("getQuotaCallsInGroup", () => {
   });
 
   it("maps rows to camelCase with an ISO-stamped calledAt, newest first as returned by postgres", async () => {
-    vi.mocked(pool.query).mockResolvedValue({
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({
       rows: [
         { call_type: "channels.list", units: 1, called_at: new Date("2026-08-17T20:00:00.000Z") },
         { call_type: "channels.list", units: 1, called_at: new Date("2026-08-17T09:00:00.000Z") },
       ],
-    } as any);
+    }));
 
     const calls = await getQuotaCallsInGroup({
       date: "2026-08-17",
