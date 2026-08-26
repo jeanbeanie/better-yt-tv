@@ -218,7 +218,8 @@ export default function ListsPage() {
                   </option>
                 ))}
               </select>
-            </label>
+            </label>{" "}
+            <Link to="/settings/lists">Create new list</Link>
           </div>
 
           {loadingFeed && <Spinner label="Loading feed..." />}
