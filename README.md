@@ -14,6 +14,10 @@ A personal YouTube viewing dashboard that lets you watch the most recent uploads
 - **Catch-up mode**: autoplay straight through your unwatched videos instead of picking each one manually.
 - **Changelog**: a page summarizing what shipped, grouped by date.
 
+## Screenshots
+
+_Coming soon_
+
 ## Tech stack
 
 ### Frontend
