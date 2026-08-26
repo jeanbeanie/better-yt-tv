@@ -18,7 +18,7 @@ import Spinner from "../../components/Spinner";
 import Button from "../../components/Button";
 import Thumbnail from "../../components/Thumbnail";
 
-const SEARCH_RESULT_LIMIT = 25;
+const PAGE_SIZE = 25;
 
 export default function ListEditorPage() {
   const { listId } = useParams<{ listId: string }>();
@@ -32,6 +32,14 @@ export default function ListEditorPage() {
   const [allChannels, setAllChannels] = useState<ListChannel[]>([]);
   const [selectedChannels, setSelectedChannels] = useState<ListChannel[]>([]);
   const [searchText, setSearchText] = useState("");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  function handleSearchChange(value: string) {
+    setSearchText(value);
+    // start a fresh search at the first page, rather than wherever
+    // "Load more" had gotten to before typing
+    setVisibleCount(PAGE_SIZE);
+  }
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -97,7 +105,7 @@ export default function ListEditorPage() {
       .sort((a, b) => a.title.localeCompare(b.title));
   }, [allChannels, selectedChannels, searchText]);
 
-  const visibleSearchResults = searchResults.slice(0, SEARCH_RESULT_LIMIT);
+  const visibleSearchResults = searchResults.slice(0, visibleCount);
 
   function addChannel(channel: ListChannel) {
     setSelectedChannels((prev) => [...prev, channel]);
@@ -258,7 +266,7 @@ export default function ListEditorPage() {
             <input
               type="text"
               value={searchText}
-              onChange={(event) => setSearchText(event.target.value)}
+              onChange={(event) => handleSearchChange(event.target.value)}
               placeholder="Search your subscribed channels"
               className="text-input"
               style={{
@@ -268,10 +276,10 @@ export default function ListEditorPage() {
                 padding: "0.6rem 0.9rem",
               }}
             />
-            {searchResults.length > SEARCH_RESULT_LIMIT && (
+            {searchResults.length > 0 && (
               <MutedText style={{ margin: "0.5rem 0 0", fontSize: "smaller" }}>
-                Showing {SEARCH_RESULT_LIMIT} of {searchResults.length} matches -- refine your
-                search to narrow results
+                Showing {visibleSearchResults.length} of {searchResults.length}
+                {searchText.trim() ? " matching channels" : " channels"}
               </MutedText>
             )}
             <ul style={{ listStyle: "none", padding: 0, margin: "0.5rem 0 0" }}>
@@ -302,6 +310,15 @@ export default function ListEditorPage() {
                 </Row>
               ))}
             </ul>
+            {visibleCount < searchResults.length && (
+              <Button
+                type="button"
+                onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
+                style={{ marginTop: "0.5rem" }}
+              >
+                Load more
+              </Button>
+            )}
           </section>
         </>
       )}

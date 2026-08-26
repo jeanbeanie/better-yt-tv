@@ -19,6 +19,25 @@ vi.mock("../../lib/api", async () => {
   };
 });
 
+function makeChannel(i: number, title: string) {
+  return {
+    channelId: `c${i}`,
+    title,
+    thumbUrl: null,
+    enabledAll: true,
+    enabledLive: true,
+    excludedShorts: false,
+  };
+}
+
+// 35 generic channels plus one channel with a distinct name, to exercise
+// both pagination (35 is more than PAGE_SIZE of 25) and searching for
+// something far down the list, the actual scenario Load more is for
+const MANY_CHANNELS = [
+  ...Array.from({ length: 35 }, (_, i) => makeChannel(i + 1, `Channel ${String(i + 1).padStart(2, "0")}`)),
+  makeChannel(999, "Zebra Exclusive"),
+];
+
 function renderPage(listId = "l1") {
   return render(
     <MemoryRouter initialEntries={[`/settings/lists/${listId}`]}>
@@ -220,7 +239,7 @@ describe("ListEditorPage", () => {
     expect(screen.getByText("Veritasium")).toBeInTheDocument();
   });
 
-  it("caps search results at 25 and shows a truncation hint", async () => {
+  it("renders only the first page of search results initially, with a count indicator", async () => {
     vi.mocked(getList).mockResolvedValue({
       list: {
         id: "l1",
@@ -231,30 +250,17 @@ describe("ListEditorPage", () => {
         channels: [],
       },
     });
-    vi.mocked(getChannels).mockResolvedValue({
-      channels: Array.from({ length: 30 }, (_, i) => ({
-        channelId: `c${i + 1}`,
-        title: `Channel ${String(i + 1).padStart(2, "0")}`,
-        thumbUrl: null,
-        enabledAll: true,
-        enabledLive: true,
-        excludedShorts: false,
-      })),
-    });
+    vi.mocked(getChannels).mockResolvedValue({ channels: MANY_CHANNELS });
 
     renderPage("l1");
 
     await screen.findByText("Channel 01");
-
-    expect(
-      screen.getByText("Showing 25 of 30 matches -- refine your search to narrow results"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Channel 25")).toBeInTheDocument();
-    expect(screen.queryByText("Channel 26")).not.toBeInTheDocument();
-    expect(screen.queryByText("Channel 30")).not.toBeInTheDocument();
+    expect(screen.getByText("Showing 25 of 36 channels")).toBeInTheDocument();
+    expect(screen.queryByText("Channel 35")).not.toBeInTheDocument();
+    expect(screen.queryByText("Zebra Exclusive")).not.toBeInTheDocument();
   });
 
-  it("does not show the truncation hint when results are under the cap", async () => {
+  it("reveals more search results when Load more is clicked", async () => {
     vi.mocked(getList).mockResolvedValue({
       list: {
         id: "l1",
@@ -265,24 +271,48 @@ describe("ListEditorPage", () => {
         channels: [],
       },
     });
-    vi.mocked(getChannels).mockResolvedValue({
-      channels: [
-        {
-          channelId: "c1",
-          title: "Adam Ragusea",
-          thumbUrl: null,
-          enabledAll: true,
-          enabledLive: true,
-          excludedShorts: false,
-        },
-      ],
-    });
+    vi.mocked(getChannels).mockResolvedValue({ channels: MANY_CHANNELS });
 
+    const user = userEvent.setup();
     renderPage("l1");
 
-    await screen.findByText("Adam Ragusea");
+    await screen.findByText("Channel 01");
+    await user.click(screen.getByRole("button", { name: "Load more" }));
 
-    expect(screen.queryByText(/refine your search to narrow results/)).not.toBeInTheDocument();
+    expect(await screen.findByText("Zebra Exclusive")).toBeInTheDocument();
+    expect(screen.getByText("Showing 36 of 36 channels")).toBeInTheDocument();
+    // all revealed, so the button should be gone
+    expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
+  });
+
+  it("resets back to the first page when the search text changes", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+    vi.mocked(getChannels).mockResolvedValue({ channels: MANY_CHANNELS });
+
+    const user = userEvent.setup();
+    renderPage("l1");
+
+    await screen.findByText("Channel 01");
+    await user.click(screen.getByRole("button", { name: "Load more" }));
+    await screen.findByText("Zebra Exclusive");
+
+    // search narrows straight to a channel that would otherwise require
+    // clicking Load more to reach
+    await user.type(screen.getByPlaceholderText("Search your subscribed channels"), "Zebra");
+
+    expect(await screen.findByText("Zebra Exclusive")).toBeInTheDocument();
+    expect(screen.queryByText("Channel 01")).not.toBeInTheDocument();
+    expect(screen.getByText("Showing 1 of 1 matching channels")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
   });
 
   it("lets you type a new name", async () => {
