@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import ListsSettingsPage from "./ListsSettingsPage";
 import { getLists, createList, deleteList } from "../../lib/api";
@@ -15,8 +15,11 @@ vi.mock("../../lib/api", () => ({
 
 function renderPage() {
   return render(
-    <MemoryRouter>
-      <ListsSettingsPage />
+    <MemoryRouter initialEntries={["/settings/lists"]}>
+      <Routes>
+        <Route path="/settings/lists" element={<ListsSettingsPage />} />
+        <Route path="/settings/lists/:listId" element={<div>List editor page</div>} />
+      </Routes>
     </MemoryRouter>,
   );
 }
@@ -81,7 +84,7 @@ describe("ListsSettingsPage", () => {
     expect(await screen.findByText("get lists failed: 500")).toBeInTheDocument();
   });
 
-  it("creates a list, trims the name, clears the input, and refreshes the list", async () => {
+  it("When Edit List After checkbox is unchecked, creates a list, trims the name, clears the input, and refreshes the list", async () => {
     vi.mocked(getLists)
       .mockResolvedValueOnce({ lists: [] })
       .mockResolvedValueOnce({
@@ -111,6 +114,10 @@ describe("ListsSettingsPage", () => {
 
     await screen.findByText("You don't have any lists yet.");
 
+    // Edit List After Creating defaults to checked (navigates away),
+    // uncheck it here to exercise the stay and reload path
+    await user.click(screen.getByRole("checkbox", { name: "Edit List After Creating" }));
+
     const input = screen.getByPlaceholderText("New list name");
     await user.type(input, "  Music  ");
     await user.click(screen.getByRole("button", { name: "Create new list" }));
@@ -119,6 +126,33 @@ describe("ListsSettingsPage", () => {
     expect(await screen.findByText("Music")).toBeInTheDocument();
     expect(input).toHaveValue("");
     expect(getLists).toHaveBeenCalledTimes(2);
+  });
+
+  it("Edit List After checkbox defaults to checked and navigates to the new list's editor", async () => {
+    vi.mocked(getLists).mockResolvedValue({ lists: [] });
+    vi.mocked(createList).mockResolvedValue({
+      list: {
+        id: "l3",
+        name: "Gaming",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("You don't have any lists yet.");
+
+    expect(screen.getByRole("checkbox", { name: "Edit List After Creating" })).toBeChecked();
+
+    await user.type(screen.getByPlaceholderText("New list name"), "Gaming");
+    await user.click(screen.getByRole("button", { name: "Create new list" }));
+
+    expect(createList).toHaveBeenCalledWith("Gaming");
+    expect(await screen.findByText("List editor page")).toBeInTheDocument();
   });
 
   it("shows a clean error and keeps the input populated when createList fails (e.g. duplicate name)", async () => {

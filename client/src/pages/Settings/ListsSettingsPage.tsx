@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   getLists,
   createList,
@@ -13,8 +13,18 @@ import MutedText from "../../components/MutedText";
 import Row from "../../components/Row";
 import Button from "../../components/Button";
 import Spinner from "../../components/Spinner";
+import CheckboxLabel from "../../components/CheckboxLabel";
+
+const EDIT_ON_CREATE_STORAGE_KEY = "betterYtTv.editOnCreate";
+
+function getInitialEditOnCreate(): boolean {
+  const stored = window.localStorage.getItem(EDIT_ON_CREATE_STORAGE_KEY);
+  if (stored !== null) return stored === "true";
+  return true;
+}
 
 export default function ListsSettingsPage() {
+  const navigate = useNavigate();
   const [lists, setLists] = useState<ListSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,6 +34,11 @@ export default function ListsSettingsPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [editOnCreate, setEditOnCreate] = useState(getInitialEditOnCreate);
+
+  useEffect(() => {
+    window.localStorage.setItem(EDIT_ON_CREATE_STORAGE_KEY, String(editOnCreate));
+  }, [editOnCreate]);
 
   useEffect(() => {
     if (!pendingLoginRedirect) return;
@@ -68,7 +83,12 @@ export default function ListsSettingsPage() {
       setCreating(true);
       setCreateError(null);
 
-      await createList(trimmedName);
+      const data = await createList(trimmedName);
+
+      if (editOnCreate) {
+        navigate(`/settings/lists/${data.list.id}`);
+        return;
+      }
 
       setNewListName("");
       // Refresh from server so the new list (and any server-side trimming) is reflected
@@ -117,6 +137,14 @@ export default function ListsSettingsPage() {
         <Button type="submit" disabled={creating || !newListName.trim()}>
           {creating ? "Creating..." : "Create new list"}
         </Button>
+        <span style={{ marginLeft: "0.75rem", display: "inline-block" }}>
+          <CheckboxLabel
+            checked={editOnCreate}
+            onChange={(event) => setEditOnCreate(event.target.checked)}
+          >
+            Edit List After Creating
+          </CheckboxLabel>
+        </span>
         {createError && <ErrorText>{createError}</ErrorText>}
       </form>
 
