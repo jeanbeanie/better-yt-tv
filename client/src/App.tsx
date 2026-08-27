@@ -89,8 +89,8 @@ function App() {
           {!loading && user && (
             <>
             <GuardedLink to="/all">All</GuardedLink>
-            <GuardedLink to="/live">Streams</GuardedLink>
             <GuardedLink to="/lists">Lists</GuardedLink>
+            <GuardedLink to="/live">Streams</GuardedLink>
             <GuardedLink to="/settings">Settings</GuardedLink>
             </>
           )}
