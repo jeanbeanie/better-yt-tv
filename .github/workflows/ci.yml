@@ -22,6 +22,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Set up placeholder client env
+        run: cp client/.env.example client/.env
+
       - run: pnpm --filter client lint
       - run: pnpm --filter client build
       - run: pnpm --filter client test

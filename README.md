@@ -40,6 +40,7 @@ _Coming soon_
    ```bash
    cp .env.example .env
    cp .env.dbmate.example .env.dbmate
+   cp client/.env.example client/.env
    ```
    Fill in `.env` with a Google OAuth client ID/secret (for Google/YouTube login) and generate a value for `TOKEN_ENCRYPTION_KEY`.
 3. Start Postgres and apply migrations:
