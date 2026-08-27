@@ -16,7 +16,35 @@ A personal YouTube viewing dashboard that lets you watch the most recent uploads
 
 ## Screenshots
 
-_Coming soon_
+<details>
+<summary>Show screenshots</summary>
+
+**All**: the main queue, recent uploads across all your enabled channels, in round-robin order.
+<p align="center">
+  <img src="docs/screenshots/1-landing.png" alt="All queue" width="900" />
+</p>
+
+**Lists**: custom lists that scope the queue to a subset of your subscribed channels.
+<p align="center">
+  <img src="docs/screenshots/2-lists.png" alt="Lists" width="900" />
+</p>
+
+**Settings: Channels**: per-channel preferences (enable/disable in All, enable/disable Live, exclude Shorts), with bulk-edit controls.
+<p align="center">
+  <img src="docs/screenshots/3-settings-channels.png" alt="Settings: Channels" width="900" />
+</p>
+
+**Settings: Lists**: manage which channels belong to each list.
+<p align="center">
+  <img src="docs/screenshots/4-settings-lists.png" alt="Settings: Lists" width="900" />
+</p>
+
+**Admin**: YouTube quota usage, the refresh kill switch, and invite management.
+<p align="center">
+  <img src="docs/screenshots/5-admin.png" alt="Admin" width="900" />
+</p>
+
+</details>
 
 ## Tech stack
 
