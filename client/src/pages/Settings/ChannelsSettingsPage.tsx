@@ -383,7 +383,7 @@ export default function ChannelsSettingsPage() {
 
           <Button
             type="button"
-            title="Manually refresh cached uploads for your subscribed channels."
+            title="Feed automatically refreshes as you use the site. Click here if you need to manually refresh cached uploads for your subscribed channels."
             disabled={refreshing || syncing || bulkSaving || anyRowSaving}
             onClick={() => void handleRefreshFeed()}
           >
@@ -392,7 +392,7 @@ export default function ChannelsSettingsPage() {
               ? refreshTakingLong
                 ? "Still refreshing...I promise it isn't stuck!"
                 : "Refreshing..."
-              : "Refresh Feed"}
+              : "Manually Refresh Feed"}
           </Button>
         </div>
       </div>
