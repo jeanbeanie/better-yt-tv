@@ -1,13 +1,16 @@
 import express from "express";
 import request from "supertest";
+import type { Request } from "express";
 import { describe, it, expect } from "vitest";
 import { requireAdmin } from "./requireAdmin.js";
+
+type ReqWithIsAdmin = Request & { isAdmin?: boolean };
 
 function buildApp(isAdmin: boolean | undefined) {
   const app = express();
   app.get(
     "/test",
-    (req: any, _res, next) => {
+    (req: ReqWithIsAdmin, _res, next) => {
       req.isAdmin = isAdmin;
       next();
     },

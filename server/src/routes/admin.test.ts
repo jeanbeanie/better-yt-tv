@@ -1,13 +1,15 @@
 import express from "express";
 import request from "supertest";
+import type { Request, Response, NextFunction } from "express";
 import { describe, it, expect, vi } from "vitest";
+import type { AuthedRequest } from "../auth/requireAuth.js";
 
 let mockIsAdmin = false;
 
 vi.mock("../auth/requireAuth.js", () => ({
-  requireAuth: (req: any, _res: any, next: any) => {
-    req.userId = "test-user-id";
-    req.isAdmin = mockIsAdmin;
+  requireAuth: (req: Request, _res: Response, next: NextFunction) => {
+    (req as AuthedRequest).userId = "test-user-id";
+    (req as AuthedRequest).isAdmin = mockIsAdmin;
     next();
   },
 }));

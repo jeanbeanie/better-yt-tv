@@ -1,10 +1,19 @@
 import express from "express";
 import cookieParser from "cookie-parser";
 import request from "supertest";
+import type { Request, Response, NextFunction } from "express";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+  asPoolClient,
+  createMockPool,
+  mockedConnect,
+  mockedQuery,
+  mockQueryResult,
+} from "../testUtils/pgMocks.js";
+import type { AuthedRequest } from "../auth/requireAuth.js";
 
 vi.mock("../db/pool.js", () => ({
-  pool: { query: vi.fn(), connect: vi.fn() },
+  pool: createMockPool(),
 }));
 
 vi.mock("../auth/google.js", async () => {
@@ -25,11 +34,11 @@ vi.mock("../auth/crypto.js", () => ({
 let mockAuthPasses = true;
 
 vi.mock("../auth/requireAuth.js", () => ({
-  requireAuth: (req: any, res: any, next: any) => {
+  requireAuth: (req: Request, res: Response, next: NextFunction) => {
     if (!mockAuthPasses) {
       return res.status(401).json({ code: "AUTH_REQUIRED", message: "Not signed in" });
     }
-    req.userId = "test-user-id";
+    (req as AuthedRequest).userId = "test-user-id";
     next();
   },
 }));
@@ -66,47 +75,45 @@ function mockCallbackQueries({
   sessionId = "session-1",
   existingUser = false,
 } = {}) {
-  vi.mocked(pool.query).mockImplementation(async (sql: any) => {
-    const text = String(sql);
-    if (text.includes("select id from users where google_sub")) {
+  mockedQuery(vi.mocked(pool.query)).mockImplementation(async (sql) => {
+    if (sql.includes("select id from users where google_sub")) {
       return existingUser
-        ? ({ rows: [{ id: userId }], rowCount: 1 } as any)
-        : ({ rows: [], rowCount: 0 } as any);
+        ? mockQueryResult({ rows: [{ id: userId }], rowCount: 1 })
+        : mockQueryResult({ rows: [], rowCount: 0 });
     }
-    if (text.includes("update users set email")) {
-      return { rows: [], rowCount: 1 } as any;
+    if (sql.includes("update users set email")) {
+      return mockQueryResult({ rows: [], rowCount: 1 });
     }
-    if (text.includes("insert into oauth_tokens")) {
-      return { rows: [], rowCount: 1 } as any;
+    if (sql.includes("insert into oauth_tokens")) {
+      return mockQueryResult({ rows: [], rowCount: 1 });
     }
-    if (text.includes("update sessions") && text.includes("user_id")) {
-      return { rows: [], rowCount: 0 } as any;
+    if (sql.includes("update sessions") && sql.includes("user_id")) {
+      return mockQueryResult({ rows: [], rowCount: 0 });
     }
-    if (text.includes("insert into sessions")) {
-      return { rows: [{ id: sessionId }], rowCount: 1 } as any;
+    if (sql.includes("insert into sessions")) {
+      return mockQueryResult({ rows: [{ id: sessionId }], rowCount: 1 });
     }
-    throw new Error(`Unexpected query in mockCallbackQueries: ${text}`);
+    throw new Error(`Unexpected query in mockCallbackQueries: ${sql}`);
   });
 }
 
 // covers the pool.connect side: a new signup's user insert and invite
 // consumption, run on one checked-out client instead of the pool
 function mockNewUserTransaction({ userId = "user-1", inviteSucceeds = true } = {}) {
-  const clientQuery = vi.fn(async (sql: any) => {
-    const text = String(sql);
-    if (text === "BEGIN" || text === "COMMIT" || text === "ROLLBACK") {
-      return {} as any;
+  const clientQuery = vi.fn(async (sql: string) => {
+    if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") {
+      return mockQueryResult();
     }
-    if (text.includes("insert into users")) {
-      return { rows: [{ id: userId }], rowCount: 1 } as any;
+    if (sql.includes("insert into users")) {
+      return mockQueryResult({ rows: [{ id: userId }], rowCount: 1 });
     }
-    if (text.includes("update invites")) {
-      return { rowCount: inviteSucceeds ? 1 : 0 } as any;
+    if (sql.includes("update invites")) {
+      return mockQueryResult({ rowCount: inviteSucceeds ? 1 : 0 });
     }
-    throw new Error(`Unexpected client query in mockNewUserTransaction: ${text}`);
+    throw new Error(`Unexpected client query in mockNewUserTransaction: ${sql}`);
   });
   const client = { query: clientQuery, release: vi.fn() };
-  vi.mocked(pool.connect).mockResolvedValue(client as any);
+  mockedConnect(vi.mocked(pool.connect)).mockResolvedValue(asPoolClient(client));
   return client;
 }
 
@@ -116,8 +123,10 @@ describe("GET /api/auth/login", () => {
   });
 
   function mockInviteLookup(exists: boolean) {
-    vi.mocked(pool.query).mockResolvedValue(
-      exists ? ({ rows: [{ "?column?": 1 }], rowCount: 1 } as any) : ({ rows: [], rowCount: 0 } as any),
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(
+      exists
+        ? mockQueryResult({ rows: [{ "?column?": 1 }], rowCount: 1 })
+        : mockQueryResult({ rows: [], rowCount: 0 }),
     );
   }
 
@@ -179,9 +188,14 @@ describe("POST /api/auth/logout", () => {
   });
 
   it("deletes the local refresh token and revokes the session when a sid is present", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rows: [{ user_id: "user-1" }], rowCount: 1 } as any);
-    const client = { query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }), release: vi.fn() };
-    vi.mocked(pool.connect).mockResolvedValue(client as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(
+      mockQueryResult({ rows: [{ user_id: "user-1" }], rowCount: 1 }),
+    );
+    const client = {
+      query: vi.fn().mockResolvedValue(mockQueryResult({ rows: [], rowCount: 0 })),
+      release: vi.fn(),
+    };
+    mockedConnect(vi.mocked(pool.connect)).mockResolvedValue(asPoolClient(client));
 
     const res = await request(buildApp()).post("/api/auth/logout").set("Cookie", "sid=session-1");
 
@@ -201,7 +215,9 @@ describe("POST /api/auth/logout", () => {
   });
 
   it("clears the cookie and responds ok without a transaction when the sid matches no session", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rows: [], rowCount: 0 } as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(
+      mockQueryResult({ rows: [], rowCount: 0 }),
+    );
 
     const res = await request(buildApp()).post("/api/auth/logout").set("Cookie", "sid=stale-session");
 
@@ -376,7 +392,7 @@ describe("GET /api/auth/callback", () => {
     vi.mocked(exchangeCodeForTokens).mockResolvedValue({
       id_token: "fake.id.token",
       access_token: "fake-access-token",
-      // no refresh_token -- Google omits it unless prompt=consent was granted fresh
+      // no refresh_token, Google omits it unless prompt=consent was granted fresh
     });
     vi.mocked(getGoogleUserFromIdToken).mockResolvedValue({ sub: "google-sub-1" });
 
@@ -429,7 +445,9 @@ describe("GET /api/auth/whoami", () => {
       is_admin: false,
       expires_at: "2026-09-01T00:00:00Z",
     };
-    vi.mocked(pool.query).mockResolvedValue({ rows: [row], rowCount: 1 } as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(
+      mockQueryResult({ rows: [row], rowCount: 1 }),
+    );
 
     const res = await request(buildApp()).get("/api/auth/whoami").set("Cookie", "sid=session-1");
 
@@ -438,7 +456,9 @@ describe("GET /api/auth/whoami", () => {
   });
 
   it("returns null when the sid doesn't match a valid session", async () => {
-    vi.mocked(pool.query).mockResolvedValue({ rows: [], rowCount: 0 } as any);
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(
+      mockQueryResult({ rows: [], rowCount: 0 }),
+    );
 
     const res = await request(buildApp()).get("/api/auth/whoami").set("Cookie", "sid=stale-session");
 
@@ -466,12 +486,14 @@ describe("DELETE /api/auth/account", () => {
   });
 
   it("revokes the Google token and deletes the user when one is stored", async () => {
-    vi.mocked(pool.query).mockImplementation(async (sql: any) => {
-      const text = String(sql);
-      if (text.includes("select refresh_token_ciphertext")) {
-        return { rows: [{ refresh_token_ciphertext: "fake-ciphertext" }], rowCount: 1 } as any;
+    mockedQuery(vi.mocked(pool.query)).mockImplementation(async (sql) => {
+      if (sql.includes("select refresh_token_ciphertext")) {
+        return mockQueryResult({
+          rows: [{ refresh_token_ciphertext: "fake-ciphertext" }],
+          rowCount: 1,
+        });
       }
-      return { rows: [], rowCount: 1 } as any;
+      return mockQueryResult({ rows: [], rowCount: 1 });
     });
 
     const res = await request(buildApp()).delete("/api/auth/account");
@@ -487,12 +509,11 @@ describe("DELETE /api/auth/account", () => {
   });
 
   it("skips revoking when the user never had a refresh token stored, but still deletes the user", async () => {
-    vi.mocked(pool.query).mockImplementation(async (sql: any) => {
-      const text = String(sql);
-      if (text.includes("select refresh_token_ciphertext")) {
-        return { rows: [], rowCount: 0 } as any;
+    mockedQuery(vi.mocked(pool.query)).mockImplementation(async (sql) => {
+      if (sql.includes("select refresh_token_ciphertext")) {
+        return mockQueryResult({ rows: [], rowCount: 0 });
       }
-      return { rows: [], rowCount: 1 } as any;
+      return mockQueryResult({ rows: [], rowCount: 1 });
     });
 
     const res = await request(buildApp()).delete("/api/auth/account");
@@ -505,12 +526,14 @@ describe("DELETE /api/auth/account", () => {
   });
 
   it("still deletes the user even when revoking at Google throws", async () => {
-    vi.mocked(pool.query).mockImplementation(async (sql: any) => {
-      const text = String(sql);
-      if (text.includes("select refresh_token_ciphertext")) {
-        return { rows: [{ refresh_token_ciphertext: "fake-ciphertext" }], rowCount: 1 } as any;
+    mockedQuery(vi.mocked(pool.query)).mockImplementation(async (sql) => {
+      if (sql.includes("select refresh_token_ciphertext")) {
+        return mockQueryResult({
+          rows: [{ refresh_token_ciphertext: "fake-ciphertext" }],
+          rowCount: 1,
+        });
       }
-      return { rows: [], rowCount: 1 } as any;
+      return mockQueryResult({ rows: [], rowCount: 1 });
     });
     vi.mocked(revokeGoogleToken).mockRejectedValue(new Error("network error"));
 

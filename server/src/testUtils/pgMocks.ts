@@ -48,3 +48,14 @@ export function mockedQuery(fn: unknown): Mock<SimpleQueryFn> {
 export function mockedConnect(fn: unknown): Mock<SimpleConnectFn> {
   return fn as Mock<SimpleConnectFn>;
 }
+
+// some tests build a local fake client (query/release only) to inspect
+// mock.calls afterward, so they cannot go through createMockPoolClient,
+// whose PoolClient return type would hide that shape
+// this casts one at the point it is handed to a connect mock, without
+// losing the concrete type for the caller's own reference to it
+export function asPoolClient<T extends { query: unknown; release: unknown }>(
+  client: T,
+): PoolClient {
+  return client as unknown as PoolClient;
+}

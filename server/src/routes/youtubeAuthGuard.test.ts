@@ -2,9 +2,11 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import request from "supertest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { asPoolClient, createMockPool, mockedConnect } from "../testUtils/pgMocks.js";
+import type { AuthedRequest } from "../auth/requireAuth.js";
 
 vi.mock("../db/pool.js", () => ({
-  pool: { query: vi.fn(), connect: vi.fn() },
+  pool: createMockPool(),
 }));
 
 const { pool } = await import("../db/pool.js");
@@ -17,7 +19,7 @@ function buildApp(handler: (req: express.Request) => Promise<unknown>) {
     "/test",
     (req, _res, next) => {
       // requireAuth normally attaches this before the handler runs
-      (req as any).userId = "test-user-id";
+      (req as AuthedRequest).userId = "test-user-id";
       next();
     },
     withYoutubeReauthHandling(async (req) => handler(req)),
@@ -37,7 +39,7 @@ describe("withYoutubeReauthHandling cleanup transaction", () => {
 
   it("commits both writes when they succeed", async () => {
     const client = fakeClient();
-    vi.mocked(pool.connect).mockResolvedValue(client as any);
+    mockedConnect(vi.mocked(pool.connect)).mockResolvedValue(asPoolClient(client));
 
     const app = buildApp(async () => {
       throw new Error("invalid_grant: token revoked");
@@ -63,7 +65,7 @@ describe("withYoutubeReauthHandling cleanup transaction", () => {
 
   it("skips the session update when there is no sid cookie", async () => {
     const client = fakeClient();
-    vi.mocked(pool.connect).mockResolvedValue(client as any);
+    mockedConnect(vi.mocked(pool.connect)).mockResolvedValue(asPoolClient(client));
 
     const app = buildApp(async () => {
       throw new Error("invalid_grant: token revoked");
@@ -88,7 +90,7 @@ describe("withYoutubeReauthHandling cleanup transaction", () => {
       }
       return { rows: [], rowCount: 0 };
     });
-    vi.mocked(pool.connect).mockResolvedValue(client as any);
+    mockedConnect(vi.mocked(pool.connect)).mockResolvedValue(asPoolClient(client));
 
     const app = buildApp(async () => {
       throw new Error("invalid_grant: token revoked");

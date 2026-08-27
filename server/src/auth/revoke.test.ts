@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { asPoolClient, createMockPool, mockedConnect } from "../testUtils/pgMocks.js";
 
 vi.mock("../db/pool.js", () => ({
-  pool: { connect: vi.fn() },
+  pool: createMockPool(),
 }));
 
 const { pool } = await import("../db/pool.js");
@@ -18,7 +19,7 @@ describe("revokeSessionAndTokens", () => {
 
   it("commits both writes when a sid is given", async () => {
     const client = fakeClient();
-    vi.mocked(pool.connect).mockResolvedValue(client as any);
+    mockedConnect(vi.mocked(pool.connect)).mockResolvedValue(asPoolClient(client));
 
     await revokeSessionAndTokens("user-1", "session-1");
 
@@ -34,7 +35,7 @@ describe("revokeSessionAndTokens", () => {
 
   it("skips the session update when no sid is given", async () => {
     const client = fakeClient();
-    vi.mocked(pool.connect).mockResolvedValue(client as any);
+    mockedConnect(vi.mocked(pool.connect)).mockResolvedValue(asPoolClient(client));
 
     await revokeSessionAndTokens("user-1");
 
@@ -53,7 +54,7 @@ describe("revokeSessionAndTokens", () => {
       }
       return { rows: [], rowCount: 0 };
     });
-    vi.mocked(pool.connect).mockResolvedValue(client as any);
+    mockedConnect(vi.mocked(pool.connect)).mockResolvedValue(asPoolClient(client));
 
     await expect(revokeSessionAndTokens("user-1", "session-1")).rejects.toThrow(
       "connection reset",
