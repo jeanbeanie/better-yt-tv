@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.19.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter client lint
+      - run: pnpm --filter client build
+      - run: pnpm --filter client test
+
+      - run: pnpm --filter server build
+
+      - name: Set up placeholder server env for tests
+        run: cp .env.example .env
+
+      - run: pnpm --filter server test
