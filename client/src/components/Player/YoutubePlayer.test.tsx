@@ -9,6 +9,11 @@ type CapturedEvents = {
   onError?: () => void;
 };
 
+type CapturedOptions = {
+  playerVars?: Record<string, string | number>;
+  events?: CapturedEvents;
+};
+
 describe("YoutubePlayer", () => {
   let mockPlayerInstance: {
     loadVideoById: ReturnType<typeof vi.fn>;
@@ -17,6 +22,7 @@ describe("YoutubePlayer", () => {
   };
   let mockPlayerConstructor: ReturnType<typeof vi.fn>;
   let capturedEvents: CapturedEvents;
+  let capturedOptions: CapturedOptions;
 
   beforeEach(() => {
     mockPlayerInstance = {
@@ -25,14 +31,16 @@ describe("YoutubePlayer", () => {
       destroy: vi.fn(),
     };
     capturedEvents = {};
+    capturedOptions = {};
 
     // A plain function expression, not an arrow function -- vi.fn() forwards
     // `new window.YT.Player(...)` to this implementation, and arrow
     // functions can never be used as constructors
     mockPlayerConstructor = vi.fn(function (
       _element: HTMLElement,
-      options: { events?: CapturedEvents },
+      options: CapturedOptions,
     ) {
+      capturedOptions = options;
       capturedEvents = options.events ?? {};
       return mockPlayerInstance;
     });
@@ -110,5 +118,92 @@ describe("YoutubePlayer", () => {
     ref.current?.retry();
 
     expect(mockPlayerInstance.loadVideoById).toHaveBeenCalledWith("v2");
+  });
+
+  it("calls onEnded when the player reports the ENDED state", async () => {
+    const handleEnded = vi.fn();
+    render(<YoutubePlayer videoId="v1" onEnded={handleEnded} />);
+
+    await waitFor(() => expect(mockPlayerConstructor).toHaveBeenCalled());
+
+    capturedEvents.onStateChange?.({ data: 0 });
+
+    expect(handleEnded).toHaveBeenCalledTimes(1);
+  });
+
+  it("cues instead of loads the first video when autoplay is false", async () => {
+    render(<YoutubePlayer videoId="v1" autoplay={false} />);
+
+    await waitFor(() => expect(mockPlayerConstructor).toHaveBeenCalled());
+
+    capturedEvents.onReady?.();
+
+    expect(mockPlayerInstance.cueVideoById).toHaveBeenCalledWith("v1");
+    expect(mockPlayerInstance.loadVideoById).not.toHaveBeenCalled();
+  });
+
+  it("cues instead of loads a new video on a prop change when autoplay is false", async () => {
+    const { rerender } = render(<YoutubePlayer videoId="v1" autoplay={false} />);
+
+    await waitFor(() => expect(mockPlayerConstructor).toHaveBeenCalled());
+    capturedEvents.onReady?.();
+    mockPlayerInstance.cueVideoById.mockClear();
+
+    rerender(<YoutubePlayer videoId="v2" autoplay={false} />);
+
+    await waitFor(() => expect(mockPlayerInstance.cueVideoById).toHaveBeenCalledWith("v2"));
+    expect(mockPlayerInstance.loadVideoById).not.toHaveBeenCalled();
+  });
+
+  it("does not reload when rerendered with the same videoId", async () => {
+    const { rerender } = render(<YoutubePlayer videoId="v1" />);
+
+    await waitFor(() => expect(mockPlayerConstructor).toHaveBeenCalled());
+    capturedEvents.onReady?.();
+    expect(mockPlayerInstance.loadVideoById).toHaveBeenCalledTimes(1);
+
+    mockPlayerInstance.loadVideoById.mockClear();
+    rerender(<YoutubePlayer videoId="v1" />);
+
+    expect(mockPlayerInstance.loadVideoById).not.toHaveBeenCalled();
+  });
+
+  it("destroys the player on unmount", async () => {
+    const { unmount } = render(<YoutubePlayer videoId="v1" />);
+
+    await waitFor(() => expect(mockPlayerConstructor).toHaveBeenCalled());
+
+    unmount();
+
+    expect(mockPlayerInstance.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not load or cue anything when mounted with a null videoId", async () => {
+    render(<YoutubePlayer videoId={null} />);
+
+    await waitFor(() => expect(mockPlayerConstructor).toHaveBeenCalled());
+    capturedEvents.onReady?.();
+
+    expect(mockPlayerInstance.loadVideoById).not.toHaveBeenCalled();
+    expect(mockPlayerInstance.cueVideoById).not.toHaveBeenCalled();
+  });
+
+  it("calls the onReady prop when the player becomes ready", async () => {
+    const handleReady = vi.fn();
+    render(<YoutubePlayer videoId="v1" onReady={handleReady} />);
+
+    await waitFor(() => expect(mockPlayerConstructor).toHaveBeenCalled());
+
+    capturedEvents.onReady?.();
+
+    expect(handleReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("constructs the player with the expected playerVars", async () => {
+    render(<YoutubePlayer videoId="v1" />);
+
+    await waitFor(() => expect(mockPlayerConstructor).toHaveBeenCalled());
+
+    expect(capturedOptions.playerVars).toEqual({ playsinline: 1, controls: 1, rel: 0 });
   });
 });
