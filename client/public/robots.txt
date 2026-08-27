@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /all
+Disallow: /live
+Disallow: /lists
+Disallow: /admin
+Disallow: /settings
+Disallow: /api/
+
+Sitemap: https://ytcatchup.com/sitemap.xml
