@@ -16,6 +16,15 @@ Signing in grants YT Catchup **read-only** access to your YouTube subscriptions.
 
 Cached video metadata (titles, thumbnails, publish dates) is shared across everyone using the app and isn't tied to your account.
 
+## How your data is protected
+
+- Your Google refresh token is encrypted before it's stored, and is never stored or logged in plain text anywhere.
+- All connections to this app are encrypted over HTTPS, including the login flow itself.
+- Session cookies are configured as secure and httpOnly, meaning they're only ever transmitted over encrypted connections and can't be accessed by browser scripts.
+- Only I, the sole developer of this app, have access to the underlying database and infrastructure. No third parties, contractors, or additional staff have access to your data.
+- Application secrets (API keys, encryption keys) are stored as environment variables and are never committed to source code or exposed in the application's public repository.
+- Your data is never sold, shared with advertisers, or used to train any AI model.
+
 ## How it's used
 
 Solely to build your personal queue of recent uploads from the channels you're subscribed to. Nothing here is sold, shared with advertisers, or used to train any model.
