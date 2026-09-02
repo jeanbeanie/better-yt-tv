@@ -1,3 +1,45 @@
+## 2026-09-01
+
+- Added a How your data is protected section to the privacy policy
+
+## 2026-08-27
+
+- Renamed the Refresh Feed button to Manually Refresh Feed and reworded its tooltip, since the feed already refreshes on its own
+
+## 2026-08-26
+
+- Added an unsaved changes guard to the list editor, confirming before you navigate away or close the tab with unsaved edits
+- Added an Edit list after creating checkbox to list settings, remembered between visits, that drops you straight into the new list's editor
+- Added View list links to the list settings and list editor pages, and a create new list link next to the Lists dropdown
+- Swapped the order of the Lists and Streams nav links
+- Behind the scenes: added a CI pipeline, wider test coverage, a type cleanup pass, contributor docs, and a sitemap
+
+## 2026-08-25
+
+- Moved delete account onto a new Advanced settings page under Settings
+- Added a Load more button to the list editor so long channel lists page in
+- Added a second save button at the bottom of the List Settings page
+
+## 2026-08-24
+
+- Added privacy policy and terms pages, linked from the footer
+- Added a Delete my account and data button, which revokes YT Catchup's access to your Google account and removes everything stored about you
+- Masked emails on the admin page by default, with a toggle to reveal them
+- Added a shared five minute refresh cooldown so background refreshes stop firing on every page visit, with the Settings button bypassing it
+- Raised the video cache TTL from 30 minutes to 4 hours
+- Made the Sync Subscriptions button glow when no channels are synced yet, and pointed the callout message at it
+- Forced a cache refresh after saving a list so its videos show up right away
+- Replaced the favicon with a custom one
+- Fixed mobile overflow and a login redirect bug in Settings
+
+## 2026-08-23
+
+- Login now requires an invite code, keeping signups under the cap Google puts on the app
+- An invite code in the URL is remembered, so it carries through to login on its own
+- A code stays reusable by the person who first claimed it, so a returning user is never locked out of their own account
+- Added an admin section for creating, copying, and revoking codes
+- Showed a clearer message when no invite code is available
+
 ## 2026-08-22
 
 - Shrank queue row padding, thumbnail size, and touch targets on phone width screens
@@ -5,6 +47,7 @@
 - Widened Previous/Next to fill the row on phones instead of pinning to opposite edges, and gave the video title its own line above the channel name
 - Showed a Settings nav link to the admin panel for admin users
 - Swapped an em dash for a period in the homepage tagline
+- Added link preview cards, so a shared YT Catchup link shows a title, description, and image
 
 ## 2026-08-21
 
