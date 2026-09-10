@@ -29,6 +29,7 @@ jobs:
       - run: pnpm --filter client build
       - run: pnpm --filter client test
 
+      - run: pnpm --filter server lint
       - run: pnpm --filter server build
 
       - name: Set up placeholder server env for tests

@@ -36,6 +36,10 @@ pnpm --filter server exec vitest run src/some/file.test.ts
 pnpm --filter client build   # tsc -b && vite build
 pnpm --filter client lint
 
+# server build/lint
+pnpm --filter server build   # tsc
+pnpm --filter server lint
+
 # database (dbmate via docker compose, uses .env.dbmate)
 pnpm db:up       # apply migrations
 pnpm db:status   # show migration status

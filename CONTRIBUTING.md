@@ -17,6 +17,7 @@ pnpm --filter client lint
 pnpm --filter client build
 pnpm --filter client test
 
+pnpm --filter server lint
 pnpm --filter server build
 pnpm --filter server test
 ```

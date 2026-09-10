@@ -91,6 +91,7 @@ A personal YouTube viewing dashboard that lets you watch the most recent uploads
 | `pnpm --filter client build` | Type-checks and builds the client for production |
 | `pnpm --filter client lint` | Lints the client |
 | `pnpm --filter client test` | Runs client tests (vitest + React Testing Library) |
+| `pnpm --filter server lint` | Lints the server |
 | `pnpm --filter server test` | Runs server tests (vitest) |
 | `pnpm db:status:production` | Shows migration status against the production database |
 | `pnpm db:up:production` | Applies pending migrations to the production database |
