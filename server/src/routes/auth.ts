@@ -10,6 +10,7 @@ import {
 import { encryptRefreshToken, decryptRefreshToken } from "../auth/crypto.js";
 import { revokeSessionAndTokens } from "../auth/revoke.js";
 import { requireAuth, type AuthedRequest } from "../auth/requireAuth.js";
+import { authRateLimit } from "../auth/authRateLimit.js";
 import { pool } from "../db/pool.js";
 import { validateInviteCode, consumeInviteCode } from "../invites/invites.js";
 import crypto from "node:crypto";
@@ -97,7 +98,7 @@ authRouter.post("/logout", async (req: Request, res: Response, next) => {
 
 
 // GET /api/auth/callback
-authRouter.get("/callback", async (req: Request, res: Response, next) => {
+authRouter.get("/callback", authRateLimit, async (req: Request, res: Response, next) => {
   try {
     const { code, state, error } = req.query;
 

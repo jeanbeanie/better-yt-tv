@@ -43,6 +43,10 @@ vi.mock("../auth/requireAuth.js", () => ({
   },
 }));
 
+vi.mock("../auth/authRateLimit.js", () => ({
+  authRateLimit: (req: Request, res: Response, next: NextFunction) => next(),
+}));
+
 const { pool } = await import("../db/pool.js");
 const { exchangeCodeForTokens, getGoogleUserFromIdToken, revokeGoogleToken } = await import(
   "../auth/google.js"

@@ -19,6 +19,10 @@ const defaultClientDistPath = path.resolve(__dirname, "../../client/dist");
 export function createApp(clientDistPath: string = defaultClientDistPath) {
   const app = express();
 
+  // railway sits one hop in front, needed for req.ip (and rate limiting)
+  // to reflect the real client instead of railway's edge
+  app.set("trust proxy", 1);
+
   // must run CORS before routes
   // origin cannot be "*" when credentials:true
   // credentials: true is required for cookies over fetch()

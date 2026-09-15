@@ -68,4 +68,10 @@ describe("createApp static serving and spa fallback", () => {
     expect(res.status).toBe(200);
     expect(res.text).toBe("<html>fake index</html>");
   });
+
+  it("trusts one proxy hop for req.ip", async () => {
+    const app = createApp(tmpDir);
+
+    expect(app.get("trust proxy")).toBe(1);
+  });
 });
