@@ -42,24 +42,16 @@ type FeedViewProps = {
   items: FeedItem[];
   onSetWatched: (videoId: string, watched: boolean) => Promise<void>;
   emptyState: ReactNode;
-  // localStorage key for remembering the selected video across refreshes
-  // scope this per page/list so selections dont bleed into each other, pass
-  // "" to skip persistence, like before a list has finished loading
+  // storage key for remembering selection across refreshes, per page/list
+  // "" skips persistence, like before a list has finished loading
   storageKey: string;
-  // omit both to hide the load more button entirely, for a page that
-  // doesnt support paging yet
+  // omit both to hide the load more button, for pages without paging
   hasMore?: boolean;
   onLoadMore?: () => void;
 };
 
-// Shared by AllPage, ListsPage, and LivePage: the player, Previous/Next,
-// catch-up mode, and the watch/unwatch queue. Data-fetching (what "items"
-// is, how it's loaded, page-specific empty-state copy) stays with each
-// page; everything about navigating and displaying that feed lives here
-// once, rather than being hand-copied per page like AllPage/ListsPage
-// were before -- copies of this exact queue UI already produced one real
-// bug (the Hide watched/Catch-up checkboxes disappearing), fixed by hand
-// in two places.
+// Shared by AllPage, ListsPage, and LivePage: player, prev/next, catch up
+// mode, watch/unwatch queue, data fetching stays per page, queue UI lives here once
 export default function FeedView({
   items,
   onSetWatched,
@@ -75,10 +67,9 @@ export default function FeedView({
   const [playerError, setPlayerError] = useState(false);
   const playerRef = useRef<YoutubePlayerHandle>(null);
 
-  // videoIds with a watch toggle request in flight, used to disable the
-  // button and suppress double-clicks while it's still resolving
+  // videoIds with a toggle in flight, disables the button
   const [pendingToggleIds, setPendingToggleIds] = useState<Set<string>>(new Set());
-  // videoIds whose toggle has been in flight long enough to show a spinner for
+  // videoIds whose toggle has been pending long enough to show a spinner
   const [spinnerToggleIds, setSpinnerToggleIds] = useState<Set<string>>(new Set());
 
   async function handleToggleClick(item: FeedItem) {
@@ -107,13 +98,11 @@ export default function FeedView({
   }
 
   useEffect(() => {
-    // A playback error is specific to whatever video was selected when it
-    // happened -- clear it as soon as the user moves on to a different one
+    // playback error is tied to the video that was selected, clear on change
     setPlayerError(false);
   }, [selectedVideoId]);
 
   useEffect(() => {
-    // Load the user's saved catch-up preference once on first render
     const saved = window.localStorage.getItem("betterYtTv.catchUpMode");
     if (saved !== null) {
       setCatchUpMode(saved === "true");
@@ -121,26 +110,22 @@ export default function FeedView({
   }, []);
 
   useEffect(() => {
-    // Persist the current catch-up setting
     window.localStorage.setItem("betterYtTv.catchUpMode", String(catchUpMode));
   }, [catchUpMode]);
 
   useEffect(() => {
-    // Current selection is still valid, nothing to do
     if (selectedVideoId && items.some((item) => item.video_id === selectedVideoId)) {
       return;
     }
 
-    // Otherwise restore the last remembered video for this key if its still
-    // in the feed (covers a page refresh, or switching back to a list),
-    // else fall back to the first item
+    // restore remembered video for this key if still in the feed, else first item
     const stored = storageKey ? window.localStorage.getItem(storageKey) : null;
     const isStoredValid = stored && items.some((item) => item.video_id === stored);
     setSelectedVideoId(isStoredValid ? stored : (items[0]?.video_id ?? null));
   }, [items, selectedVideoId, storageKey]);
 
   useEffect(() => {
-    // Persist the current selection so a refresh lands back on it
+    // persist selection so a refresh lands back on it
     if (!storageKey || !selectedVideoId) {
       return;
     }
@@ -162,7 +147,7 @@ export default function FeedView({
       }
     }
 
-    // If nothing later in the list is unwatched, we are caught up.
+    // If nothing later in the list is unwatched, we are caught up
     return null;
   }
 
