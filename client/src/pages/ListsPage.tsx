@@ -29,18 +29,13 @@ export default function ListsPage() {
   const [loadingLists, setLoadingLists] = useState(true);
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pendingLoginRedirect, setPendingLoginRedirect] = useState(false);
   const [refreshPaused, setRefreshPaused] = useState(false);
 
-  useEffect(() => {
-    if (!pendingLoginRedirect) return;
-    redirectToLoginOrHome();
-  }, [pendingLoginRedirect]);
 
   function redirectIfAuthError(err: unknown): boolean {
     if (shouldRedirectToLogin(err)) {
       setError("Your session expired. Redirecting to sign in...");
-      setPendingLoginRedirect(true);
+      redirectToLoginOrHome();
       return true;
     }
     return false;
