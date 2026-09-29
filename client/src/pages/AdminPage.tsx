@@ -46,7 +46,6 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notAuthorized, setNotAuthorized] = useState(false);
-  const [pendingLoginRedirect, setPendingLoginRedirect] = useState(false);
   const [emailsVisible, setEmailsVisible] = useState(false);
 
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -72,10 +71,6 @@ export default function AdminPage() {
   const [loadingGroups, setLoadingGroups] = useState<Set<string>>(new Set());
   const [groupErrors, setGroupErrors] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    if (!pendingLoginRedirect) return;
-    redirectToLoginOrHome();
-  }, [pendingLoginRedirect]);
 
   async function loadQuota() {
     try {
@@ -89,7 +84,7 @@ export default function AdminPage() {
     } catch (err) {
       if (err instanceof ApiError && err.status === 401 && err.code === "AUTH_REQUIRED") {
         setError("Your session expired. Redirecting to sign in...");
-        setPendingLoginRedirect(true);
+        redirectToLoginOrHome();
         return;
       }
       if (err instanceof ApiError && err.status === 403 && err.code === "ADMIN_REQUIRED") {
@@ -114,7 +109,7 @@ export default function AdminPage() {
       setSettings(data);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401 && err.code === "AUTH_REQUIRED") {
-        setPendingLoginRedirect(true);
+        redirectToLoginOrHome();
         return;
       }
       if (err instanceof ApiError && err.status === 403 && err.code === "ADMIN_REQUIRED") {
@@ -136,7 +131,7 @@ export default function AdminPage() {
       setUsersCount(data.usersCount);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401 && err.code === "AUTH_REQUIRED") {
-        setPendingLoginRedirect(true);
+        redirectToLoginOrHome();
         return;
       }
       if (err instanceof ApiError && err.status === 403 && err.code === "ADMIN_REQUIRED") {
