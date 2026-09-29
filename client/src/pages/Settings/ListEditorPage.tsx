@@ -30,7 +30,6 @@ export default function ListEditorPage() {
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [name, setName] = useState("");
-  const [pendingLoginRedirect, setPendingLoginRedirect] = useState(false);
   const [allChannels, setAllChannels] = useState<ListChannel[]>([]);
   const [selectedChannels, setSelectedChannels] = useState<ListChannel[]>([]);
   // last name/channels we know are saved on the server, compared against
@@ -54,15 +53,10 @@ export default function ListEditorPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!pendingLoginRedirect) return;
-    redirectToLoginOrHome();
-  }, [pendingLoginRedirect]);
-
   function redirectIfAuthError(err: unknown): boolean {
     if (shouldRedirectToLogin(err)) {
       setError("Your session expired. Redirecting to sign in...");
-      setPendingLoginRedirect(true);
+      redirectToLoginOrHome();
       return true;
     }
     return false;
