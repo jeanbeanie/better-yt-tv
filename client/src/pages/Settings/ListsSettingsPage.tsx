@@ -28,7 +28,6 @@ export default function ListsSettingsPage() {
   const [lists, setLists] = useState<ListSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [pendingLoginRedirect, setPendingLoginRedirect] = useState(false);
   const [newListName, setNewListName] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -40,15 +39,10 @@ export default function ListsSettingsPage() {
     window.localStorage.setItem(EDIT_ON_CREATE_STORAGE_KEY, String(editOnCreate));
   }, [editOnCreate]);
 
-  useEffect(() => {
-    if (!pendingLoginRedirect) return;
-    redirectToLoginOrHome();
-  }, [pendingLoginRedirect]);
-
   function redirectIfAuthError(err: unknown): boolean {
     if (shouldRedirectToLogin(err)) {
       setError("Your session expired. Redirecting to sign in...");
-      setPendingLoginRedirect(true);
+      redirectToLoginOrHome();
       return true;
     }
     return false;
