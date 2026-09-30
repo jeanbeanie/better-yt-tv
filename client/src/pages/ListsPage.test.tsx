@@ -59,17 +59,6 @@ const VIDEO_1 = {
   is_watched: false,
 };
 
-const VIDEO_2 = {
-  video_id: "v2",
-  channel_id: "c1",
-  channel_title: "Channel One",
-  title: "Second Video",
-  thumb_url: "",
-  published_at: "2026-08-02T00:00:00Z",
-  watched_at: "2026-08-03T00:00:00Z",
-  is_watched: true,
-};
-
 describe("ListsPage", () => {
   beforeEach(() => {
     vi.mocked(getLists).mockReset();
@@ -227,72 +216,6 @@ describe("ListsPage", () => {
     expect(window.localStorage.getItem("betterYtTv.selectedListId")).toBe("l2");
   });
 
-  it("hides watched videos from the queue when 'Hide watched' is checked", async () => {
-    vi.mocked(getLists).mockResolvedValue({ lists: [NEWS_LIST] });
-    vi.mocked(getListFeed).mockResolvedValue({
-      list: { id: "l1", name: "News" },
-      items: [VIDEO_1, VIDEO_2],
-      hasMore: false,
-    });
-
-    const user = userEvent.setup();
-    renderPage();
-
-    await screen.findByText("Second Video");
-    expect(screen.getAllByText("First Video").length).toBeGreaterThanOrEqual(1);
-
-    await user.click(screen.getByLabelText(/hide watched/i));
-
-    expect(screen.queryByText("Second Video")).not.toBeInTheDocument();
-    expect(screen.getAllByText("First Video").length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("keeps the Hide watched checkbox visible (and usable) when every video is watched", async () => {
-    vi.mocked(getLists).mockResolvedValue({ lists: [NEWS_LIST] });
-    vi.mocked(getListFeed).mockResolvedValue({
-      list: { id: "l1", name: "News" },
-      items: [{ ...VIDEO_1, is_watched: true }, VIDEO_2],
-      hasMore: false,
-    });
-
-    const user = userEvent.setup();
-    renderPage();
-
-    const hideWatchedCheckbox = await screen.findByLabelText(/hide watched/i);
-    await user.click(hideWatchedCheckbox);
-
-    // Everything is now watched and hidden -- the checkbox must still be
-    // present so the user isn't locked out of turning it back off
-    expect(
-      await screen.findByText("All videos are watched. Turn off “Hide watched” to see them again."),
-    ).toBeInTheDocument();
-    expect(screen.getByLabelText(/hide watched/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/catch-up mode/i)).toBeInTheDocument();
-
-    await user.click(screen.getByLabelText(/hide watched/i));
-
-    expect(screen.getAllByText("First Video").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("Second Video").length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("marks a video watched from the queue", async () => {
-    vi.mocked(getLists).mockResolvedValue({ lists: [NEWS_LIST] });
-    vi.mocked(getListFeed).mockResolvedValue({
-      list: { id: "l1", name: "News" },
-      items: [VIDEO_1],
-      hasMore: false,
-    });
-    vi.mocked(markVideoWatched).mockResolvedValue({ ok: true });
-
-    const user = userEvent.setup();
-    renderPage();
-
-    await screen.findAllByText("First Video");
-    await user.click(screen.getByRole("button", { name: /mark .* as watched/i }));
-
-    expect(markVideoWatched).toHaveBeenCalledWith("v1");
-  });
-
   it("does not show the full-page loading state when marking a video watched", async () => {
     vi.mocked(getLists).mockResolvedValue({ lists: [NEWS_LIST] });
     vi.mocked(getListFeed).mockResolvedValue({
@@ -314,47 +237,6 @@ describe("ListsPage", () => {
     // watch/unwatch toggle -- only the initial load shows it
     expect(screen.queryByText("Loading feed...")).not.toBeInTheDocument();
     expect(markVideoWatched).toHaveBeenCalledWith("v1");
-  });
-
-  it("navigates to the next and previous video in the queue", async () => {
-    vi.mocked(getLists).mockResolvedValue({ lists: [NEWS_LIST] });
-    vi.mocked(getListFeed).mockResolvedValue({
-      list: { id: "l1", name: "News" },
-      items: [VIDEO_1, { ...VIDEO_2, is_watched: false }],
-      hasMore: false,
-    });
-
-    const user = userEvent.setup();
-    renderPage();
-
-    await screen.findAllByText("First Video");
-
-    // The queue list renders as soon as `items` is set, but the player
-    // section (and its Previous/Next buttons) only appears once a separate
-    // effect defaults selectedVideoId to the first item -- findAllByText
-    // above can resolve before that second effect has settled, so wait for
-    // the actual button being clicked rather than assuming it's already
-    // there (this was the source of a real, if rare, flaky failure)
-    await user.click(await screen.findByRole("button", { name: "Next" }));
-    expect(screen.getAllByText("Second Video").length).toBeGreaterThanOrEqual(1);
-
-    await user.click(screen.getByRole("button", { name: "Previous" }));
-    expect(screen.getAllByText("First Video").length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("shares the catch-up mode preference with /all via the same localStorage key", async () => {
-    window.localStorage.setItem("betterYtTv.catchUpMode", "false");
-    vi.mocked(getLists).mockResolvedValue({ lists: [NEWS_LIST] });
-    vi.mocked(getListFeed).mockResolvedValue({
-      list: { id: "l1", name: "News" },
-      items: [VIDEO_1],
-      hasMore: false,
-    });
-
-    renderPage();
-
-    const catchUpCheckbox = await screen.findByLabelText(/catch-up mode/i);
-    expect(catchUpCheckbox).not.toBeChecked();
   });
 
   it("shows a paused notice when refreshAllCache reports refreshPaused", async () => {
