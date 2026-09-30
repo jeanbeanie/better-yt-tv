@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import FeedView from "./FeedView";
@@ -67,6 +67,135 @@ describe("FeedView", () => {
     expect(onSetWatched).toHaveBeenCalledWith("v1", true);
   });
 
+  it("calls onSetWatched with false when toggling a watched video", async () => {
+    const onSetWatched = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      <FeedView
+        items={[VIDEO_2]}
+        onSetWatched={onSetWatched}
+        emptyState={<div />}
+        storageKey=""
+      />,
+    );
+
+    await screen.findAllByText("Second Video");
+    await user.click(screen.getByRole("button", { name: /mark .* as unwatched/i }));
+
+    expect(onSetWatched).toHaveBeenCalledWith("v2", false);
+  });
+
+  it("renders emptyState and no queue when there are no items", () => {
+    render(
+      <FeedView
+        items={[]}
+        onSetWatched={vi.fn()}
+        emptyState={<p>Nothing here</p>}
+        storageKey=""
+      />,
+    );
+
+    expect(screen.getByText("Nothing here")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Queue" })).not.toBeInTheDocument();
+  });
+
+  it("shows Load more only when hasMore and onLoadMore are both given", async () => {
+    const onLoadMore = vi.fn();
+    const user = userEvent.setup();
+
+    const { rerender } = render(
+      <FeedView
+        items={[VIDEO_1]}
+        onSetWatched={vi.fn()}
+        emptyState={<div />}
+        storageKey=""
+        hasMore={false}
+        onLoadMore={onLoadMore}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
+
+    rerender(
+      <FeedView
+        items={[VIDEO_1]}
+        onSetWatched={vi.fn()}
+        emptyState={<div />}
+        storageKey=""
+        hasMore
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
+
+    rerender(
+      <FeedView
+        items={[VIDEO_1]}
+        onSetWatched={vi.fn()}
+        emptyState={<div />}
+        storageKey=""
+        hasMore
+        onLoadMore={onLoadMore}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Load more" }));
+
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
+  });
+
+  it("persists the selected video under storageKey when a queue row is clicked", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <FeedView
+        items={[VIDEO_1, VIDEO_2]}
+        onSetWatched={vi.fn()}
+        emptyState={<div />}
+        storageKey="test.selectedVideoId"
+      />,
+    );
+
+    await screen.findAllByText("First Video");
+    await user.click(screen.getByText("Second Video"));
+
+    expect(window.localStorage.getItem("test.selectedVideoId")).toBe("v2");
+  });
+
+  it("restores the stored selection when it's still in items", async () => {
+    window.localStorage.setItem("test.selectedVideoId", "v2");
+
+    render(
+      <FeedView
+        items={[VIDEO_1, VIDEO_2]}
+        onSetWatched={vi.fn()}
+        emptyState={<div />}
+        storageKey="test.selectedVideoId"
+      />,
+    );
+
+    // selected title renders twice, see the prev/next test
+    await waitFor(() => expect(screen.getAllByText("Second Video")).toHaveLength(2));
+    expect(screen.getAllByText("First Video")).toHaveLength(1);
+  });
+
+  it("falls back to the first item when the stored selection is no longer in items", async () => {
+    window.localStorage.setItem("test.selectedVideoId", "stale-id");
+
+    render(
+      <FeedView
+        items={[VIDEO_1, VIDEO_2]}
+        onSetWatched={vi.fn()}
+        emptyState={<div />}
+        storageKey="test.selectedVideoId"
+      />,
+    );
+
+    await waitFor(() => expect(screen.getAllByText("First Video")).toHaveLength(2));
+    expect(window.localStorage.getItem("test.selectedVideoId")).toBe("v1");
+  });
+
   it("keeps the Hide watched checkbox visible (and usable) when every video is watched", async () => {
     const user = userEvent.setup();
 
@@ -108,10 +237,28 @@ describe("FeedView", () => {
 
     // player nav only renders once the selection effect has picked the first item
     await user.click(await screen.findByRole("button", { name: "Next" }));
-    expect(screen.getAllByText("Second Video").length).toBeGreaterThanOrEqual(1);
+    // selected title renders twice, player and queue row, others once
+    expect(screen.getAllByText("Second Video")).toHaveLength(2);
+    expect(screen.getAllByText("First Video")).toHaveLength(1);
 
     await user.click(screen.getByRole("button", { name: "Previous" }));
-    expect(screen.getAllByText("First Video").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("First Video")).toHaveLength(2);
+    expect(screen.getAllByText("Second Video")).toHaveLength(1);
+  });
+
+  it("disables Previous on the first item", async () => {
+    render(
+      <FeedView
+        items={[VIDEO_1, { ...VIDEO_2, is_watched: false }]}
+        onSetWatched={vi.fn()}
+        emptyState={<div />}
+        storageKey=""
+      />,
+    );
+
+    // same selection effect wait as the prev/next test above
+    expect(await screen.findByRole("button", { name: "Previous" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
   });
 
   it("restores catch-up mode from localStorage", async () => {
@@ -127,5 +274,22 @@ describe("FeedView", () => {
     );
 
     expect(await screen.findByLabelText(/catch-up mode/i)).not.toBeChecked();
+  });
+
+  it("persists catch-up mode to localStorage when toggled", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <FeedView
+        items={[VIDEO_1]}
+        onSetWatched={vi.fn()}
+        emptyState={<div />}
+        storageKey=""
+      />,
+    );
+
+    await user.click(await screen.findByLabelText(/catch-up mode/i));
+
+    expect(window.localStorage.getItem("betterYtTv.catchUpMode")).toBe("false");
   });
 });
