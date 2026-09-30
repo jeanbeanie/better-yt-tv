@@ -50,8 +50,8 @@ type FeedViewProps = {
   onLoadMore?: () => void;
 };
 
-// Shared by AllPage, ListsPage, and LivePage: player, prev/next, catch up
-// mode, watch/unwatch queue, data fetching stays per page, queue UI lives here once
+// Shared by AllPage and ListsPage: player, prev/next, catch up mode,
+// watch/unwatch queue, data fetching stays per page, queue UI lives here once
 export default function FeedView({
   items,
   onSetWatched,
@@ -300,7 +300,7 @@ export default function FeedView({
 
       {caughtUp && (
         <p style={{ color: "#555", marginTop: "0.75rem" }}>
-          You&apos;re caught up — no unwatched videos remain.
+          You&apos;re caught up. No unwatched videos remain.
         </p>
       )}
 
