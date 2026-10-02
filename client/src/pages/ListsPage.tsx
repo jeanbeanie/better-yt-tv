@@ -27,6 +27,7 @@ export default function ListsPage() {
   const [hasMore, setHasMore] = useState(false);
   const [loadingLists, setLoadingLists] = useState(true);
   const [loadingFeed, setLoadingFeed] = useState(false);
+  const [refreshing, setRefreshing] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshPaused, setRefreshPaused] = useState(false);
 
@@ -125,10 +126,7 @@ export default function ListsPage() {
     refreshItemsRef.current = refreshItems;
   });
 
-  // Silently refresh the video cache on every visit -- refreshAllCache is
-  // cheap to call repeatedly since stale channels are TTL-gated server-side,
-  // and re-fetching afterward means a list that's never had its channels
-  // refreshed before can actually populate on this same visit
+  // Silently refresh the video cache on every visit
   useEffect(() => {
     async function backgroundRefresh() {
       try {
@@ -137,6 +135,8 @@ export default function ListsPage() {
         await refreshItemsRef.current();
       } catch (err) {
         console.error("Background cache refresh failed:", err);
+      } finally {
+        setRefreshing(false);
       }
     }
     void backgroundRefresh();
@@ -209,6 +209,10 @@ export default function ListsPage() {
           </div>
 
           {loadingFeed && <Spinner label="Loading feed..." />}
+
+          {!loadingFeed && items.length === 0 && refreshing && (
+            <Spinner label="Fetching your videos, this may take a moment the first time..." />
+          )}
 
           {!loadingFeed && (
             <FeedView
