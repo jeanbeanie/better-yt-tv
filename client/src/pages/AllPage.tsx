@@ -4,11 +4,10 @@ import {
   getAllFeed,
   markVideoWatched,
   markVideoUnwatched,
-  redirectToLoginOrHome,
-  shouldRedirectToLogin,
   refreshAllCache,
   type FeedItem,
 } from "../lib/api";
+import { useAuthRedirect } from "../lib/useAuthRedirect";
 import FeedView from "../components/FeedView";
 import ErrorText from "../components/ErrorText";
 import Spinner from "../components/Spinner";
@@ -24,14 +23,7 @@ export default function AllPage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshPaused, setRefreshPaused] = useState(false);
 
-  function redirectIfAuthError(err: unknown): boolean {
-    if (shouldRedirectToLogin(err)) {
-      setError("Your session expired. Redirecting to sign in...");
-      redirectToLoginOrHome();
-      return true;
-    }
-    return false;
-  }
+  const redirectIfAuthError = useAuthRedirect(setError);
 
   async function loadFeed() {
     try {
