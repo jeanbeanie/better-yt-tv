@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   getAllFeed,
   markVideoWatched,
   markVideoUnwatched,
-  refreshAllCache,
   type FeedItem,
 } from "../lib/api";
 import { useAuthRedirect } from "../lib/useAuthRedirect";
+import { useBackgroundRefresh } from "../lib/useBackgroundRefresh";
 import FeedView from "../components/FeedView";
 import ErrorText from "../components/ErrorText";
 import Spinner from "../components/Spinner";
@@ -24,6 +24,7 @@ export default function AllPage() {
   const [refreshPaused, setRefreshPaused] = useState(false);
 
   const redirectIfAuthError = useAuthRedirect(setError);
+  useBackgroundRefresh(refreshItems, setRefreshPaused, setRefreshing)
 
   async function loadFeed() {
     try {
@@ -57,29 +58,6 @@ export default function AllPage() {
       setError(err instanceof Error ? err.message : "Failed to load /all feed");
     }
   }
-
-  // keeps backgroundRefresh from calling a stale refreshItems,
-  // same pattern as ListsPage.tsx
-  const refreshItemsRef = useRef(refreshItems);
-  useEffect(() => {
-    refreshItemsRef.current = refreshItems;
-  });
-
-  // silently refresh the video cache on every visit
-  useEffect(() => {
-    async function backgroundRefresh() {
-      try {
-        const result = await refreshAllCache();
-        setRefreshPaused(result.refreshPaused);
-        await refreshItemsRef.current();
-      } catch (err) {
-        console.error("Background cache refresh failed:", err);
-      } finally {
-        setRefreshing(false);
-      }
-    }
-    void backgroundRefresh();
-  }, []);
 
   async function loadMore() {
     try {
