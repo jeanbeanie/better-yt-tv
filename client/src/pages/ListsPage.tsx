@@ -1,15 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   getLists,
   getListFeed,
   markVideoWatched,
   markVideoUnwatched,
-  refreshAllCache,
   type ListSummary,
   type FeedItem,
 } from "../lib/api";
-import { useAuthRedirect } from "../lib/useAuthRedirect"
+import { useAuthRedirect } from "../lib/useAuthRedirect";
+import { useBackgroundRefresh } from "../lib/useBackgroundRefresh";
 import FeedView from "../components/FeedView";
 import ErrorText from "../components/ErrorText";
 import MutedText from "../components/MutedText";
@@ -32,6 +32,7 @@ export default function ListsPage() {
   const [refreshPaused, setRefreshPaused] = useState(false);
 
   const redirectIfAuthError = useAuthRedirect(setError);
+  useBackgroundRefresh(refreshItems, setRefreshPaused, setRefreshing)
 
   async function loadLists() {
     try {
@@ -115,32 +116,6 @@ export default function ListsPage() {
       setError(err instanceof Error ? err.message : "Failed to load list feed");
     }
   }
-
-  // refreshItems closes over selectedListId, which is still null when the
-  // mount-only background-refresh effect below is created (it's set
-  // asynchronously once loadLists() resolves) -- keep the latest version in
-  // a ref so the effect doesn't call a stale closure. Same pattern as
-  // onEndedRef/onReadyRef in components/Player/YoutubePlayer.tsx.
-  const refreshItemsRef = useRef(refreshItems);
-  useEffect(() => {
-    refreshItemsRef.current = refreshItems;
-  });
-
-  // Silently refresh the video cache on every visit
-  useEffect(() => {
-    async function backgroundRefresh() {
-      try {
-        const result = await refreshAllCache();
-        setRefreshPaused(result.refreshPaused);
-        await refreshItemsRef.current();
-      } catch (err) {
-        console.error("Background cache refresh failed:", err);
-      } finally {
-        setRefreshing(false);
-      }
-    }
-    void backgroundRefresh();
-  }, []);
 
   async function loadMore() {
     if (!selectedListId) return;
