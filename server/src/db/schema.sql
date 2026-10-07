@@ -231,7 +231,12 @@ CREATE TABLE public.videos_cache (
     published_at timestamp with time zone NOT NULL,
     duration_seconds integer,
     thumb_url text,
-    fetched_at timestamp with time zone DEFAULT now() NOT NULL
+    fetched_at timestamp with time zone DEFAULT now() NOT NULL,
+    details_fetched_at timestamp with time zone,
+    live_broadcast_content text,
+    scheduled_start_time timestamp with time zone,
+    actual_start_time timestamp with time zone,
+    actual_end_time timestamp with time zone
 );
 
 
@@ -474,6 +479,13 @@ CREATE INDEX videos_cache_channel_published_idx ON public.videos_cache USING btr
 
 
 --
+-- Name: videos_cache_live_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX videos_cache_live_status_idx ON public.videos_cache USING btree (channel_id) WHERE (live_broadcast_content = ANY (ARRAY['live'::text, 'upcoming'::text]));
+
+
+--
 -- Name: youtube_quota_usage_usage_date_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -606,4 +618,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260819143543'),
     ('20260820012510'),
     ('20260821071857'),
-    ('20260823163749');
+    ('20260823163749'),
+    ('20261007120000');
