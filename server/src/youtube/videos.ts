@@ -16,6 +16,20 @@ export type CachedVideo = {
   thumbUrl: string | null;
 };
 
+// ISO 8601 duration from contentDetails, e.g. PT1H2M3S or P1DT2H
+// null for anything unparseable
+export function parseIsoDuration(value: string | undefined): number | null {
+  if (!value) return null;
+
+  const match = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(value);
+  if (!match || match.slice(1).every((part) => part === undefined)) return null;
+
+  const [days, hours, minutes, seconds] = match
+    .slice(1)
+    .map((part) => Number(part ?? 0));
+  return days * 86400 + hours * 3600 + minutes * 60 + seconds;
+}
+
 // Resolve a channel's "uploads" playlist ID using YT API: channels.list
 // Every YouTube channel has a related uploads playlist
 async function fetchUploadsPlaylistId(args: {

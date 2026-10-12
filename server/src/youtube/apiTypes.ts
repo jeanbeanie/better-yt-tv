@@ -1,5 +1,4 @@
-// Minimal shapes for the YouTube Data API responses this app reads —
-// only the fields actually accessed, not the full API surface.
+// Minimal YouTube Data API response shapes, only the fields this app reads
 
 export type YoutubeChannelsListResponse = {
   items?: {
@@ -28,6 +27,32 @@ export type YoutubePlaylistItem = {
 
 export type YoutubePlaylistItemsListResponse = {
   items?: YoutubePlaylistItem[];
+};
+
+export type YoutubeVideo = {
+  id?: string;
+  snippet?: {
+    channelId?: string;
+    title?: string;
+    publishedAt?: string;
+    liveBroadcastContent?: string;
+    thumbnails?: {
+      medium?: { url?: string };
+      default?: { url?: string };
+    };
+  };
+  contentDetails?: {
+    duration?: string;
+  };
+  liveStreamingDetails?: {
+    scheduledStartTime?: string;
+    actualStartTime?: string;
+    actualEndTime?: string;
+  };
+};
+
+export type YoutubeVideosListResponse = {
+  items?: YoutubeVideo[];
 };
 
 export type YoutubeSubscriptionListItem = {

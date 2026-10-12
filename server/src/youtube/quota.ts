@@ -8,6 +8,7 @@ export const YOUTUBE_QUOTA_CALL_TYPES = [
   "channels.list",
   "playlistItems.list",
   "subscriptions.list",
+  "videos.list",
 ] as const;
 export type YoutubeQuotaCallType = (typeof YOUTUBE_QUOTA_CALL_TYPES)[number];
 

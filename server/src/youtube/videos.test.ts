@@ -15,6 +15,7 @@ const {
   fetchRecentVideosForChannel,
   getChannelCacheState,
   markChannelCacheRefreshed,
+  parseIsoDuration,
 } = await import("./videos.js");
 
 function mockChannelAndPlaylistFetch(
@@ -182,5 +183,42 @@ describe("markChannelCacheRefreshed", () => {
 
     const [, params] = vi.mocked(pool.query).mock.calls[0];
     expect(params).toEqual(["chan1", expect.any(Date), null]);
+  });
+});
+
+describe("parseIsoDuration", () => {
+  it("parses minutes and seconds", () => {
+    expect(parseIsoDuration("PT4M13S")).toBe(253);
+  });
+
+  it("parses hours alone", () => {
+    expect(parseIsoDuration("PT1H")).toBe(3600);
+  });
+
+  it("parses hours, minutes, and seconds together", () => {
+    expect(parseIsoDuration("PT1H2M3S")).toBe(3723);
+  });
+
+  it("parses a day component", () => {
+    expect(parseIsoDuration("P1DT2H")).toBe(93600);
+  });
+
+  it("parses the zero duration live and upcoming videos report", () => {
+    expect(parseIsoDuration("P0D")).toBe(0);
+  });
+
+  it("returns null for undefined and empty input", () => {
+    expect(parseIsoDuration(undefined)).toBeNull();
+    expect(parseIsoDuration("")).toBeNull();
+  });
+
+  it("returns null for anything that isn't a duration", () => {
+    expect(parseIsoDuration("garbage")).toBeNull();
+    expect(parseIsoDuration("4:13")).toBeNull();
+  });
+
+  it("returns null for a duration with no components", () => {
+    expect(parseIsoDuration("P")).toBeNull();
+    expect(parseIsoDuration("PT")).toBeNull();
   });
 });
