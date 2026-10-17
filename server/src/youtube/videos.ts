@@ -5,6 +5,8 @@ import type {
   YoutubeChannelsListResponse,
   YoutubePlaylistItem,
   YoutubePlaylistItemsListResponse,
+  YoutubeVideo,
+  YoutubeVideosListResponse,
 } from "./apiTypes.js";
 
 // shape we want to send into database
@@ -188,6 +190,226 @@ export async function upsertVideosCache(videos: CachedVideo[]) {
       ],
     );
   }
+}
+
+// VIDEO DETAILS
+// hydrating a cached video fills in what the uploads playlist lacks, duration and live status
+// findVideoIdsToHydrate picks ids, hydrateVideoDetails fetches them (50 per call) and upserts
+// ids videos.list leaves out (deleted or private) get live_broadcast_content = 'none', not rechecked
+
+// full details for one video from videos.list, ready for videos_cache
+export type VideoDetails = CachedVideo & {
+  durationSeconds: number | null;
+  liveBroadcastContent: string;
+  scheduledStartTime: string | null;
+  actualStartTime: string | null;
+  actualEndTime: string | null;
+};
+
+// videos.list takes at most 50 ids per call, 1 unit regardless of parts
+const VIDEOS_LIST_MAX_IDS = 50;
+
+// null when a field we can't store without is missing
+function toVideoDetails(item: YoutubeVideo): VideoDetails | null {
+  const snippet = item.snippet;
+  if (!item.id || !snippet?.channelId || !snippet.title || !snippet.publishedAt) {
+    return null;
+  }
+
+  const liveBroadcastContent = snippet.liveBroadcastContent ?? "none";
+
+  return {
+    videoId: item.id,
+    channelId: snippet.channelId,
+    title: snippet.title,
+    publishedAt: snippet.publishedAt,
+    thumbUrl: snippet.thumbnails?.medium?.url ?? snippet.thumbnails?.default?.url ?? null,
+    // live and upcoming report P0D, which would read as a 0s short
+    durationSeconds:
+      liveBroadcastContent === "none"
+        ? parseIsoDuration(item.contentDetails?.duration)
+        : null,
+    liveBroadcastContent,
+    scheduledStartTime: item.liveStreamingDetails?.scheduledStartTime ?? null,
+    actualStartTime: item.liveStreamingDetails?.actualStartTime ?? null,
+    actualEndTime: item.liveStreamingDetails?.actualEndTime ?? null,
+  };
+}
+
+// one videos.list call, at most VIDEOS_LIST_MAX_IDS ids
+async function fetchVideoDetailsBatch(args: {
+  accessToken: string;
+  videoIds: string[];
+  quotaContext?: QuotaCallContext;
+}): Promise<VideoDetails[]> {
+  const url = new URL("https://www.googleapis.com/youtube/v3/videos");
+  url.searchParams.set("part", "snippet,contentDetails,liveStreamingDetails");
+  url.searchParams.set("id", args.videoIds.join(","));
+
+  const resp = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${args.accessToken}`,
+    },
+  });
+
+  // log quota usage for this call
+  await recordQuotaUsage("videos.list", 1, args.quotaContext ?? {});
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`YouTube video details fetch failed: ${resp.status} ${text}`);
+  }
+
+  const data = (await resp.json()) as YoutubeVideosListResponse;
+
+  return (data.items ?? [])
+    .map(toVideoDetails)
+    .filter((item): item is VideoDetails => item !== null);
+}
+
+// one multi row upsert per batch
+// published_at only set on insert, existing /all ordering stays put
+async function upsertVideoDetails(videos: VideoDetails[]) {
+  if (videos.length === 0) return;
+
+  await pool.query(
+    `
+    insert into videos_cache (
+      video_id,
+      channel_id,
+      title,
+      published_at,
+      thumb_url,
+      duration_seconds,
+      live_broadcast_content,
+      scheduled_start_time,
+      actual_start_time,
+      actual_end_time,
+      details_fetched_at,
+      fetched_at
+    )
+    select t.*, now(), now()
+    from unnest(
+      $1::text[],
+      $2::text[],
+      $3::text[],
+      $4::timestamptz[],
+      $5::text[],
+      $6::int[],
+      $7::text[],
+      $8::timestamptz[],
+      $9::timestamptz[],
+      $10::timestamptz[]
+    ) as t(
+      video_id,
+      channel_id,
+      title,
+      published_at,
+      thumb_url,
+      duration_seconds,
+      live_broadcast_content,
+      scheduled_start_time,
+      actual_start_time,
+      actual_end_time
+    )
+    on conflict (video_id) do update
+      set title = excluded.title,
+          thumb_url = excluded.thumb_url,
+          duration_seconds = excluded.duration_seconds,
+          live_broadcast_content = excluded.live_broadcast_content,
+          scheduled_start_time = excluded.scheduled_start_time,
+          actual_start_time = excluded.actual_start_time,
+          actual_end_time = excluded.actual_end_time,
+          details_fetched_at = now()
+    `,
+    [
+      videos.map((video) => video.videoId),
+      videos.map((video) => video.channelId),
+      videos.map((video) => video.title),
+      videos.map((video) => new Date(video.publishedAt)),
+      videos.map((video) => video.thumbUrl),
+      videos.map((video) => video.durationSeconds),
+      videos.map((video) => video.liveBroadcastContent),
+      videos.map((video) => video.scheduledStartTime),
+      videos.map((video) => video.actualStartTime),
+      videos.map((video) => video.actualEndTime),
+    ],
+  );
+}
+
+// ids videos.list left out (deleted, privated) stop being rechecked
+async function markVideoDetailsMissing(videoIds: string[]) {
+  if (videoIds.length === 0) return;
+
+  await pool.query(
+    `
+    update videos_cache
+    set live_broadcast_content = 'none',
+        details_fetched_at = now()
+    where video_id = any($1)
+    `,
+    [videoIds],
+  );
+}
+
+// cached videos in these channels never hydrated, plus live/upcoming ones
+// last checked over a ttl ago, newest first
+export async function findVideoIdsToHydrate(
+  channelIds: string[],
+  limit: number,
+): Promise<string[]> {
+  if (channelIds.length === 0) return [];
+
+  const result = await pool.query(
+    `
+    select video_id
+    from videos_cache
+    where channel_id = any($1)
+      and (
+        details_fetched_at is null
+        or (
+          live_broadcast_content in ('live', 'upcoming')
+          and details_fetched_at <= now() - make_interval(mins => $2)
+        )
+      )
+    order by published_at desc
+    limit $3
+    `,
+    [channelIds, env.YOUTUBE_CACHE_TTL_MINUTES, limit],
+  );
+
+  return result.rows.map((row) => row.video_id);
+}
+
+// fetch and save details in batches of VIDEOS_LIST_MAX_IDS
+// batches saved before a failure are kept, the error still throws
+// returns how many videos were saved
+export async function hydrateVideoDetails(args: {
+  accessToken: string;
+  videoIds: string[];
+  quotaContext?: QuotaCallContext;
+}): Promise<number> {
+  // an id twice in one upsert would hit the same row twice
+  const videoIds = [...new Set(args.videoIds)];
+  let hydrated = 0;
+
+  for (let i = 0; i < videoIds.length; i += VIDEOS_LIST_MAX_IDS) {
+    const batchIds = videoIds.slice(i, i + VIDEOS_LIST_MAX_IDS);
+    const details = await fetchVideoDetailsBatch({
+      accessToken: args.accessToken,
+      videoIds: batchIds,
+      quotaContext: args.quotaContext,
+    });
+
+    await upsertVideoDetails(details);
+
+    const returnedIds = new Set(details.map((video) => video.videoId));
+    await markVideoDetailsMissing(batchIds.filter((id) => !returnedIds.has(id)));
+
+    hydrated += details.length;
+  }
+
+  return hydrated;
 }
 
 // check staleness and any cached uploads playlist id for a channel
