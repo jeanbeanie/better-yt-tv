@@ -148,5 +148,4 @@ describe("ChannelsSettingsPage", () => {
     expect(alphaEnableAll).toBeChecked(); // Alpha is put back
     expect(betaEnableAll).not.toBeChecked(); // Beta keeps its change
   });
-
 });

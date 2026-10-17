@@ -259,7 +259,7 @@ export default function ChannelsSettingsPage() {
   ) {
     // Save the previous state so we can revert if the backend request fails
     const previousRow = channels.find((c) => c.channelId === channelId);
-    if(!previousRow) {
+    if (!previousRow) {
       console.warn("handleToggle: unknown channel", channelId);
       return;
     }
@@ -287,8 +287,8 @@ export default function ChannelsSettingsPage() {
       await updateChannel(channelId, updates);
     } catch (err) {
       // If the save fails, restore previous UI state
-      setChannels((current) => 
-        current.map((c) => (c.channelId === channelId ? previousRow : c))
+      setChannels((current) =>
+        current.map((c) => (c.channelId === channelId ? previousRow : c)),
       );
 
       if (redirectIfAuthError(err)) return;
