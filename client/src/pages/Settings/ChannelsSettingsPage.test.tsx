@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import ChannelsSettingsPage from "./ChannelsSettingsPage";
-import { getChannels, redirectToLoginOrHome, shouldRedirectToLogin } from "../../lib/api";
+import { getChannels, redirectToLoginOrHome, shouldRedirectToLogin, updateChannel } from "../../lib/api";
 
 vi.mock("../../lib/api", () => ({
   getChannels: vi.fn(),
@@ -116,5 +116,36 @@ describe("ChannelsSettingsPage", () => {
       await screen.findByText(/No synced channels yet/),
     ).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("Search your channels")).not.toBeInTheDocument();
+  });
+
+  it("restores only the failed row when another row was toggled during the save", async () => {
+    vi.mocked(getChannels).mockResolvedValue({
+      channels: [makeChannel(1, "Alpha Channel"), makeChannel(2, "Beta Channel")],
+    });
+
+    // the first save stays pending until the test rejects it
+    let failFirstSave: (error: Error) => void = () => {};
+    const firstSave = new Promise<{ ok?: boolean }>((_, reject) => {
+      failFirstSave = reject;
+    });
+    vi.mocked(updateChannel)
+      .mockReset()
+      .mockReturnValueOnce(firstSave)
+      .mockResolvedValueOnce({ ok: true });
+
+    const user = userEvent.setup();
+    render(<ChannelsSettingsPage />);
+    await screen.findByText("Alpha Channel");
+
+    const [alphaEnableAll, betaEnableAll] = screen.getAllByLabelText("Enable in All");
+
+    await user.click(alphaEnableAll); // Alpha flips, its save is still pending
+    await user.click(betaEnableAll); // Beta flips, its save succeeds
+
+    failFirstSave(new Error("boom")); // now Alpha's save fails
+    await screen.findByText("boom");
+
+    expect(alphaEnableAll).toBeChecked(); // Alpha is put back
+    expect(betaEnableAll).not.toBeChecked(); // Beta keeps its change
   });
 });
