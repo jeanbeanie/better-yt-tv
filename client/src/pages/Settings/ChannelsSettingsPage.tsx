@@ -12,6 +12,7 @@ import ErrorText from "../../components/ErrorText";
 import MutedText from "../../components/MutedText";
 import Button from "../../components/Button";
 import CheckboxLabel from "../../components/CheckboxLabel";
+import TextField from "../../components/TextField";
 import Thumbnail from "../../components/Thumbnail";
 import Spinner from "../../components/Spinner";
 
@@ -486,12 +487,12 @@ export default function ChannelsSettingsPage() {
 
       {!loading && channels.length > 0 && (
         <div style={{ display: "grid", gap: "0.5rem", width: "50%", margin: "0 auto" }}>
-          <input
-            type="text"
+          <TextField
+            label="Search your channels"
+            hideLabel
             value={searchText}
             onChange={(event) => handleSearchChange(event.target.value)}
             placeholder="Search your channels"
-            className="text-input"
           />
           <MutedText style={{ fontSize: "smaller" }}>
             Showing {visibleChannels.length} of {filteredChannels.length}
