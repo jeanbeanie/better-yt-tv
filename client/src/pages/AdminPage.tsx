@@ -21,6 +21,7 @@ import ErrorText from "../components/ErrorText";
 import MutedText from "../components/MutedText";
 import Spinner from "../components/Spinner";
 import CheckboxLabel from "../components/CheckboxLabel";
+import TextField from "../components/TextField";
 
 function formatPacificTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-US", {
@@ -362,9 +363,9 @@ export default function AdminPage() {
             </div>
 
             <div style={{ display: "flex", gap: "0.5rem" }}>
-              <input
-                type="text"
-                className="text-input"
+              <TextField
+                label="Note (optional)"
+                hideLabel
                 placeholder="Note (optional)"
                 value={noteInput}
                 onChange={(e) => setNoteInput(e.target.value)}

@@ -14,6 +14,7 @@ import Row from "../../components/Row";
 import Button from "../../components/Button";
 import Spinner from "../../components/Spinner";
 import CheckboxLabel from "../../components/CheckboxLabel";
+import TextField from "../../components/TextField";
 
 const EDIT_ON_CREATE_STORAGE_KEY = "betterYtTv.editOnCreate";
 
@@ -119,13 +120,13 @@ export default function ListsSettingsPage() {
       </header>
 
       <form onSubmit={(event) => void handleCreateList(event)} style={{ margin: "1rem 0" }}>
-        <input
-          type="text"
+        <TextField
+          label="New list name"
+          hideLabel
           value={newListName}
           onChange={(event) => setNewListName(event.target.value)}
           placeholder="New list name"
           disabled={creating}
-          className="text-input"
           style={{ marginRight: "0.5rem" }}
         />
         <Button type="submit" disabled={creating || !newListName.trim()}>

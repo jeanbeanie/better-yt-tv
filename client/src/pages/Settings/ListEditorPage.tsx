@@ -19,6 +19,7 @@ import Spinner from "../../components/Spinner";
 import Button from "../../components/Button";
 import Thumbnail from "../../components/Thumbnail";
 import GuardedLink from "../../components/GuardedLink";
+import TextField from "../../components/TextField";
 
 const PAGE_SIZE = 25;
 
@@ -224,12 +225,11 @@ export default function ListEditorPage() {
 
       {!listLoading && !error && !notFound && (
         <>
-          <input
-            type="text"
+          <TextField
+            label="List name"
+            hideLabel
             value={name}
             onChange={(event) => setName(event.target.value)}
-            aria-label="List name"
-            className="text-input"
             style={{ fontSize: "1.5rem", fontWeight: 700 }}
           />
 
@@ -299,12 +299,12 @@ export default function ListEditorPage() {
 
           <section style={{ margin: "1rem 0" }}>
             <h2>Add channels</h2>
-            <input
-              type="text"
+            <TextField
+              label="Search your subscribed channels"
+              hideLabel
               value={searchText}
               onChange={(event) => handleSearchChange(event.target.value)}
               placeholder="Search your subscribed channels"
-              className="text-input"
               style={{
                 width: "24rem",
                 maxWidth: "100%",
