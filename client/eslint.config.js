@@ -28,9 +28,6 @@ export default defineConfig([
       },
     },
     rules: {
-      // clickable Row is not keyboard operable yet, warn until it is reworked
-      'jsx-a11y/click-events-have-key-events': 'warn',
-      'jsx-a11y/no-noninteractive-element-interactions': 'warn',
       eqeqeq: 'error',
       // wants Suspense/use() or a query library instead of useEffect+useState
       // too big a shift for this app right now, off by choice

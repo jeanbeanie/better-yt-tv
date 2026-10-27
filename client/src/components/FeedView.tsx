@@ -3,6 +3,7 @@ import { type FeedItem } from "../lib/api";
 import YoutubePlayer, { type YoutubePlayerHandle } from "./Player/YoutubePlayer";
 import MutedText from "./MutedText";
 import Row from "./Row";
+import RowSelectButton from "./RowSelectButton";
 import Button from "./Button";
 import CheckboxLabel from "./CheckboxLabel";
 import Thumbnail from "./Thumbnail";
@@ -359,11 +360,7 @@ export default function FeedView({
                   .join(" ");
 
                 return (
-                  <Row
-                    key={item.video_id}
-                    onClick={() => setSelectedVideoId(item.video_id)}
-                    className={rowClassName}
-                  >
+                  <Row key={item.video_id} className={rowClassName}>
                     {isSelected && (
                       <span className="queue-now-playing-marker" aria-hidden="true">
                         ▶
@@ -384,12 +381,17 @@ export default function FeedView({
                       </span>
 
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div
-                          className="queue-row-title"
-                          style={{ fontWeight: isSelected ? 700 : 500 }}
+                        <RowSelectButton
+                          onClick={() => setSelectedVideoId(item.video_id)}
+                          aria-current={isSelected ? "true" : undefined}
                         >
-                          {item.title}
-                        </div>
+                          <span
+                            className="queue-row-title"
+                            style={{ fontWeight: isSelected ? 700 : 500 }}
+                          >
+                            {item.title}
+                          </span>
+                        </RowSelectButton>
 
                         <MutedText style={{ fontSize: "0.8rem" }}>
                           {item.channel_title} · {formatPublishedAt(item.published_at)}
