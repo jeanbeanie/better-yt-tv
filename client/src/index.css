@@ -205,8 +205,41 @@ p {
   text-align: left;
 }
 
-.divider-row-clickable:hover {
+.divider-row:has(.row-select) {
+  position: relative;
+}
+
+.divider-row:has(.row-select):hover {
   background: var(--code-bg);
+}
+
+.row-select {
+  display: block;
+  max-width: 100%;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* stretches the click target over the whole row */
+.row-select::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+/* ring is drawn on the overlay so it surrounds the row */
+.row-select:focus-visible {
+  outline: none;
+}
+
+.row-select:focus-visible::after {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .queue-row {
@@ -226,7 +259,7 @@ p {
   border-left-color: var(--accent);
 }
 
-.queue-row-selected.divider-row-clickable:hover {
+.queue-row-selected:has(.row-select):hover {
   background: var(--accent-bg);
 }
 
@@ -291,7 +324,7 @@ p {
   transition: opacity 0.1s ease;
 }
 
-.divider-row-clickable:hover .queue-thumb::after {
+.divider-row:has(.row-select):hover .queue-thumb::after {
   opacity: 1;
 }
 
@@ -316,6 +349,9 @@ p {
   flex-shrink: 0;
   display: inline-flex;
   color: var(--text);
+  /* sits above the row-select overlay */
+  position: relative;
+  z-index: 1;
 
   @media (max-width: 640px) {
     min-width: 44px;

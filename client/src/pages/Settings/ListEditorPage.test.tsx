@@ -178,6 +178,43 @@ describe("ListEditorPage", () => {
     expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
   });
 
+  it("adds a channel from search results using the keyboard", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+    vi.mocked(getChannels).mockResolvedValue({
+      channels: [
+        {
+          channelId: "c1",
+          title: "Adam Ragusea",
+          thumbUrl: null,
+          enabledAll: true,
+          enabledLive: true,
+          excludedShorts: false,
+        },
+      ],
+    });
+
+    const user = userEvent.setup();
+    renderPage("l1");
+
+    await screen.findByDisplayValue("News");
+    const addButton = await screen.findByRole("button", { name: "Add Adam Ragusea" });
+
+    addButton.focus();
+    await user.keyboard("{Enter}");
+
+    expect(screen.queryByText("No channels selected yet.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
+  });
+
   it("removing a selected channel returns it to the search results", async () => {
     vi.mocked(getList).mockResolvedValue({
       list: {

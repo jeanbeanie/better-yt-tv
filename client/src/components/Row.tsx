@@ -2,22 +2,17 @@ import { type CSSProperties, type ReactNode } from "react";
 
 type RowProps = {
   children: ReactNode;
-  onClick?: () => void;
   className?: string;
   style?: CSSProperties;
 };
 
-export default function Row({ children, onClick, className, style }: RowProps) {
-  const classes = ["divider-row", onClick ? "divider-row-clickable" : "", className]
-    .filter(Boolean)
-    .join(" ");
+// no onClick on purpose, an li is not keyboard operable
+// put a RowSelectButton inside to make a row selectable
+export default function Row({ children, className, style }: RowProps) {
+  const classes = ["divider-row", className].filter(Boolean).join(" ");
 
   return (
-    <li
-      className={classes}
-      onClick={onClick}
-      style={{ cursor: onClick ? "pointer" : undefined, ...style }}
-    >
+    <li className={classes} style={style}>
       {children}
     </li>
   );

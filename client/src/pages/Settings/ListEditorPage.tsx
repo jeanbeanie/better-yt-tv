@@ -20,6 +20,7 @@ import Button from "../../components/Button";
 import Thumbnail from "../../components/Thumbnail";
 import GuardedLink from "../../components/GuardedLink";
 import TextField from "../../components/TextField";
+import RowSelectButton from "../../components/RowSelectButton";
 
 const PAGE_SIZE = 25;
 
@@ -322,7 +323,6 @@ export default function ListEditorPage() {
               {visibleSearchResults.map((channel) => (
                 <Row
                   key={channel.channelId}
-                  onClick={() => addChannel(channel)}
                   style={{ gap: "2rem", padding: "0.5rem 0" }}
                 >
                   <Thumbnail
@@ -342,7 +342,12 @@ export default function ListEditorPage() {
                       />
                     }
                   />
-                  <span style={{ flex: 1 }}>{channel.title}</span>
+                  <span style={{ flex: 1 }}>
+                    <RowSelectButton onClick={() => addChannel(channel)}>
+                      <span className="visually-hidden">Add</span>
+                      {` ${channel.title}`}
+                    </RowSelectButton>
+                  </span>
                 </Row>
               ))}
             </ul>

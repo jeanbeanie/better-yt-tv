@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
+import { axe } from "vitest-axe";
 import FeedView from "./FeedView";
 import type { FeedItem } from "../lib/api";
 
@@ -291,5 +292,61 @@ describe("FeedView", () => {
     await user.click(await screen.findByLabelText(/catch-up mode/i));
 
     expect(window.localStorage.getItem("betterYtTv.catchUpMode")).toBe("false");
+  });
+
+  it("selects a queue video from the keyboard", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <FeedView
+        items={[VIDEO_1, VIDEO_2]}
+        onSetWatched={vi.fn()}
+        emptyState={<div />}
+        storageKey="test.selectedVideoId"
+      />,
+    );
+
+    await screen.findAllByText("First Video");
+
+    screen.getByRole("button", { name: "Second Video" }).focus();
+    await user.keyboard("{Enter}");
+
+    expect(window.localStorage.getItem("test.selectedVideoId")).toBe("v2");
+  });
+
+  it("marks only the selected queue video with aria-current", async () => {
+    render(
+      <FeedView
+        items={[VIDEO_1, VIDEO_2]}
+        onSetWatched={vi.fn()}
+        emptyState={<div />}
+        storageKey=""
+      />,
+    );
+
+    await screen.findAllByText("First Video");
+
+    expect(screen.getByRole("button", { name: "First Video" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Second Video" })).not.toHaveAttribute(
+      "aria-current",
+    );
+  });
+
+  it("has no axe violations in the queue", async () => {
+    const { container } = render(
+      <FeedView
+        items={[VIDEO_1, VIDEO_2]}
+        onSetWatched={vi.fn()}
+        emptyState={<div />}
+        storageKey=""
+      />,
+    );
+
+    await screen.findAllByText("First Video");
+
+    expect(await axe(container)).toHaveNoViolations();
   });
 });
