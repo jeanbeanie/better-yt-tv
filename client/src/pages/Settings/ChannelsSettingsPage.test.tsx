@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import ChannelsSettingsPage from "./ChannelsSettingsPage";
@@ -116,6 +116,42 @@ describe("ChannelsSettingsPage", () => {
       await screen.findByText(/No synced channels yet/),
     ).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("Search your channels")).not.toBeInTheDocument();
+  });
+
+  it("groups each channel's checkboxes under a group named for that channel's settings", async () => {
+    vi.mocked(getChannels).mockResolvedValue({
+      channels: [makeChannel(1, "Alpha Channel"), makeChannel(2, "Beta Channel")],
+    });
+
+    render(<ChannelsSettingsPage />);
+    await screen.findByText("Alpha Channel");
+
+    for (const title of ["Alpha Channel", "Beta Channel"]) {
+      const group = screen.getByRole("group", { name: `Settings for ${title}` });
+
+      expect(within(group).getByRole("checkbox", { name: "Enable in All" })).toBeInTheDocument();
+      expect(within(group).getByRole("checkbox", { name: "Enable in Live" })).toBeInTheDocument();
+      expect(
+        within(group).getByRole("checkbox", { name: "Exclude Shorts from All" }),
+      ).toBeInTheDocument();
+    }
+  });
+
+  it("names the bulk checkboxes as a group that affects all channels", async () => {
+    vi.mocked(getChannels).mockResolvedValue({
+      channels: [makeChannel(1, "Alpha Channel")],
+    });
+
+    render(<ChannelsSettingsPage />);
+    await screen.findByText("Alpha Channel");
+
+    const group = screen.getByRole("group", {
+      name: "Bulk channel settings, affects all channels",
+    });
+
+    expect(within(group).getByRole("checkbox", { name: "Include in All" })).toBeInTheDocument();
+    expect(within(group).getByRole("checkbox", { name: "Include in Live" })).toBeInTheDocument();
+    expect(within(group).getByRole("checkbox", { name: "Exclude Shorts" })).toBeInTheDocument();
   });
 
   it("restores only the failed row when another row was toggled during the save", async () => {
