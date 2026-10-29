@@ -12,6 +12,7 @@ import ErrorText from "../../components/ErrorText";
 import MutedText from "../../components/MutedText";
 import Button from "../../components/Button";
 import CheckboxLabel from "../../components/CheckboxLabel";
+import CheckboxGroup from "../../components/CheckboxGroup";
 import TextField from "../../components/TextField";
 import Thumbnail from "../../components/Thumbnail";
 import Spinner from "../../components/Spinner";
@@ -426,7 +427,8 @@ export default function ChannelsSettingsPage() {
     </section>
 
 
-      <div
+      <CheckboxGroup
+        legend="Bulk channel settings, affects all channels"
         style={{
           display: "flex",
           flexWrap: "wrap",
@@ -437,7 +439,8 @@ export default function ChannelsSettingsPage() {
           borderRadius: "12px",
         }}
       >
-        Bulk Channel Settings (Affects ALL Channels!): 
+        {/* legend names the group, visible text hidden so it is read once */}
+        <span aria-hidden="true">Bulk Channel Settings (Affects ALL Channels!):</span>
         <CheckboxLabel
           ref={allCheckboxRef}
           checked={bulkAllState.checked}
@@ -470,7 +473,7 @@ export default function ChannelsSettingsPage() {
         >
           Exclude Shorts
         </CheckboxLabel>
-      </div>
+      </CheckboxGroup>
 
       {!loading && !error && channels.length === 0 && (
         <p
@@ -562,7 +565,10 @@ export default function ChannelsSettingsPage() {
                 </div>
 
                 {/* Channel preference toggles */}
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                <CheckboxGroup
+                  legend={`Settings for ${channel.title}`}
+                  style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}
+                >
                   <CheckboxLabel
                     checked={channel.enabledAll}
                     disabled={isSaving || bulkSaving || syncing}
@@ -598,7 +604,7 @@ export default function ChannelsSettingsPage() {
                   >
                     Exclude Shorts from All
                   </CheckboxLabel>
-                </div>
+                </CheckboxGroup>
 
               </article>
             );
