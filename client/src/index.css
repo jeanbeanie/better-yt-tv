@@ -1,13 +1,14 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #e8e5ed;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --danger: crimson;
+  /* light-dark(light, dark), resolved by color-scheme */
+  --text: light-dark(#6b6375, #9ca3af);
+  --text-h: light-dark(#08060d, #f3f4f6);
+  --bg: light-dark(#fff, #16171d);
+  --border: light-dark(#e5e4e7, #2e303a);
+  --code-bg: light-dark(#e8e5ed, #1f2028);
+  --accent: light-dark(#aa3bff, #c084fc);
+  --accent-bg: light-dark(rgba(170, 59, 255, 0.1), rgba(192, 132, 252, 0.15));
+  --accent-border: light-dark(rgba(170, 59, 255, 0.5), rgba(192, 132, 252, 0.5));
+  --danger: light-dark(crimson, #ff6b6b);
 
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
@@ -27,47 +28,12 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --danger: #ff6b6b;
-  }
-}
-
-/* Explicit theme overrides -- win over the OS-driven media query above
-   regardless of preference, since an attribute selector on :root has
-   higher specificity than a plain :root inside a media query. Set by the
-   navbar's light/dark toggle in App.tsx. */
+/* set by the navbar toggle in App.tsx, overrides the OS preference */
 :root[data-theme="dark"] {
-  --text: #9ca3af;
-  --text-h: #f3f4f6;
-  --bg: #16171d;
-  --border: #2e303a;
-  --code-bg: #1f2028;
-  --accent: #c084fc;
-  --accent-bg: rgba(192, 132, 252, 0.15);
-  --accent-border: rgba(192, 132, 252, 0.5);
-  --danger: #ff6b6b;
   color-scheme: dark;
 }
 
 :root[data-theme="light"] {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #e8e5ed;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --danger: crimson;
   color-scheme: light;
 }
 
