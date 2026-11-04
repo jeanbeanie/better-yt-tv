@@ -372,7 +372,7 @@ export default function ListEditorPage() {
             </Button>
             {saveMessage && <span style={{ marginLeft: "0.75rem" }}>{saveMessage}</span>}
             {saveError && (
-              <ErrorText style={{ margin: "0.5rem 0 0" }}>{saveError}</ErrorText>
+              <ErrorText announce={false} style={{ margin: "0.5rem 0 0" }}>{saveError}</ErrorText>
             )}
           </div>
         </>

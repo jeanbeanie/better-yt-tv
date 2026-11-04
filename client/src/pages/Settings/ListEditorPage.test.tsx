@@ -470,6 +470,7 @@ describe("ListEditorPage", () => {
     ).toHaveLength(2);
     expect(screen.getByDisplayValue("Music")).toBeInTheDocument();
     expect(getList).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
   });
 
   it("disables both Save buttons when the name is empty or whitespace-only", async () => {
