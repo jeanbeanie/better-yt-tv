@@ -141,8 +141,6 @@ CREATE TABLE public.lists (
 CREATE TABLE public.oauth_tokens (
     user_id uuid NOT NULL,
     refresh_token_ciphertext text NOT NULL,
-    access_token text,
-    expires_at timestamp with time zone,
     scopes text,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -606,4 +604,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260819143543'),
     ('20260820012510'),
     ('20260821071857'),
-    ('20260823163749');
+    ('20260823163749'),
+    ('20261105000000');

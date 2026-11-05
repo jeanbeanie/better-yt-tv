@@ -182,20 +182,16 @@ authRouter.get("/callback", authRateLimit, async (req: Request, res: Response, n
 
       await pool.query(
         `
-        insert into oauth_tokens (user_id, refresh_token_ciphertext, access_token, expires_at, scopes, updated_at)
-        values ($1, $2, $3, $4, $5, now())
+        insert into oauth_tokens (user_id, refresh_token_ciphertext, scopes, updated_at)
+        values ($1, $2, $3, now())
         on conflict (user_id) do update
           set refresh_token_ciphertext = excluded.refresh_token_ciphertext,
-              access_token = excluded.access_token,
-              expires_at = excluded.expires_at,
               scopes = excluded.scopes,
               updated_at = now()
         `,
         [
           userId,
           encrypted,
-          tokens.access_token ?? null,
-          tokens.expires_at ? new Date(tokens.expires_at) : null,
           tokens.scope ?? null,
         ],
       );
