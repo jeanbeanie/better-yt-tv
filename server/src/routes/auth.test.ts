@@ -315,6 +315,12 @@ describe("GET /api/auth/callback", () => {
 
     const poolCalls = vi.mocked(pool.query).mock.calls.map(([sql]) => String(sql));
     expect(poolCalls.some((sql) => sql.includes("insert into oauth_tokens"))).toBe(true);
+
+    const oauthTokenCall = vi
+      .mocked(pool.query)
+      .mock.calls.find(([sql]) => String(sql).includes("insert into oauth_tokens"));
+    expect(String(oauthTokenCall?.[0])).not.toContain("access_token");
+    expect(oauthTokenCall?.[1]).toEqual(["user-1", expect.any(String), "openid email"]);
     expect(poolCalls.some((sql) => sql.includes("update sessions") && sql.includes("user_id"))).toBe(true);
     expect(poolCalls.some((sql) => sql.includes("insert into sessions"))).toBe(true);
 
