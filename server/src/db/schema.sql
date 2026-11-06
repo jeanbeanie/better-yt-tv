@@ -58,6 +58,16 @@ CREATE TABLE public.billing_customers (
 
 
 --
+-- Name: channel_live_check_state; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.channel_live_check_state (
+    channel_id text NOT NULL,
+    last_checked_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: channel_preferences; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -229,7 +239,10 @@ CREATE TABLE public.videos_cache (
     published_at timestamp with time zone NOT NULL,
     duration_seconds integer,
     thumb_url text,
-    fetched_at timestamp with time zone DEFAULT now() NOT NULL
+    fetched_at timestamp with time zone DEFAULT now() NOT NULL,
+    live_broadcast_content text,
+    scheduled_start_time timestamp with time zone,
+    actual_start_time timestamp with time zone
 );
 
 
@@ -284,6 +297,14 @@ ALTER TABLE ONLY public.billing_customers
 
 ALTER TABLE ONLY public.billing_customers
     ADD CONSTRAINT billing_customers_stripe_customer_id_key UNIQUE (stripe_customer_id);
+
+
+--
+-- Name: channel_live_check_state channel_live_check_state_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel_live_check_state
+    ADD CONSTRAINT channel_live_check_state_pkey PRIMARY KEY (channel_id);
 
 
 --
@@ -605,4 +626,5 @@ INSERT INTO public.schema_migrations (version) VALUES
     ('20260820012510'),
     ('20260821071857'),
     ('20260823163749'),
-    ('20261105000000');
+    ('20261105000000'),
+    ('20261106000000');
