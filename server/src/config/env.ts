@@ -23,6 +23,7 @@ const EnvSchema = z.object({
   OAUTH_CALLBACK_URL: z.string().url(),
 
   YOUTUBE_CACHE_TTL_MINUTES: z.coerce.number().int().positive().default(240),
+  YOUTUBE_LIVE_CACHE_TTL_MINUTES: z.coerce.number().int().positive().default(3),
 
   CLIENT_ORIGIN: z.string().url().default("http://localhost:5173")
 });
