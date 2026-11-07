@@ -181,3 +181,98 @@ export async function classifyVideos(args: {
 
   return saved;
 }
+
+const CLASSIFY_RECENT_DAYS = 14;
+
+// Pick video ids to pass to classifyVideos, capped at limit
+// C: cached channel videos that are live or upcoming, always first
+// A: rss ids not cached or cached without a status
+// B: recent cached channel videos without a status
+// uncached rss ids have no published_at, nulls first ranks them as newest
+export async function findVideoIdsToClassify(
+  channelIds: string[],
+  rssIds: string[],
+  limit: number,
+): Promise<string[]> {
+  if (limit <= 0) {
+    return [];
+  }
+  // dedupe before the query so the union does not carry repeats
+  const uniqueRssIds = [...new Set(rssIds)];
+  if (channelIds.length === 0 && uniqueRssIds.length === 0) {
+    return [];
+  }
+
+  const result = await pool.query(
+    `
+    with candidates as (
+      select video_id, 0 as priority, published_at
+      from videos_cache
+      where channel_id = any($1::text[])
+        and live_broadcast_content in ('live', 'upcoming')
+      union all
+      select video_id, 1, published_at
+      from videos_cache
+      where channel_id = any($1::text[])
+        and live_broadcast_content is null
+        and published_at >= now() - make_interval(days => $4::int)
+      union all
+      select r.video_id, 1, v.published_at
+      from unnest($2::text[]) as r(video_id)
+      left join videos_cache v on v.video_id = r.video_id
+      where v.video_id is null or v.live_broadcast_content is null
+    )
+    select video_id
+    from candidates
+    group by video_id
+    order by min(priority), max(published_at) desc nulls first
+    limit $3
+    `,
+    [channelIds, uniqueRssIds, limit, CLASSIFY_RECENT_DAYS],
+  );
+
+  return result.rows.map((row) => row.video_id);
+}
+
+// channels with no state row are due, a missing row must not hide them
+export async function getDueLiveChannels(
+  channelIds: string[],
+  ttlMinutes: number,
+): Promise<string[]> {
+  const uniqueIds = [...new Set(channelIds)];
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+
+  const result = await pool.query(
+    `
+    select c.channel_id
+    from unnest($1::text[]) as c(channel_id)
+    left join channel_live_check_state s on s.channel_id = c.channel_id
+    where s.channel_id is null
+       or s.last_checked_at <= now() - make_interval(mins => $2::int)
+    `,
+    [uniqueIds, ttlMinutes],
+  );
+
+  return result.rows.map((row) => row.channel_id);
+}
+
+// duplicate ids in one upsert make postgres reject the statement
+export async function markLiveChannelsChecked(channelIds: string[]): Promise<void> {
+  const uniqueIds = [...new Set(channelIds)];
+  if (uniqueIds.length === 0) {
+    return;
+  }
+
+  await pool.query(
+    `
+    insert into channel_live_check_state (channel_id, last_checked_at)
+    select c.channel_id, now()
+    from unnest($1::text[]) as c(channel_id)
+    on conflict (channel_id) do update
+      set last_checked_at = now()
+    `,
+    [uniqueIds],
+  );
+}

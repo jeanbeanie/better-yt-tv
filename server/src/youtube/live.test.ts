@@ -12,7 +12,7 @@ vi.mock("./quota.js", () => ({
 
 const { pool } = await import("../db/pool.js");
 const { recordQuotaUsage } = await import("./quota.js");
-const { fetchChannelRssVideoIds, classifyVideos } = await import("./live.js");
+const { fetchChannelRssVideoIds, classifyVideos, findVideoIdsToClassify, getDueLiveChannels, markLiveChannelsChecked } = await import("./live.js");
 
 const CHANNEL_ID = "UCxxxxxxxxxxxxxxxxxxxxxx";
 
@@ -358,5 +358,113 @@ describe("classifyVideos", () => {
     expect(saved).toBe(1);
     const [, params] = vi.mocked(pool.query).mock.calls[0];
     expect(params).toContainEqual(["a"]);
+  });
+});
+
+describe("findVideoIdsToClassify", () => {
+  beforeEach(() => {
+    vi.mocked(pool.query).mockReset();
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult());
+  });
+
+  it("returns [] and runs no query when channelIds and rssIds are empty", async () => {
+    const ids = await findVideoIdsToClassify([], [], 10);
+
+    expect(ids).toEqual([]);
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it("returns [] and runs no query when limit is 0 or negative", async () => {
+    expect(await findVideoIdsToClassify(["UCa"], ["v1"], 0)).toEqual([]);
+    expect(await findVideoIdsToClassify(["UCa"], ["v1"], -1)).toEqual([]);
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it("maps result rows to video ids in row order", async () => {
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValueOnce(
+      mockQueryResult({ rows: [{ video_id: "vidB" }, { video_id: "vidA" }] }),
+    );
+
+    const ids = await findVideoIdsToClassify(["UCa"], ["vidA"], 10);
+
+    expect(ids).toEqual(["vidB", "vidA"]);
+  });
+
+  it("dedupes rssIds and passes channelIds, limit and the recent day window as params", async () => {
+    await findVideoIdsToClassify(["UCa"], ["v1", "v2", "v1"], 10);
+
+    const params = mockedQuery(vi.mocked(pool.query)).mock.calls[0][1];
+    expect(params).toEqual([["UCa"], ["v1", "v2"], 10, 14]);
+  });
+
+  it("still queries when channelIds is empty but rssIds is not", async () => {
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValueOnce(
+      mockQueryResult({ rows: [{ video_id: "v1" }] }),
+    );
+
+    const ids = await findVideoIdsToClassify([], ["v1"], 10);
+
+    expect(pool.query).toHaveBeenCalledTimes(1);
+    expect(ids).toEqual(["v1"]);
+  });
+});
+
+describe("getDueLiveChannels", () => {
+  beforeEach(() => {
+    vi.mocked(pool.query).mockReset();
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult());
+  });
+
+  it("returns [] and runs no query for empty input", async () => {
+    const ids = await getDueLiveChannels([], 30);
+
+    expect(ids).toEqual([]);
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it("maps result rows to channel ids in row order", async () => {
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValueOnce(
+      mockQueryResult({ rows: [{ channel_id: "UCb" }, { channel_id: "UCa" }] }),
+    );
+
+    const ids = await getDueLiveChannels([CHANNEL_ID, "UCa", "UCb"], 30);
+
+    expect(ids).toEqual(["UCb", "UCa"]);
+  });
+
+  it("dedupes channelIds and passes the ttl minutes as the second param", async () => {
+    await getDueLiveChannels(["UCa", "UCa", "UCb"], 30);
+
+    const params = mockedQuery(vi.mocked(pool.query)).mock.calls[0][1];
+    expect(params).toEqual([["UCa", "UCb"], 30]);
+  });
+});
+
+describe("markLiveChannelsChecked", () => {
+  beforeEach(() => {
+    vi.mocked(pool.query).mockReset();
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult());
+  });
+
+  it("runs no query for empty input", async () => {
+    await markLiveChannelsChecked([]);
+
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it("dedupes ids before the single query", async () => {
+    await markLiveChannelsChecked(["UCa", "UCb", "UCa"]);
+
+    expect(pool.query).toHaveBeenCalledTimes(1);
+    const params = mockedQuery(vi.mocked(pool.query)).mock.calls[0][1];
+    expect(params).toEqual([["UCa", "UCb"]]);
+  });
+
+  it("runs exactly one query for many ids", async () => {
+    await markLiveChannelsChecked(idsOf(120));
+
+    expect(pool.query).toHaveBeenCalledTimes(1);
+    const params = mockedQuery(vi.mocked(pool.query)).mock.calls[0][1];
+    expect(params).toEqual([idsOf(120)]);
   });
 });
