@@ -7,6 +7,7 @@ Live at [ytcatchup.com](https://ytcatchup.com) (invite only, demo GIF and screen
 <p align="center">
   <img src="docs/ytcatchup_demo.gif" alt="YT Catchup demo" />
 </p>
+
 ## Features
  
 - **All**: the main queue, recent uploads across all your enabled channels, in round-robin order.
