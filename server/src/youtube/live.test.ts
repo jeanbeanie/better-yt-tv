@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from "vitest";
 import { createMockPool, mockedQuery, mockQueryResult } from "../testUtils/pgMocks.js";
 import type { YoutubeVideo } from "./apiTypes.js";
 
@@ -12,7 +12,7 @@ vi.mock("./quota.js", () => ({
 
 const { pool } = await import("../db/pool.js");
 const { recordQuotaUsage } = await import("./quota.js");
-const { fetchChannelRssVideoIds, classifyVideos, findVideoIdsToClassify, getDueLiveChannels, markLiveChannelsChecked } = await import("./live.js");
+const { fetchChannelRssVideoIds, fetchRssIdsForChannels, classifyVideos, findVideoIdsToClassify, getDueLiveChannels, markLiveChannelsChecked } = await import("./live.js");
 
 const CHANNEL_ID = "UCxxxxxxxxxxxxxxxxxxxxxx";
 
@@ -113,6 +113,140 @@ describe("fetchChannelRssVideoIds", () => {
     const requested = String(vi.mocked(global.fetch).mock.calls[0][0]);
     expect(requested).toContain("https://www.youtube.com/feeds/videos.xml");
     expect(requested).toContain(`channel_id=${CHANNEL_ID}`);
+  });
+});
+
+describe("fetchRssIdsForChannels", () => {
+  let errorSpy: MockInstance;
+
+  beforeEach(() => {
+    global.fetch = vi.fn() as unknown as typeof fetch;
+    errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    errorSpy.mockRestore();
+  });
+
+  function channelIdsOf(count: number): string[] {
+    return Array.from({ length: count }, (_, i) => `UCchannel${String(i).padStart(2, "0")}`);
+  }
+
+  // video ids must match the 11 char pattern in VIDEO_ID_PATTERN
+  function videoIdOf(n: number): string {
+    return `vid${String(n).padStart(8, "0")}`;
+  }
+
+  function rssFeed(ids: string[]): Response {
+    const entries = ids.map((id) => `<entry><yt:videoId>${id}</yt:videoId></entry>`).join("");
+    return new Response(`<feed>${entries}</feed>`, { status: 200 });
+  }
+
+  // a throwing respond becomes a rejected fetch
+  function mockFetchByChannel(respond: (channelId: string) => Response | Promise<Response>) {
+    global.fetch = vi.fn(async (input: string | URL) =>
+      respond(new URL(String(input)).searchParams.get("channel_id") ?? ""),
+    ) as unknown as typeof fetch;
+  }
+
+  it("returns deduplicated ids across channels and dedupes requested channels", async () => {
+    const [c0, c1, c2] = channelIdsOf(3);
+    const feeds: Record<string, string[]> = {
+      [c0]: [videoIdOf(1), videoIdOf(2)],
+      [c1]: [videoIdOf(2), videoIdOf(3)],
+      [c2]: [videoIdOf(4)],
+    };
+    mockFetchByChannel((channelId) => rssFeed(feeds[channelId]));
+
+    const result = await fetchRssIdsForChannels([c0, c1, c2, c0]);
+
+    expect([...result.videoIds].sort()).toEqual([videoIdOf(1), videoIdOf(2), videoIdOf(3), videoIdOf(4)]);
+    expect(result.attemptedChannels).toBe(3);
+    expect(result.failedChannels).toBe(0);
+    expect(vi.mocked(global.fetch)).toHaveBeenCalledTimes(3);
+  });
+
+  it("counts a failing channel as failed and keeps the other channels ids", async () => {
+    const [c0, c1, c2] = channelIdsOf(3);
+    const feeds: Record<string, string[]> = {
+      [c0]: [videoIdOf(1)],
+      [c2]: [videoIdOf(2)],
+    };
+    mockFetchByChannel((channelId) =>
+      channelId === c1 ? new Response("outage", { status: 500 }) : rssFeed(feeds[channelId]),
+    );
+
+    const result = await fetchRssIdsForChannels([c0, c1, c2]);
+
+    expect([...result.videoIds].sort()).toEqual([videoIdOf(1), videoIdOf(2)]);
+    expect(result.attemptedChannels).toBe(3);
+    expect(result.failedChannels).toBe(1);
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("never has more than 5 requests in flight", async () => {
+    const channels = channelIdsOf(12);
+    let inFlight = 0;
+    let maxInFlight = 0;
+    global.fetch = vi.fn(async () => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await Promise.resolve();
+      inFlight--;
+      return rssFeed([]);
+    }) as unknown as typeof fetch;
+
+    const result = await fetchRssIdsForChannels(channels);
+
+    expect(maxInFlight).toBe(5);
+    expect(vi.mocked(global.fetch)).toHaveBeenCalledTimes(12);
+    expect(result.attemptedChannels).toBe(12);
+    expect(result.failedChannels).toBe(0);
+  });
+
+  it("stops after the first group when every channel in it fails", async () => {
+    const channels = channelIdsOf(12);
+    mockFetchByChannel(() => new Response("outage", { status: 500 }));
+
+    const result = await fetchRssIdsForChannels(channels);
+
+    expect(vi.mocked(global.fetch)).toHaveBeenCalledTimes(5);
+    expect(result).toEqual({ videoIds: [], attemptedChannels: 5, failedChannels: 5 });
+    expect(errorSpy).toHaveBeenCalledTimes(5);
+  });
+
+  it("does not stop on a partially failed group", async () => {
+    const channels = channelIdsOf(12);
+    const failing = new Set(channels.slice(0, 4));
+    mockFetchByChannel((channelId) =>
+      failing.has(channelId) ? new Response("outage", { status: 500 }) : rssFeed([videoIdOf(0)]),
+    );
+
+    const result = await fetchRssIdsForChannels(channels);
+
+    expect(vi.mocked(global.fetch)).toHaveBeenCalledTimes(12);
+    expect(result.attemptedChannels).toBe(12);
+    expect(result.failedChannels).toBe(4);
+  });
+
+  it("makes no requests for an empty channel list", async () => {
+    const result = await fetchRssIdsForChannels([]);
+
+    expect(vi.mocked(global.fetch)).not.toHaveBeenCalled();
+    expect(result).toEqual({ videoIds: [], attemptedChannels: 0, failedChannels: 0 });
+  });
+
+  it("treats a rejected fetch as a failed channel and logs it", async () => {
+    const [c0, c1] = channelIdsOf(2);
+    mockFetchByChannel((channelId) => {
+      if (channelId === c0) throw new TypeError("fetch failed");
+      return rssFeed([videoIdOf(1)]);
+    });
+
+    const result = await fetchRssIdsForChannels([c0, c1]);
+
+    expect(result).toEqual({ videoIds: [videoIdOf(1)], attemptedChannels: 2, failedChannels: 1 });
+    expect(errorSpy).toHaveBeenCalledWith(`Failed to fetch RSS for channel ${c0}:`, expect.any(TypeError));
   });
 });
 

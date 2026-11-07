@@ -50,6 +50,7 @@ vi.mock("../settings/appSettings.js", () => ({
 vi.mock("../youtube/live.js", () => ({
   getDueLiveChannels: vi.fn(),
   findVideoIdsToClassify: vi.fn(),
+  fetchRssIdsForChannels: vi.fn(),
   classifyVideos: vi.fn(),
   markLiveChannelsChecked: vi.fn(),
 }));
@@ -70,6 +71,7 @@ const { getAppSettings } = await import("../settings/appSettings.js");
 const { refreshAccessToken } = await import("../auth/google.js");
 const {
   getDueLiveChannels,
+  fetchRssIdsForChannels,
   findVideoIdsToClassify,
   classifyVideos,
   markLiveChannelsChecked,
@@ -517,6 +519,8 @@ describe("POST /api/youtube/refresh-live", () => {
     vi.mocked(findVideoIdsToClassify).mockReset();
     vi.mocked(classifyVideos).mockReset();
     vi.mocked(markLiveChannelsChecked).mockReset();
+    vi.mocked(fetchRssIdsForChannels).mockReset();
+    vi.mocked(fetchRssIdsForChannels).mockResolvedValue({ videoIds: [], attemptedChannels: 0, failedChannels: 0 });
     vi.mocked(revokeSessionAndTokens).mockReset();
   });
 
@@ -532,7 +536,7 @@ describe("POST /api/youtube/refresh-live", () => {
       .set("Cookie", "sid=fake-session");
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true, refreshPaused: true, checkedChannels: 0, classifiedVideos: 0 });
+    expect(res.body).toEqual({ ok: true, refreshPaused: true, checkedChannels: 0, rssAttemptedChannels: 0, rssFailedChannels: 0, classifiedVideos: 0 });
     expect(pool.query).not.toHaveBeenCalled();
     expect(getDueLiveChannels).not.toHaveBeenCalled();
     expect(findVideoIdsToClassify).not.toHaveBeenCalled();
@@ -548,7 +552,7 @@ describe("POST /api/youtube/refresh-live", () => {
       .set("Cookie", "sid=fake-session");
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true, refreshPaused: false, checkedChannels: 0, classifiedVideos: 0 });
+    expect(res.body).toEqual({ ok: true, refreshPaused: false, checkedChannels: 0, rssAttemptedChannels: 0, rssFailedChannels: 0, classifiedVideos: 0 });
     expect(getDueLiveChannels).not.toHaveBeenCalled();
   });
 
@@ -561,7 +565,7 @@ describe("POST /api/youtube/refresh-live", () => {
       .set("Cookie", "sid=fake-session");
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true, refreshPaused: false, checkedChannels: 0, classifiedVideos: 0 });
+    expect(res.body).toEqual({ ok: true, refreshPaused: false, checkedChannels: 0, rssAttemptedChannels: 0, rssFailedChannels: 0, classifiedVideos: 0 });
     expect(findVideoIdsToClassify).not.toHaveBeenCalled();
     expect(refreshAccessToken).not.toHaveBeenCalled();
     expect(markLiveChannelsChecked).not.toHaveBeenCalled();
@@ -578,7 +582,7 @@ describe("POST /api/youtube/refresh-live", () => {
       .set("Cookie", "sid=fake-session");
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true, refreshPaused: false, checkedChannels: 1, classifiedVideos: 2 });
+    expect(res.body).toEqual({ ok: true, refreshPaused: false, checkedChannels: 1, rssAttemptedChannels: 0, rssFailedChannels: 0, classifiedVideos: 2 });
     expect(findVideoIdsToClassify).toHaveBeenCalledWith(["chan1"], [], 1000);
     expect(refreshAccessToken).toHaveBeenCalledTimes(1);
     expect(classifyVideos).toHaveBeenCalledWith({
@@ -603,7 +607,7 @@ describe("POST /api/youtube/refresh-live", () => {
       .set("Cookie", "sid=fake-session");
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ ok: true, refreshPaused: false, checkedChannels: 1, classifiedVideos: 0 });
+    expect(res.body).toEqual({ ok: true, refreshPaused: false, checkedChannels: 1, rssAttemptedChannels: 0, rssFailedChannels: 0, classifiedVideos: 0 });
     expect(refreshAccessToken).not.toHaveBeenCalled();
     expect(classifyVideos).not.toHaveBeenCalled();
     expect(markLiveChannelsChecked).toHaveBeenCalledWith(["chan1"]);
@@ -674,5 +678,83 @@ describe("POST /api/youtube/refresh-live", () => {
     expect(revokeSessionAndTokens).toHaveBeenCalledWith("test-user-id", "fake-session");
     expect(classifyVideos).not.toHaveBeenCalled();
     expect(markLiveChannelsChecked).not.toHaveBeenCalled();
+  });
+
+  it("passes the rss ids, due channels and max ids to findVideoIdsToClassify", async () => {
+    mockLiveChannelsQuery(["chan1", "chan2"]);
+    vi.mocked(getDueLiveChannels).mockResolvedValue(["chan1"]);
+    vi.mocked(fetchRssIdsForChannels).mockResolvedValue({ videoIds: ["rssVid1"], attemptedChannels: 1, failedChannels: 0 });
+    vi.mocked(findVideoIdsToClassify).mockResolvedValue([]);
+
+    await request(buildApp())
+      .post("/api/youtube/refresh-live")
+      .set("Cookie", "sid=fake-session");
+
+    expect(fetchRssIdsForChannels).toHaveBeenCalledWith(["chan1"]);
+    expect(findVideoIdsToClassify).toHaveBeenCalledWith(["chan1"], ["rssVid1"], 1000);
+  });
+
+  it("reports the rss attempted and failed counts from the helper in the response", async () => {
+    mockLiveChannelsQuery(["chan1"]);
+    vi.mocked(getDueLiveChannels).mockResolvedValue(["chan1"]);
+    vi.mocked(fetchRssIdsForChannels).mockResolvedValue({ videoIds: [], attemptedChannels: 3, failedChannels: 1 });
+    vi.mocked(findVideoIdsToClassify).mockResolvedValue([]);
+
+    const res = await request(buildApp())
+      .post("/api/youtube/refresh-live")
+      .set("Cookie", "sid=fake-session");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, refreshPaused: false, checkedChannels: 1, rssAttemptedChannels: 3, rssFailedChannels: 1, classifiedVideos: 0 });
+  });
+
+  it("still classifies cached ids and marks all due channels checked when every rss fetch failed", async () => {
+    mockLiveChannelsQuery(["chan1", "chan2"]);
+    vi.mocked(getDueLiveChannels).mockResolvedValue(["chan1", "chan2"]);
+    vi.mocked(fetchRssIdsForChannels).mockResolvedValue({ videoIds: [], attemptedChannels: 3, failedChannels: 3 });
+    vi.mocked(findVideoIdsToClassify).mockResolvedValue(["cachedVid"]);
+    vi.mocked(classifyVideos).mockResolvedValue(1);
+
+    const res = await request(buildApp())
+      .post("/api/youtube/refresh-live")
+      .set("Cookie", "sid=fake-session");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, refreshPaused: false, checkedChannels: 2, rssAttemptedChannels: 3, rssFailedChannels: 3, classifiedVideos: 1 });
+    expect(classifyVideos).toHaveBeenCalledWith(expect.objectContaining({ videoIds: ["cachedVid"] }));
+    expect(markLiveChannelsChecked).toHaveBeenCalledWith(["chan1", "chan2"]);
+  });
+
+  it("does not call the rss helper when no channel is due", async () => {
+    mockLiveChannelsQuery(["chan1"]);
+    vi.mocked(getDueLiveChannels).mockResolvedValue([]);
+
+    await request(buildApp())
+      .post("/api/youtube/refresh-live")
+      .set("Cookie", "sid=fake-session");
+
+    expect(fetchRssIdsForChannels).not.toHaveBeenCalled();
+  });
+
+  it("does not call the rss helper when no channel has live enabled", async () => {
+    mockLiveChannelsQuery([]);
+
+    await request(buildApp())
+      .post("/api/youtube/refresh-live")
+      .set("Cookie", "sid=fake-session");
+
+    expect(fetchRssIdsForChannels).not.toHaveBeenCalled();
+  });
+
+  it("passes only the due channels to the rss helper", async () => {
+    mockLiveChannelsQuery(["chan1", "chan2"]);
+    vi.mocked(getDueLiveChannels).mockResolvedValue(["chan2"]);
+    vi.mocked(findVideoIdsToClassify).mockResolvedValue([]);
+
+    await request(buildApp())
+      .post("/api/youtube/refresh-live")
+      .set("Cookie", "sid=fake-session");
+
+    expect(fetchRssIdsForChannels).toHaveBeenCalledWith(["chan2"]);
   });
 });

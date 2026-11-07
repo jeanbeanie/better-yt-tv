@@ -13,7 +13,7 @@ import {
   markChannelCacheRefreshed,
 } from "../youtube/videos.js";
 import { recordQuotaUsage, type QuotaCallContext } from "../youtube/quota.js";
-import { getDueLiveChannels, findVideoIdsToClassify, classifyVideos, markLiveChannelsChecked } from "../youtube/live.js";
+import { getDueLiveChannels, findVideoIdsToClassify, classifyVideos, markLiveChannelsChecked, fetchRssIdsForChannels } from "../youtube/live.js";
 import { getAppSettings } from "../settings/appSettings.js";
 import type {
   YoutubeSubscriptionListItem,
@@ -321,6 +321,8 @@ youtubeRouter.post(
         ok: true,
         refreshPaused: true,
         checkedChannels: 0,
+        rssAttemptedChannels: 0,
+        rssFailedChannels: 0,
         classifiedVideos: 0,
       });
     }
@@ -346,6 +348,8 @@ youtubeRouter.post(
       ok: true,
       refreshPaused: false,
       checkedChannels: 0,
+      rssAttemptedChannels: 0,
+      rssFailedChannels: 0,
       classifiedVideos: 0,
     };
 
@@ -361,7 +365,9 @@ youtubeRouter.post(
       return res.json(idleResponse);
     }
 
-    const videoIds = await findVideoIdsToClassify(dueChannels, [], LIVE_CLASSIFY_MAX_IDS);
+    // best effort, failed RSS channels still classify cached ids
+    const rss = await fetchRssIdsForChannels(dueChannels);
+    const videoIds = await findVideoIdsToClassify(dueChannels, rss.videoIds, LIVE_CLASSIFY_MAX_IDS);
 
     let classifiedVideos = 0;
     // lazily request access token only if ids need classifying
@@ -381,6 +387,8 @@ youtubeRouter.post(
       ok: true,
       refreshPaused: false,
       checkedChannels: dueChannels.length,
+      rssAttemptedChannels: rss.attemptedChannels,
+      rssFailedChannels: rss.failedChannels,
       classifiedVideos,
     });
   }),

@@ -6,6 +6,7 @@ import type {
 } from "./apiTypes.js";
 
 const RSS_FETCH_TIMEOUT_MS = 5000;
+const RSS_CONCURRENCY = 5;
 
 const VIDEO_ID_PATTERN = /<yt:videoId>([A-Za-z0-9_-]{11})<\/yt:videoId>/g;
 
@@ -25,6 +26,42 @@ export async function fetchChannelRssVideoIds(channelId: string): Promise<string
 
   const xml = await resp.text();
   return Array.from(xml.matchAll(VIDEO_ID_PATTERN), (match) => match[1]);
+}
+
+// an outage fails every channel, stop instead of waiting on each timeout
+export async function fetchRssIdsForChannels(channelIds: string[]): Promise<{
+  videoIds: string[];
+  attemptedChannels: number;
+  failedChannels: number;
+}> {
+  const uniqueChannelIds = [...new Set(channelIds)];
+  const videoIds = new Set<string>();
+  let attemptedChannels = 0;
+  let failedChannels = 0;
+
+  for (let i = 0; i < uniqueChannelIds.length; i += RSS_CONCURRENCY) {
+    const group = uniqueChannelIds.slice(i, i + RSS_CONCURRENCY);
+    attemptedChannels += group.length;
+
+    const results = await Promise.allSettled(
+      group.map((channelId) => fetchChannelRssVideoIds(channelId)),
+    );
+
+    let groupFailed = 0;
+    results.forEach((result, index) => {
+      if (result.status === "fulfilled") {
+        for (const id of result.value) videoIds.add(id);
+        return;
+      }
+      groupFailed++;
+      console.error(`Failed to fetch RSS for channel ${group[index]}:`, result.reason);
+    });
+    failedChannels += groupFailed;
+
+    if (groupFailed === group.length) break;
+  }
+
+  return { videoIds: [...videoIds], attemptedChannels, failedChannels };
 }
 
 // videos.list accepts at most 50 ids per call
