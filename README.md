@@ -15,12 +15,14 @@ Live at [ytcatchup.com](https://ytcatchup.com) (invite only, demo GIF and screen
 - **Settings**: per channel preferences (enable/disable in All, enable/disable Live, exclude Shorts), with bulk edit controls.
 - **Catch-up mode**: autoplay straight through your unwatched videos instead of picking each one manually.
 - **Changelog**: a page summarizing what shipped, grouped by date.
+- 
 ## Engineering highlights
  
 - **Built to run on YouTube's free daily quota**: the queue is served from videos cached in Postgres, with a refresh time tracked per channel, so the YouTube Data API is only called to refresh stale channels or resync subscriptions.
 - **Secure Google login**: an OAuth state check protects the login flow against CSRF, and Google refresh tokens are encrypted at rest, kept separate from the app's own session cookie.
 - **Tested and checked in CI**: Vitest and React Testing Library tests, plus lint and accessibility checks (jsx-a11y, vitest-axe), run on every pull request with GitHub Actions.
 - **Observability**: an admin dashboard with live YouTube quota tracking and a refresh kill switch, plus Grafana dashboards on real usage data.
+- 
 ## Screenshots
  
 <details>
@@ -46,6 +48,7 @@ Live at [ytcatchup.com](https://ytcatchup.com) (invite only, demo GIF and screen
   <img src="docs/screenshots/5-admin.png" alt="Admin" width="900" />
 </p>
 </details>
+
 ## Tech stack
  
 ### Frontend
