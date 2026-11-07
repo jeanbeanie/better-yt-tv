@@ -47,6 +47,17 @@ vi.mock("../settings/appSettings.js", () => ({
   getAppSettings: vi.fn(),
 }));
 
+vi.mock("../youtube/live.js", () => ({
+  getDueLiveChannels: vi.fn(),
+  findVideoIdsToClassify: vi.fn(),
+  classifyVideos: vi.fn(),
+  markLiveChannelsChecked: vi.fn(),
+}));
+
+vi.mock("../auth/revoke.js", () => ({
+  revokeSessionAndTokens: vi.fn(),
+}));
+
 const { pool } = await import("../db/pool.js");
 const { recordQuotaUsage } = await import("../youtube/quota.js");
 const {
@@ -56,6 +67,15 @@ const {
   markChannelCacheRefreshed,
 } = await import("../youtube/videos.js");
 const { getAppSettings } = await import("../settings/appSettings.js");
+const { refreshAccessToken } = await import("../auth/google.js");
+const {
+  getDueLiveChannels,
+  findVideoIdsToClassify,
+  classifyVideos,
+  markLiveChannelsChecked,
+} = await import("../youtube/live.js");
+const { revokeSessionAndTokens } = await import("../auth/revoke.js");
+const { env } = await import("../config/env.js");
 const { youtubeRouter } = await import("./youtube.js");
 
 function buildApp() {
@@ -461,5 +481,198 @@ describe("POST /api/youtube/refresh-all-cache", () => {
       expect.objectContaining({ cachedUploadsPlaylistId: "UUcached" }),
     );
     expect(markChannelCacheRefreshed).toHaveBeenCalledWith("chan1", "UUcached");
+  });
+});
+
+// pool.query is mocked, so these return canned rows keyed on query shape
+function mockLiveChannelsQuery(channelIds: string[]) {
+  mockedQuery(vi.mocked(pool.query)).mockImplementation(async (sql) => {
+    if (sql.includes("oauth_tokens")) {
+      return mockQueryResult({
+        rows: [{ refresh_token_ciphertext: "fake-ciphertext" }],
+        rowCount: 1,
+      });
+    }
+    if (sql.includes("from user_subscriptions us")) {
+      return mockQueryResult({
+        rows: channelIds.map((channel_id) => ({ channel_id })),
+        rowCount: channelIds.length,
+      });
+    }
+    throw new Error(`Unexpected query in mockLiveChannelsQuery: ${sql}`);
+  });
+}
+
+describe("POST /api/youtube/refresh-live", () => {
+  beforeEach(() => {
+    vi.mocked(pool.query).mockReset();
+    vi.mocked(getAppSettings).mockReset();
+    vi.mocked(getAppSettings).mockResolvedValue({
+      refreshPaused: false,
+      updatedAt: "2026-08-21T00:00:00.000Z",
+      updatedBy: null,
+    });
+    vi.mocked(refreshAccessToken).mockReset();
+    vi.mocked(getDueLiveChannels).mockReset();
+    vi.mocked(findVideoIdsToClassify).mockReset();
+    vi.mocked(classifyVideos).mockReset();
+    vi.mocked(markLiveChannelsChecked).mockReset();
+    vi.mocked(revokeSessionAndTokens).mockReset();
+  });
+
+  it("returns the paused response without querying or calling the live helpers", async () => {
+    vi.mocked(getAppSettings).mockResolvedValue({
+      refreshPaused: true,
+      updatedAt: "2026-08-21T00:00:00.000Z",
+      updatedBy: null,
+    });
+
+    const res = await request(buildApp())
+      .post("/api/youtube/refresh-live")
+      .set("Cookie", "sid=fake-session");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, refreshPaused: true, checkedChannels: 0, classifiedVideos: 0 });
+    expect(pool.query).not.toHaveBeenCalled();
+    expect(getDueLiveChannels).not.toHaveBeenCalled();
+    expect(findVideoIdsToClassify).not.toHaveBeenCalled();
+    expect(classifyVideos).not.toHaveBeenCalled();
+    expect(markLiveChannelsChecked).not.toHaveBeenCalled();
+  });
+
+  it("returns zero counts and never checks due channels when no channel has live enabled", async () => {
+    mockLiveChannelsQuery([]);
+
+    const res = await request(buildApp())
+      .post("/api/youtube/refresh-live")
+      .set("Cookie", "sid=fake-session");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, refreshPaused: false, checkedChannels: 0, classifiedVideos: 0 });
+    expect(getDueLiveChannels).not.toHaveBeenCalled();
+  });
+
+  it("skips classification and token lookup when no channel is due", async () => {
+    mockLiveChannelsQuery(["chan1"]);
+    vi.mocked(getDueLiveChannels).mockResolvedValue([]);
+
+    const res = await request(buildApp())
+      .post("/api/youtube/refresh-live")
+      .set("Cookie", "sid=fake-session");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, refreshPaused: false, checkedChannels: 0, classifiedVideos: 0 });
+    expect(findVideoIdsToClassify).not.toHaveBeenCalled();
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+    expect(markLiveChannelsChecked).not.toHaveBeenCalled();
+  });
+
+  it("fetches one access token, classifies the ids, and marks the due channels checked", async () => {
+    mockLiveChannelsQuery(["chan1", "chan2"]);
+    vi.mocked(getDueLiveChannels).mockResolvedValue(["chan1"]);
+    vi.mocked(findVideoIdsToClassify).mockResolvedValue(["vid1", "vid2"]);
+    vi.mocked(classifyVideos).mockResolvedValue(2);
+
+    const res = await request(buildApp())
+      .post("/api/youtube/refresh-live")
+      .set("Cookie", "sid=fake-session");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, refreshPaused: false, checkedChannels: 1, classifiedVideos: 2 });
+    expect(findVideoIdsToClassify).toHaveBeenCalledWith(["chan1"], [], 1000);
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(classifyVideos).toHaveBeenCalledWith({
+      accessToken: "fake-access-token",
+      videoIds: ["vid1", "vid2"],
+      quotaContext: {
+        action: "refresh-live",
+        userId: "test-user-id",
+        requestGroupId: expect.any(String),
+      },
+    });
+    expect(markLiveChannelsChecked).toHaveBeenCalledWith(["chan1"]);
+  });
+
+  it("marks due channels checked without fetching a token when no ids need classifying", async () => {
+    mockLiveChannelsQuery(["chan1"]);
+    vi.mocked(getDueLiveChannels).mockResolvedValue(["chan1"]);
+    vi.mocked(findVideoIdsToClassify).mockResolvedValue([]);
+
+    const res = await request(buildApp())
+      .post("/api/youtube/refresh-live")
+      .set("Cookie", "sid=fake-session");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, refreshPaused: false, checkedChannels: 1, classifiedVideos: 0 });
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+    expect(classifyVideos).not.toHaveBeenCalled();
+    expect(markLiveChannelsChecked).toHaveBeenCalledWith(["chan1"]);
+  });
+
+  // pool.query is mocked, so this guards the query's shape, not its results
+  // it keeps enabled_live as a left join with a fail-open default, and keeps
+  // enabled_all out of the live selection
+  it("selects channels by enabled_live with a left join to channel_preferences", async () => {
+    mockLiveChannelsQuery([]);
+
+    await request(buildApp())
+      .post("/api/youtube/refresh-live")
+      .set("Cookie", "sid=fake-session");
+
+    const call = mockedQuery(vi.mocked(pool.query)).mock.calls.find(([sql]) =>
+      sql.includes("from user_subscriptions us"),
+    );
+    expect(call).toBeDefined();
+    const sql = call![0];
+    expect(sql).toContain("left join channel_preferences");
+    expect(sql).toContain("coalesce(cp.enabled_live, true)");
+    expect(sql).not.toContain("enabled_all");
+  });
+
+  it("passes the live cache ttl, not the general cache ttl, to getDueLiveChannels", async () => {
+    mockLiveChannelsQuery(["chan1", "chan2"]);
+    vi.mocked(getDueLiveChannels).mockResolvedValue([]);
+
+    await request(buildApp())
+      .post("/api/youtube/refresh-live")
+      .set("Cookie", "sid=fake-session");
+
+    // the assertion below only proves the live ttl is used when the two values differ
+    expect(env.YOUTUBE_LIVE_CACHE_TTL_MINUTES).not.toBe(env.YOUTUBE_CACHE_TTL_MINUTES);
+    expect(getDueLiveChannels).toHaveBeenCalledWith(
+      ["chan1", "chan2"],
+      env.YOUTUBE_LIVE_CACHE_TTL_MINUTES,
+    );
+  });
+
+  it("responds 500 and does not mark channels checked when classification throws", async () => {
+    mockLiveChannelsQuery(["chan1"]);
+    vi.mocked(getDueLiveChannels).mockResolvedValue(["chan1"]);
+    vi.mocked(findVideoIdsToClassify).mockResolvedValue(["vid1"]);
+    vi.mocked(classifyVideos).mockRejectedValue(new Error("YouTube video details fetch failed: 500 boom"));
+
+    const res = await request(buildApp())
+      .post("/api/youtube/refresh-live")
+      .set("Cookie", "sid=fake-session");
+
+    expect(res.status).toBe(500);
+    expect(markLiveChannelsChecked).not.toHaveBeenCalled();
+  });
+
+  it("returns YOUTUBE_REAUTH_REQUIRED and does not mark channels checked on invalid_grant", async () => {
+    mockLiveChannelsQuery(["chan1"]);
+    vi.mocked(getDueLiveChannels).mockResolvedValue(["chan1"]);
+    vi.mocked(findVideoIdsToClassify).mockResolvedValue(["vid1"]);
+    vi.mocked(refreshAccessToken).mockRejectedValueOnce(new Error("Refresh failed: 400 invalid_grant"));
+
+    const res = await request(buildApp())
+      .post("/api/youtube/refresh-live")
+      .set("Cookie", "sid=fake-session");
+
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe("YOUTUBE_REAUTH_REQUIRED");
+    expect(revokeSessionAndTokens).toHaveBeenCalledWith("test-user-id", "fake-session");
+    expect(classifyVideos).not.toHaveBeenCalled();
+    expect(markLiveChannelsChecked).not.toHaveBeenCalled();
   });
 });

@@ -150,6 +150,19 @@ function mockVideosFetch(respond: (ids: string[]) => Response) {
   return fetchMock;
 }
 
+// retire updates also go through pool.query, so tests pick calls by sql
+function insertCalls() {
+  return mockedQuery(vi.mocked(pool.query)).mock.calls.filter(([sql]) =>
+    String(sql).includes("insert into videos_cache"),
+  );
+}
+
+function updateCalls() {
+  return mockedQuery(vi.mocked(pool.query)).mock.calls.filter(([sql]) =>
+    String(sql).includes("update videos_cache"),
+  );
+}
+
 describe("classifyVideos", () => {
   beforeEach(() => {
     vi.mocked(recordQuotaUsage).mockReset();
@@ -335,7 +348,7 @@ describe("classifyVideos", () => {
     });
 
     expect(saved).toBe(1);
-    const [, params] = vi.mocked(pool.query).mock.calls[0];
+    const [, params] = insertCalls()[0];
     expect(params).toContainEqual(["ok1"]);
   });
 
@@ -356,7 +369,7 @@ describe("classifyVideos", () => {
     const saved = await classifyVideos({ accessToken: "token", videoIds: ["a", "b", "c"] });
 
     expect(saved).toBe(1);
-    const [, params] = vi.mocked(pool.query).mock.calls[0];
+    const [, params] = insertCalls()[0];
     expect(params).toContainEqual(["a"]);
   });
 
@@ -395,6 +408,58 @@ describe("classifyVideos", () => {
     expect(saved).toBe(1);
     const [, params] = vi.mocked(pool.query).mock.calls[0];
     expect(params).toContainEqual(["dup"]);
+  });
+
+  it("retires a requested id the response omits and leaves returned ids alone", async () => {
+    mockVideosFetch(() => jsonResponse([validItem("a")]));
+
+    const saved = await classifyVideos({ accessToken: "token", videoIds: ["a", "b", "c"] });
+
+    expect(saved).toBe(1);
+    const updates = updateCalls();
+    expect(updates).toHaveLength(1);
+    const [, params] = updates[0];
+    expect(params?.[0]).toEqual(["b", "c"]);
+  });
+
+  it("runs no retire update when every requested id is returned", async () => {
+    mockVideosFetch((requested) => jsonResponse(requested.map(validItem)));
+
+    await classifyVideos({ accessToken: "token", videoIds: ["a", "b"] });
+
+    expect(updateCalls()).toHaveLength(0);
+  });
+
+  it("does not retire an id that is returned but skipped as invalid", async () => {
+    mockVideosFetch(() =>
+      jsonResponse([
+        validItem("ok1"),
+        { id: "noTitle", snippet: { channelId: "UCchan", publishedAt: PUBLISHED_AT } },
+      ]),
+    );
+
+    const saved = await classifyVideos({ accessToken: "token", videoIds: ["ok1", "noTitle"] });
+
+    expect(saved).toBe(1);
+    expect(updateCalls()).toHaveLength(0);
+  });
+
+  it("keeps the retire update from an earlier batch when a later batch fails", async () => {
+    mockVideosFetch((requested) =>
+      requested.includes("vid50")
+        ? new Response("boom", { status: 500 })
+        : jsonResponse(requested.filter((id) => id !== "vid0").map(validItem)),
+    );
+
+    await expect(
+      classifyVideos({ accessToken: "token", videoIds: idsOf(100) }),
+    ).rejects.toThrow("YouTube video details fetch failed: 500");
+
+    const updates = updateCalls();
+    expect(updates).toHaveLength(1);
+    const [, params] = updates[0];
+    expect(params?.[0]).toEqual(["vid0"]);
+    expect(insertCalls()).toHaveLength(1);
   });
 });
 

@@ -155,6 +155,19 @@ async function upsertVideoRows(rows: VideoRow[]): Promise<void> {
   );
 }
 
+// deleted or private videos are never returned again, so retire their live status
+async function retireAbsentLiveRows(absentIds: string[]): Promise<void> {
+  await pool.query(
+    `
+    update videos_cache
+    set live_broadcast_content = 'none'
+    where video_id = any($1::text[])
+      and live_broadcast_content in ('live', 'upcoming')
+    `,
+    [absentIds],
+  );
+}
+
 // Fetch live status for video ids from YouTube and save it into videos_cache
 // returns the number of rows saved, ids YouTube does not return are not written
 export async function classifyVideos(args: {
@@ -167,11 +180,18 @@ export async function classifyVideos(args: {
 
   let saved = 0;
   for (let i = 0; i < uniqueIds.length; i += VIDEOS_LIST_MAX_IDS) {
+    const batchIds = uniqueIds.slice(i, i + VIDEOS_LIST_MAX_IDS);
     const items = await fetchVideoDetails({
       accessToken: args.accessToken,
-      videoIds: uniqueIds.slice(i, i + VIDEOS_LIST_MAX_IDS),
+      videoIds: batchIds,
       quotaContext: args.quotaContext,
     });
+
+    const returnedIds = new Set(items.map((item) => item.id));
+    const absentIds = batchIds.filter((id) => !returnedIds.has(id));
+    if (absentIds.length > 0) {
+      await retireAbsentLiveRows(absentIds);
+    }
 
     // repeated ids in one response make the upsert fail
     const rowsById = new Map<string, VideoRow>();
