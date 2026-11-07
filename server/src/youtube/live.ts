@@ -43,12 +43,21 @@ type VideoRow = {
   actualStartTime: Date | null;
 };
 
+// returns null for missing or unparseable values
+function parseDate(value: string | undefined): Date | null {
+  if (!value) {
+    return null;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 // drops items missing the fields the upsert needs
 function toVideoRow(item: YoutubeVideo): VideoRow | null {
   const videoId = item.id;
   const channelId = item.snippet?.channelId;
   const title = item.snippet?.title;
-  const publishedAt = item.snippet?.publishedAt;
+  const publishedAt = parseDate(item.snippet?.publishedAt);
   if (!videoId || !channelId || !title || !publishedAt) {
     return null;
   }
@@ -57,7 +66,7 @@ function toVideoRow(item: YoutubeVideo): VideoRow | null {
     videoId,
     channelId,
     title,
-    publishedAt: new Date(publishedAt),
+    publishedAt,
     thumbUrl:
       item.snippet?.thumbnails?.medium?.url ??
       item.snippet?.thumbnails?.default?.url ??
@@ -67,12 +76,8 @@ function toVideoRow(item: YoutubeVideo): VideoRow | null {
       item.snippet?.liveBroadcastContent === "upcoming"
         ? item.snippet.liveBroadcastContent
         : "none",
-    scheduledStartTime: item.liveStreamingDetails?.scheduledStartTime
-      ? new Date(item.liveStreamingDetails.scheduledStartTime)
-      : null,
-    actualStartTime: item.liveStreamingDetails?.actualStartTime
-      ? new Date(item.liveStreamingDetails.actualStartTime)
-      : null,
+    scheduledStartTime: parseDate(item.liveStreamingDetails?.scheduledStartTime),
+    actualStartTime: parseDate(item.liveStreamingDetails?.actualStartTime),
   };
 }
 
@@ -91,7 +96,7 @@ async function fetchVideoDetails(args: {
     },
   });
 
-  // quota is billed on receipt, so log before the ok check
+  // quota bills on receipt, logged before the ok check
   await recordQuotaUsage("videos.list", 1, args.quotaContext ?? {});
 
   if (!resp.ok) {
@@ -168,9 +173,15 @@ export async function classifyVideos(args: {
       quotaContext: args.quotaContext,
     });
 
-    const rows = items
-      .map(toVideoRow)
-      .filter((row): row is VideoRow => row !== null);
+    // repeated ids in one response make the upsert fail
+    const rowsById = new Map<string, VideoRow>();
+    for (const item of items) {
+      const row = toVideoRow(item);
+      if (row && !rowsById.has(row.videoId)) {
+        rowsById.set(row.videoId, row);
+      }
+    }
+    const rows = [...rowsById.values()];
     if (rows.length === 0) {
       continue;
     }
@@ -197,7 +208,7 @@ export async function findVideoIdsToClassify(
   if (limit <= 0) {
     return [];
   }
-  // dedupe before the query so the union does not carry repeats
+  // dedupe rssIds before the query
   const uniqueRssIds = [...new Set(rssIds)];
   if (channelIds.length === 0 && uniqueRssIds.length === 0) {
     return [];

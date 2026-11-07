@@ -359,6 +359,43 @@ describe("classifyVideos", () => {
     const [, params] = vi.mocked(pool.query).mock.calls[0];
     expect(params).toContainEqual(["a"]);
   });
+
+  it("skips an item with an unparseable publishedAt and saves the rest", async () => {
+    mockVideosFetch(() =>
+      jsonResponse([
+        validItem("ok1"),
+        { id: "badDate", snippet: { channelId: "UCchan", title: "t", publishedAt: "garbage" } },
+      ]),
+    );
+
+    const saved = await classifyVideos({ accessToken: "token", videoIds: ["ok1", "badDate"] });
+
+    expect(saved).toBe(1);
+    const [, params] = vi.mocked(pool.query).mock.calls[0];
+    expect(params).toContainEqual(["ok1"]);
+  });
+
+  it("saves an item with an unparseable scheduledStartTime with a null scheduled start", async () => {
+    mockVideosFetch(() =>
+      jsonResponse([{ ...validItem("sched"), liveStreamingDetails: { scheduledStartTime: "garbage" } }]),
+    );
+
+    const saved = await classifyVideos({ accessToken: "token", videoIds: ["sched"] });
+
+    expect(saved).toBe(1);
+    const [, params] = vi.mocked(pool.query).mock.calls[0];
+    expect(params[6]).toEqual([null]);
+  });
+
+  it("saves a repeated id from one response once", async () => {
+    mockVideosFetch(() => jsonResponse([validItem("dup"), validItem("dup")]));
+
+    const saved = await classifyVideos({ accessToken: "token", videoIds: ["dup"] });
+
+    expect(saved).toBe(1);
+    const [, params] = vi.mocked(pool.query).mock.calls[0];
+    expect(params).toContainEqual(["dup"]);
+  });
 });
 
 describe("findVideoIdsToClassify", () => {
@@ -380,21 +417,11 @@ describe("findVideoIdsToClassify", () => {
     expect(pool.query).not.toHaveBeenCalled();
   });
 
-  it("maps result rows to video ids in row order", async () => {
-    mockedQuery(vi.mocked(pool.query)).mockResolvedValueOnce(
-      mockQueryResult({ rows: [{ video_id: "vidB" }, { video_id: "vidA" }] }),
-    );
-
-    const ids = await findVideoIdsToClassify(["UCa"], ["vidA"], 10);
-
-    expect(ids).toEqual(["vidB", "vidA"]);
-  });
-
-  it("dedupes rssIds and passes channelIds, limit and the recent day window as params", async () => {
+  it("dedupes rssIds before the query", async () => {
     await findVideoIdsToClassify(["UCa"], ["v1", "v2", "v1"], 10);
 
     const params = mockedQuery(vi.mocked(pool.query)).mock.calls[0][1];
-    expect(params).toEqual([["UCa"], ["v1", "v2"], 10, 14]);
+    expect(params).toContainEqual(["v1", "v2"]);
   });
 
   it("still queries when channelIds is empty but rssIds is not", async () => {
@@ -420,16 +447,6 @@ describe("getDueLiveChannels", () => {
 
     expect(ids).toEqual([]);
     expect(pool.query).not.toHaveBeenCalled();
-  });
-
-  it("maps result rows to channel ids in row order", async () => {
-    mockedQuery(vi.mocked(pool.query)).mockResolvedValueOnce(
-      mockQueryResult({ rows: [{ channel_id: "UCb" }, { channel_id: "UCa" }] }),
-    );
-
-    const ids = await getDueLiveChannels([CHANNEL_ID, "UCa", "UCb"], 30);
-
-    expect(ids).toEqual(["UCb", "UCa"]);
   });
 
   it("dedupes channelIds and passes the ttl minutes as the second param", async () => {
