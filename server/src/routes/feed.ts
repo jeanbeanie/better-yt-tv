@@ -39,14 +39,12 @@ function parsePagination(query: express.Request["query"]) {
   return { offset, limit: Math.min(limit, 200) };
 }
 
-// Used by GET /all, filtered by a per-channel boolean
-// preference (enabled_all or enabled_live) plus excluded_shorts.
+// Used by GET /all, filtered by the enabled_all preference plus excluded_shorts.
 // preferenceColumn is interpolated directly (not a $N placeholder) since
-// it's a TypeScript union of two literal, code-controlled values, never
-// user input
+// it's a code controlled literal, never user input
 async function fetchFeedForPreference(
   userId: string,
-  preferenceColumn: "enabled_all" | "enabled_live",
+  preferenceColumn: "enabled_all",
 ) {
   return pool.query(
     `
@@ -155,7 +153,7 @@ feedRouter.get("/live", requireAuth, async (req, res, next) => {
       join videos_cache v
         on v.channel_id = us.channel_id
       where us.user_id = $1
-        -- Fail open if preferences are missing (see docblock above)
+        -- a missing preference row counts as enabled
         and coalesce(cp.enabled_live, true) = true
         and v.live_broadcast_content in ('live', 'upcoming')
       `,

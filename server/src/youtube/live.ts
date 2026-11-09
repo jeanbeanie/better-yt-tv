@@ -28,20 +28,29 @@ export async function fetchChannelRssVideoIds(channelId: string): Promise<string
   return Array.from(xml.matchAll(VIDEO_ID_PATTERN), (match) => match[1]);
 }
 
+const RSS_TIME_BUDGET_MS = 45_000;
+
 // an outage fails every channel, stop instead of waiting on each timeout
-export async function fetchRssIdsForChannels(channelIds: string[]): Promise<{
+export async function fetchRssIdsForChannels(
+  channelIds: string[],
+  budgetMs: number = RSS_TIME_BUDGET_MS,
+): Promise<{
   videoIds: string[];
-  attemptedChannels: number;
+  attemptedChannelIds: string[];
   failedChannels: number;
 }> {
   const uniqueChannelIds = [...new Set(channelIds)];
   const videoIds = new Set<string>();
-  let attemptedChannels = 0;
+  const attemptedChannelIds: string[] = [];
   let failedChannels = 0;
+  const startedAt = Date.now();
 
   for (let i = 0; i < uniqueChannelIds.length; i += RSS_CONCURRENCY) {
+    // a long pass would outlast request timeouts, unfetched channels stay due for the next call
+    if (i > 0 && Date.now() - startedAt >= budgetMs) break;
+
     const group = uniqueChannelIds.slice(i, i + RSS_CONCURRENCY);
-    attemptedChannels += group.length;
+    attemptedChannelIds.push(...group);
 
     const results = await Promise.allSettled(
       group.map((channelId) => fetchChannelRssVideoIds(channelId)),
@@ -61,7 +70,7 @@ export async function fetchRssIdsForChannels(channelIds: string[]): Promise<{
     if (groupFailed === group.length) break;
   }
 
-  return { videoIds: [...videoIds], attemptedChannels, failedChannels };
+  return { videoIds: [...videoIds], attemptedChannelIds, failedChannels };
 }
 
 // videos.list accepts at most 50 ids per call
@@ -122,7 +131,7 @@ async function fetchVideoDetails(args: {
   accessToken: string;
   videoIds: string[];
   quotaContext?: QuotaCallContext;
-}): Promise<YoutubeVideo[]> {
+}): Promise<YoutubeVideo[] | null> {
   const url = new URL("https://www.googleapis.com/youtube/v3/videos");
   url.searchParams.set("part", "snippet,liveStreamingDetails");
   url.searchParams.set("id", args.videoIds.join(","));
@@ -142,7 +151,8 @@ async function fetchVideoDetails(args: {
   }
 
   const data = (await resp.json()) as YoutubeVideosListResponse;
-  return data.items ?? [];
+  // no items array means no information, not an empty answer
+  return Array.isArray(data?.items) ? data.items : null;
 }
 
 // update only the live columns on conflict, changing published_at would reorder the /all feed
@@ -223,6 +233,10 @@ export async function classifyVideos(args: {
       videoIds: batchIds,
       quotaContext: args.quotaContext,
     });
+    if (items === null) {
+      console.error(`videos.list response had no items array, skipped batch of ${batchIds.length} ids`);
+      continue;
+    }
 
     const returnedIds = new Set(items.map((item) => item.id));
     const absentIds = batchIds.filter((id) => !returnedIds.has(id));
@@ -319,6 +333,8 @@ export async function getDueLiveChannels(
     left join channel_live_check_state s on s.channel_id = c.channel_id
     where s.channel_id is null
        or s.last_checked_at <= now() - make_interval(mins => $2::int)
+    -- never checked first, then least recently checked
+    order by s.last_checked_at asc nulls first
     `,
     [uniqueIds, ttlMinutes],
   );

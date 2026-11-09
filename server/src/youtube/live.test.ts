@@ -161,7 +161,7 @@ describe("fetchRssIdsForChannels", () => {
     const result = await fetchRssIdsForChannels([c0, c1, c2, c0]);
 
     expect([...result.videoIds].sort()).toEqual([videoIdOf(1), videoIdOf(2), videoIdOf(3), videoIdOf(4)]);
-    expect(result.attemptedChannels).toBe(3);
+    expect(result.attemptedChannelIds).toEqual([c0, c1, c2]);
     expect(result.failedChannels).toBe(0);
     expect(vi.mocked(global.fetch)).toHaveBeenCalledTimes(3);
   });
@@ -179,7 +179,7 @@ describe("fetchRssIdsForChannels", () => {
     const result = await fetchRssIdsForChannels([c0, c1, c2]);
 
     expect([...result.videoIds].sort()).toEqual([videoIdOf(1), videoIdOf(2)]);
-    expect(result.attemptedChannels).toBe(3);
+    expect(result.attemptedChannelIds).toEqual([c0, c1, c2]);
     expect(result.failedChannels).toBe(1);
     expect(errorSpy).toHaveBeenCalledTimes(1);
   });
@@ -200,7 +200,7 @@ describe("fetchRssIdsForChannels", () => {
 
     expect(maxInFlight).toBe(5);
     expect(vi.mocked(global.fetch)).toHaveBeenCalledTimes(12);
-    expect(result.attemptedChannels).toBe(12);
+    expect(result.attemptedChannelIds).toEqual(channels);
     expect(result.failedChannels).toBe(0);
   });
 
@@ -211,7 +211,7 @@ describe("fetchRssIdsForChannels", () => {
     const result = await fetchRssIdsForChannels(channels);
 
     expect(vi.mocked(global.fetch)).toHaveBeenCalledTimes(5);
-    expect(result).toEqual({ videoIds: [], attemptedChannels: 5, failedChannels: 5 });
+    expect(result).toEqual({ videoIds: [], attemptedChannelIds: channels.slice(0, 5), failedChannels: 5 });
     expect(errorSpy).toHaveBeenCalledTimes(5);
   });
 
@@ -225,7 +225,7 @@ describe("fetchRssIdsForChannels", () => {
     const result = await fetchRssIdsForChannels(channels);
 
     expect(vi.mocked(global.fetch)).toHaveBeenCalledTimes(12);
-    expect(result.attemptedChannels).toBe(12);
+    expect(result.attemptedChannelIds).toEqual(channels);
     expect(result.failedChannels).toBe(4);
   });
 
@@ -233,7 +233,7 @@ describe("fetchRssIdsForChannels", () => {
     const result = await fetchRssIdsForChannels([]);
 
     expect(vi.mocked(global.fetch)).not.toHaveBeenCalled();
-    expect(result).toEqual({ videoIds: [], attemptedChannels: 0, failedChannels: 0 });
+    expect(result).toEqual({ videoIds: [], attemptedChannelIds: [], failedChannels: 0 });
   });
 
   it("treats a rejected fetch as a failed channel and logs it", async () => {
@@ -245,8 +245,39 @@ describe("fetchRssIdsForChannels", () => {
 
     const result = await fetchRssIdsForChannels([c0, c1]);
 
-    expect(result).toEqual({ videoIds: [videoIdOf(1)], attemptedChannels: 2, failedChannels: 1 });
+    expect(result).toEqual({ videoIds: [videoIdOf(1)], attemptedChannelIds: [c0, c1], failedChannels: 1 });
     expect(errorSpy).toHaveBeenCalledWith(`Failed to fetch RSS for channel ${c0}:`, expect.any(TypeError));
+  });
+
+  it("stops starting new groups once the time budget is spent", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-11-08T00:00:00Z"));
+      const channels = channelIdsOf(20);
+      let calls = 0;
+      global.fetch = vi.fn(async () => {
+        // each group takes 20 seconds, advanced on its first request
+        if (calls++ % 5 === 0) vi.setSystemTime(Date.now() + 20_000);
+        return rssFeed([]);
+      }) as unknown as typeof fetch;
+
+      const result = await fetchRssIdsForChannels(channels, 45_000);
+
+      expect(result.attemptedChannelIds).toEqual(channels.slice(0, 15));
+      expect(vi.mocked(global.fetch)).toHaveBeenCalledTimes(15);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("always runs the first group even with no budget", async () => {
+    const channels = channelIdsOf(12);
+    mockFetchByChannel(() => rssFeed([]));
+
+    const result = await fetchRssIdsForChannels(channels, 0);
+
+    expect(result.attemptedChannelIds).toEqual(channels.slice(0, 5));
+    expect(vi.mocked(global.fetch)).toHaveBeenCalledTimes(5);
   });
 });
 
@@ -594,6 +625,58 @@ describe("classifyVideos", () => {
     const [, params] = updates[0];
     expect(params?.[0]).toEqual(["vid0"]);
     expect(insertCalls()).toHaveLength(1);
+  });
+
+  it.each([
+    ["an empty object", {}],
+    ["a non-array items value", { items: "nope" }],
+  ])("treats a response with %s as no information and does not retire or upsert", async (_label, body) => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      mockVideosFetch(() => new Response(JSON.stringify(body), { status: 200 }));
+
+      const saved = await classifyVideos({ accessToken: "token", videoIds: ["vid1", "vid2"] });
+
+      expect(saved).toBe(0);
+      expect(insertCalls()).toHaveLength(0);
+      expect(updateCalls()).toHaveLength(0);
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it("retires requested ids when videos.list answers with an empty items array", async () => {
+    mockVideosFetch(() => jsonResponse([]));
+
+    const saved = await classifyVideos({ accessToken: "token", videoIds: ["vid1", "vid2"] });
+
+    expect(saved).toBe(0);
+    expect(insertCalls()).toHaveLength(0);
+    expect(updateCalls()).toHaveLength(1);
+    expect(updateCalls()[0][1]).toEqual([["vid1", "vid2"]]);
+  });
+
+  it("keeps earlier upserts and continues past a batch without an items array", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      let batch = 0;
+      const fetchMock = mockVideosFetch((requested) => {
+        batch++;
+        return batch === 2
+          ? new Response(JSON.stringify({}), { status: 200 })
+          : jsonResponse(requested.map(validItem));
+      });
+
+      const saved = await classifyVideos({ accessToken: "token", videoIds: idsOf(150) });
+
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(saved).toBe(100);
+      expect(insertCalls()).toHaveLength(2);
+      expect(updateCalls()).toHaveLength(0);
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 });
 

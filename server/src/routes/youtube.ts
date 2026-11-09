@@ -305,6 +305,99 @@ youtubeRouter.post(
   }),
 );
 
+type LiveRefreshResult = {
+  ok: true;
+  refreshPaused: boolean;
+  checkedChannels: number;
+  rssAttemptedChannels: number;
+  rssFailedChannels: number;
+  classifiedVideos: number;
+};
+
+// one run per user at a time, overlap across users is not guarded
+const liveRefreshInFlight = new Map<string, Promise<LiveRefreshResult>>();
+
+async function runLiveRefresh(userId: string): Promise<LiveRefreshResult> {
+  const action = "refresh-live";
+
+  const settings = await getAppSettings();
+  if (settings.refreshPaused) {
+    return {
+      ok: true,
+      refreshPaused: true,
+      checkedChannels: 0,
+      rssAttemptedChannels: 0,
+      rssFailedChannels: 0,
+      classifiedVideos: 0,
+    };
+  }
+
+  const requestGroupId = crypto.randomUUID();
+
+  // a missing channel_preferences row counts as enabled
+  const liveResult = await pool.query(
+    `
+    select us.channel_id
+    from user_subscriptions us
+    left join channel_preferences cp
+      on cp.user_id = us.user_id
+     and cp.channel_id = us.channel_id
+    where us.user_id = $1
+      and coalesce(cp.enabled_live, true) = true
+    `,
+    [userId],
+  );
+
+  const channelIds: string[] = liveResult.rows.map((row) => row.channel_id);
+  const idleResponse: LiveRefreshResult = {
+    ok: true,
+    refreshPaused: false,
+    checkedChannels: 0,
+    rssAttemptedChannels: 0,
+    rssFailedChannels: 0,
+    classifiedVideos: 0,
+  };
+
+  if (channelIds.length === 0) {
+    return idleResponse;
+  }
+
+  const dueChannels = await getDueLiveChannels(
+    channelIds,
+    env.YOUTUBE_LIVE_CACHE_TTL_MINUTES,
+  );
+  if (dueChannels.length === 0) {
+    return idleResponse;
+  }
+
+  // best effort, failed RSS channels still classify cached ids
+  const rss = await fetchRssIdsForChannels(dueChannels);
+  const videoIds = await findVideoIdsToClassify(dueChannels, rss.videoIds, LIVE_CLASSIFY_MAX_IDS);
+
+  let classifiedVideos = 0;
+  // lazily request access token only if ids need classifying
+  if (videoIds.length > 0) {
+    const accessToken = await getGoogleAccessToken(userId);
+    classifiedVideos = await classifyVideos({
+      accessToken,
+      videoIds,
+      quotaContext: { action, userId, requestGroupId },
+    });
+  }
+
+  // reached only when classification did not throw, channels skipped by the RSS pass stay due
+  await markLiveChannelsChecked(rss.attemptedChannelIds);
+
+  return {
+    ok: true,
+    refreshPaused: false,
+    checkedChannels: rss.attemptedChannelIds.length,
+    rssAttemptedChannels: rss.attemptedChannelIds.length,
+    rssFailedChannels: rss.failedChannels,
+    classifiedVideos,
+  };
+}
+
 // POST /api/youtube/refresh-live
 // Recheck live and upcoming status for the user's due live channels
 // and save the results into videos_cache
@@ -313,83 +406,12 @@ youtubeRouter.post(
   requireAuth,
   withYoutubeReauthHandling(async (req, res) => {
     const userId = (req as AuthedRequest).userId;
-    const action = "refresh-live";
 
-    const settings = await getAppSettings();
-    if (settings.refreshPaused) {
-      return res.json({
-        ok: true,
-        refreshPaused: true,
-        checkedChannels: 0,
-        rssAttemptedChannels: 0,
-        rssFailedChannels: 0,
-        classifiedVideos: 0,
-      });
+    let run = liveRefreshInFlight.get(userId);
+    if (!run) {
+      run = runLiveRefresh(userId).finally(() => liveRefreshInFlight.delete(userId));
+      liveRefreshInFlight.set(userId, run);
     }
-
-    const requestGroupId = crypto.randomUUID();
-
-    // a missing channel_preferences row counts as enabled
-    const liveResult = await pool.query(
-      `
-      select us.channel_id
-      from user_subscriptions us
-      left join channel_preferences cp
-        on cp.user_id = us.user_id
-       and cp.channel_id = us.channel_id
-      where us.user_id = $1
-        and coalesce(cp.enabled_live, true) = true
-      `,
-      [userId],
-    );
-
-    const channelIds: string[] = liveResult.rows.map((row) => row.channel_id);
-    const idleResponse = {
-      ok: true,
-      refreshPaused: false,
-      checkedChannels: 0,
-      rssAttemptedChannels: 0,
-      rssFailedChannels: 0,
-      classifiedVideos: 0,
-    };
-
-    if (channelIds.length === 0) {
-      return res.json(idleResponse);
-    }
-
-    const dueChannels = await getDueLiveChannels(
-      channelIds,
-      env.YOUTUBE_LIVE_CACHE_TTL_MINUTES,
-    );
-    if (dueChannels.length === 0) {
-      return res.json(idleResponse);
-    }
-
-    // best effort, failed RSS channels still classify cached ids
-    const rss = await fetchRssIdsForChannels(dueChannels);
-    const videoIds = await findVideoIdsToClassify(dueChannels, rss.videoIds, LIVE_CLASSIFY_MAX_IDS);
-
-    let classifiedVideos = 0;
-    // lazily request access token only if ids need classifying
-    if (videoIds.length > 0) {
-      const accessToken = await getGoogleAccessToken(userId);
-      classifiedVideos = await classifyVideos({
-        accessToken,
-        videoIds,
-        quotaContext: { action, userId, requestGroupId },
-      });
-    }
-
-    // reached only when classification did not throw, failed channels stay due
-    await markLiveChannelsChecked(dueChannels);
-
-    return res.json({
-      ok: true,
-      refreshPaused: false,
-      checkedChannels: dueChannels.length,
-      rssAttemptedChannels: rss.attemptedChannels,
-      rssFailedChannels: rss.failedChannels,
-      classifiedVideos,
-    });
+    return res.json(await run);
   }),
 );
