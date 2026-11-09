@@ -12,7 +12,7 @@ vi.mock("./quota.js", () => ({
 
 const { pool } = await import("../db/pool.js");
 const { recordQuotaUsage } = await import("./quota.js");
-const { fetchChannelRssVideoIds, fetchRssIdsForChannels, classifyVideos, findVideoIdsToClassify, getDueLiveChannels, markLiveChannelsChecked } = await import("./live.js");
+const { fetchChannelRssVideoIds, fetchRssIdsForChannels, classifyVideos, findVideoIdsToClassify, findUpcomingVideoIds, getDueLiveChannels, markLiveChannelsChecked } = await import("./live.js");
 
 const CHANNEL_ID = "UCxxxxxxxxxxxxxxxxxxxxxx";
 
@@ -765,5 +765,40 @@ describe("markLiveChannelsChecked", () => {
     expect(pool.query).toHaveBeenCalledTimes(1);
     const params = mockedQuery(vi.mocked(pool.query)).mock.calls[0][1];
     expect(params).toEqual([idsOf(120)]);
+  });
+});
+
+describe("findUpcomingVideoIds", () => {
+  beforeEach(() => {
+    vi.mocked(pool.query).mockReset();
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult());
+  });
+
+  it("returns [] and runs no query when channelIds is empty", async () => {
+    const ids = await findUpcomingVideoIds([], 10);
+
+    expect(ids).toEqual([]);
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it("returns [] and runs no query when limit is 0 or negative", async () => {
+    expect(await findUpcomingVideoIds(["UCa"], 0)).toEqual([]);
+    expect(await findUpcomingVideoIds(["UCa"], -1)).toEqual([]);
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  // pool is mocked, so this guards the query's shape, not what it returns from postgres
+  it("passes channel ids and limit as params and filters on upcoming rows only", async () => {
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValueOnce(
+      mockQueryResult({ rows: [{ video_id: "v1" }, { video_id: "v2" }] }),
+    );
+
+    const ids = await findUpcomingVideoIds(["UCa", "UCb"], 5);
+
+    expect(ids).toEqual(["v1", "v2"]);
+    const [sql, params] = mockedQuery(vi.mocked(pool.query)).mock.calls[0];
+    expect(params).toEqual([["UCa", "UCb"], 5]);
+    expect(sql).toContain("live_broadcast_content = 'upcoming'");
+    expect(sql).not.toContain("'live'");
   });
 });

@@ -13,7 +13,7 @@ import {
   markChannelCacheRefreshed,
 } from "../youtube/videos.js";
 import { recordQuotaUsage, type QuotaCallContext } from "../youtube/quota.js";
-import { getDueLiveChannels, findVideoIdsToClassify, classifyVideos, markLiveChannelsChecked, fetchRssIdsForChannels } from "../youtube/live.js";
+import { getDueLiveChannels, findVideoIdsToClassify, findUpcomingVideoIds, classifyVideos, markLiveChannelsChecked, fetchRssIdsForChannels } from "../youtube/live.js";
 import { getAppSettings } from "../settings/appSettings.js";
 import type {
   YoutubeSubscriptionListItem,
@@ -335,20 +335,24 @@ async function runLiveRefresh(userId: string): Promise<LiveRefreshResult> {
   const requestGroupId = crypto.randomUUID();
 
   // a missing channel_preferences row counts as enabled
+  // channels with live off are kept for the upcoming recheck
   const liveResult = await pool.query(
     `
-    select us.channel_id
+    select
+      us.channel_id,
+      coalesce(cp.enabled_live, true) as enabled_live
     from user_subscriptions us
     left join channel_preferences cp
       on cp.user_id = us.user_id
      and cp.channel_id = us.channel_id
     where us.user_id = $1
-      and coalesce(cp.enabled_live, true) = true
     `,
     [userId],
   );
 
-  const channelIds: string[] = liveResult.rows.map((row) => row.channel_id);
+  const rows: Array<{ channel_id: string; enabled_live: boolean }> = liveResult.rows;
+  const liveChannelIds = rows.filter((row) => row.enabled_live === true).map((row) => row.channel_id);
+  const offChannelIds = rows.filter((row) => row.enabled_live !== true).map((row) => row.channel_id);
   const idleResponse: LiveRefreshResult = {
     ok: true,
     refreshPaused: false,
@@ -358,21 +362,28 @@ async function runLiveRefresh(userId: string): Promise<LiveRefreshResult> {
     classifiedVideos: 0,
   };
 
-  if (channelIds.length === 0) {
+  if (rows.length === 0) {
     return idleResponse;
   }
 
-  const dueChannels = await getDueLiveChannels(
-    channelIds,
-    env.YOUTUBE_LIVE_CACHE_TTL_MINUTES,
-  );
-  if (dueChannels.length === 0) {
-    return idleResponse;
-  }
+  const dueChannels = liveChannelIds.length > 0
+    ? await getDueLiveChannels(liveChannelIds, env.YOUTUBE_LIVE_CACHE_TTL_MINUTES)
+    : [];
 
   // best effort, failed RSS channels still classify cached ids
-  const rss = await fetchRssIdsForChannels(dueChannels);
-  const videoIds = await findVideoIdsToClassify(dueChannels, rss.videoIds, LIVE_CLASSIFY_MAX_IDS);
+  const rss = dueChannels.length > 0
+    ? await fetchRssIdsForChannels(dueChannels)
+    : { videoIds: [], attemptedChannelIds: [], failedChannels: 0 };
+
+  // off channels are rechecked for upcoming rows only, see findUpcomingVideoIds
+  const upcomingIds = offChannelIds.length > 0
+    ? await findUpcomingVideoIds(offChannelIds, LIVE_CLASSIFY_MAX_IDS)
+    : [];
+
+  const dueIds = dueChannels.length > 0
+    ? await findVideoIdsToClassify(dueChannels, rss.videoIds, LIVE_CLASSIFY_MAX_IDS - upcomingIds.length)
+    : [];
+  const videoIds = [...upcomingIds, ...dueIds];
 
   let classifiedVideos = 0;
   // lazily request access token only if ids need classifying
@@ -400,6 +411,7 @@ async function runLiveRefresh(userId: string): Promise<LiveRefreshResult> {
 
 // POST /api/youtube/refresh-live
 // Recheck live and upcoming status for the user's due live channels
+// and upcoming rows on channels with live turned off
 // and save the results into videos_cache
 youtubeRouter.post(
   "/refresh-live",

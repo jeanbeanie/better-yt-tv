@@ -316,6 +316,28 @@ export async function findVideoIdsToClassify(
   return result.rows.map((row) => row.video_id);
 }
 
+// for channels with live off only upcoming rows matter
+// a live row never changes what feeds show, an upcoming row stays hidden until reclassified
+export async function findUpcomingVideoIds(channelIds: string[], limit: number): Promise<string[]> {
+  if (channelIds.length === 0 || limit <= 0) {
+    return [];
+  }
+
+  const result = await pool.query(
+    `
+    select video_id
+    from videos_cache
+    where channel_id = any($1::text[])
+      and live_broadcast_content = 'upcoming'
+    order by scheduled_start_time asc nulls first
+    limit $2
+    `,
+    [channelIds, limit],
+  );
+
+  return result.rows.map((row) => row.video_id);
+}
+
 // channels with no state row are due, a missing row must not hide them
 export async function getDueLiveChannels(
   channelIds: string[],
