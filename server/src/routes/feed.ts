@@ -39,14 +39,12 @@ function parsePagination(query: express.Request["query"]) {
   return { offset, limit: Math.min(limit, 200) };
 }
 
-// Shared by GET /all and GET /live, filtered by a per-channel boolean
-// preference (enabled_all or enabled_live) plus excluded_shorts.
+// Used by GET /all, filtered by the enabled_all preference plus excluded_shorts.
 // preferenceColumn is interpolated directly (not a $N placeholder) since
-// it's a TypeScript union of two literal, code-controlled values, never
-// user input
+// it's a code controlled literal, never user input
 async function fetchFeedForPreference(
   userId: string,
-  preferenceColumn: "enabled_all" | "enabled_live",
+  preferenceColumn: "enabled_all",
 ) {
   return pool.query(
     `
@@ -108,21 +106,93 @@ feedRouter.get("/all", requireAuth, async (req, res, next) => {
   }
 });
 
+// upcoming window relative to now, a delayed start stays visible for 2
+// hours, schedules further out than 7 days are hidden
+const UPCOMING_PAST_WINDOW_MS = 2 * 60 * 60 * 1000;
+const UPCOMING_FUTURE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+type LiveRow = {
+  video_id: string;
+  channel_id: string;
+  channel_title: string;
+  title: string;
+  thumb_url: string | null;
+  live_broadcast_content: string;
+  scheduled_start_time: Date | string | null;
+  actual_start_time: Date | string | null;
+};
+
+// pg returns Date objects, tests may pass strings
+function toMs(value: Date | string | null): number | null {
+  return value === null ? null : new Date(value).getTime();
+}
+
 // GET /api/feed/live
-// Return recent cached videos for channels the user has flagged with
-// "Enable in Live" in channel settings, same shape as /all, just filtered
-// by enabled_live instead of enabled_all
+// Return live and upcoming streams for channels with "Enable in Live" on
+// in channel settings, split into two lists
+// live: actual start desc, unknown start last
+// upcoming: scheduled start asc, inside the upcoming window only
 feedRouter.get("/live", requireAuth, async (req, res, next) => {
   try {
     const userId = (req as AuthedRequest).userId;
-    const { offset, limit } = parsePagination(req.query);
-    const result = await fetchFeedForPreference(userId, "enabled_live");
+    const result = await pool.query<LiveRow>(
+      `
+      select
+        v.video_id,
+        v.channel_id,
+        us.channel_title,
+        v.title,
+        v.thumb_url,
+        v.live_broadcast_content,
+        v.scheduled_start_time,
+        v.actual_start_time
+      from user_subscriptions us
+      left join channel_preferences cp
+        on cp.user_id = us.user_id
+       and cp.channel_id = us.channel_id
+      join videos_cache v
+        on v.channel_id = us.channel_id
+      where us.user_id = $1
+        -- a missing preference row counts as enabled
+        and coalesce(cp.enabled_live, true) = true
+        and v.live_broadcast_content in ('live', 'upcoming')
+      `,
+      [userId],
+    );
 
-    const ordered = applyRoundRobin(result.rows);
-    const items = ordered.slice(offset, offset + limit);
-    const hasMore = offset + limit < ordered.length;
+    const now = Date.now();
+    const pastCutoff = now - UPCOMING_PAST_WINDOW_MS;
+    const futureCutoff = now + UPCOMING_FUTURE_WINDOW_MS;
 
-    return res.json({ items, hasMore });
+    const liveRows = result.rows.filter((r) => r.live_broadcast_content === "live");
+    liveRows.sort((a, b) => {
+      const at = toMs(a.actual_start_time);
+      const bt = toMs(b.actual_start_time);
+      if (at === null) return bt === null ? 0 : 1;
+      if (bt === null) return -1;
+      return bt - at;
+    });
+
+    const upcomingRows = result.rows.filter((r) => {
+      if (r.live_broadcast_content !== "upcoming") return false;
+      const ms = toMs(r.scheduled_start_time);
+      return ms !== null && ms >= pastCutoff && ms <= futureCutoff;
+    });
+    upcomingRows.sort(
+      (a, b) => (toMs(a.scheduled_start_time) ?? 0) - (toMs(b.scheduled_start_time) ?? 0),
+    );
+
+    const toItem = (r: LiveRow) => ({
+      video_id: r.video_id,
+      channel_id: r.channel_id,
+      channel_title: r.channel_title,
+      title: r.title,
+      thumb_url: r.thumb_url,
+      scheduled_start_time: r.scheduled_start_time,
+      actual_start_time: r.actual_start_time,
+    });
+
+    return res.json({ live: liveRows.map(toItem), upcoming: upcomingRows.map(toItem) });
   } catch (err) {
     next(err);
   }

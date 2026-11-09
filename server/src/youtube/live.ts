@@ -6,6 +6,7 @@ import type {
 } from "./apiTypes.js";
 
 const RSS_FETCH_TIMEOUT_MS = 5000;
+const RSS_CONCURRENCY = 5;
 
 const VIDEO_ID_PATTERN = /<yt:videoId>([A-Za-z0-9_-]{11})<\/yt:videoId>/g;
 
@@ -25,6 +26,51 @@ export async function fetchChannelRssVideoIds(channelId: string): Promise<string
 
   const xml = await resp.text();
   return Array.from(xml.matchAll(VIDEO_ID_PATTERN), (match) => match[1]);
+}
+
+const RSS_TIME_BUDGET_MS = 45_000;
+
+// an outage fails every channel, stop instead of waiting on each timeout
+export async function fetchRssIdsForChannels(
+  channelIds: string[],
+  budgetMs: number = RSS_TIME_BUDGET_MS,
+): Promise<{
+  videoIds: string[];
+  attemptedChannelIds: string[];
+  failedChannels: number;
+}> {
+  const uniqueChannelIds = [...new Set(channelIds)];
+  const videoIds = new Set<string>();
+  const attemptedChannelIds: string[] = [];
+  let failedChannels = 0;
+  const startedAt = Date.now();
+
+  for (let i = 0; i < uniqueChannelIds.length; i += RSS_CONCURRENCY) {
+    // a long pass would outlast request timeouts, unfetched channels stay due for the next call
+    if (i > 0 && Date.now() - startedAt >= budgetMs) break;
+
+    const group = uniqueChannelIds.slice(i, i + RSS_CONCURRENCY);
+    attemptedChannelIds.push(...group);
+
+    const results = await Promise.allSettled(
+      group.map((channelId) => fetchChannelRssVideoIds(channelId)),
+    );
+
+    let groupFailed = 0;
+    results.forEach((result, index) => {
+      if (result.status === "fulfilled") {
+        for (const id of result.value) videoIds.add(id);
+        return;
+      }
+      groupFailed++;
+      console.error(`Failed to fetch RSS for channel ${group[index]}:`, result.reason);
+    });
+    failedChannels += groupFailed;
+
+    if (groupFailed === group.length) break;
+  }
+
+  return { videoIds: [...videoIds], attemptedChannelIds, failedChannels };
 }
 
 // videos.list accepts at most 50 ids per call
@@ -85,7 +131,7 @@ async function fetchVideoDetails(args: {
   accessToken: string;
   videoIds: string[];
   quotaContext?: QuotaCallContext;
-}): Promise<YoutubeVideo[]> {
+}): Promise<YoutubeVideo[] | null> {
   const url = new URL("https://www.googleapis.com/youtube/v3/videos");
   url.searchParams.set("part", "snippet,liveStreamingDetails");
   url.searchParams.set("id", args.videoIds.join(","));
@@ -105,7 +151,8 @@ async function fetchVideoDetails(args: {
   }
 
   const data = (await resp.json()) as YoutubeVideosListResponse;
-  return data.items ?? [];
+  // no items array means no information, not an empty answer
+  return Array.isArray(data?.items) ? data.items : null;
 }
 
 // update only the live columns on conflict, changing published_at would reorder the /all feed
@@ -155,6 +202,19 @@ async function upsertVideoRows(rows: VideoRow[]): Promise<void> {
   );
 }
 
+// deleted or private videos are never returned again, so retire their live status
+async function retireAbsentLiveRows(absentIds: string[]): Promise<void> {
+  await pool.query(
+    `
+    update videos_cache
+    set live_broadcast_content = 'none'
+    where video_id = any($1::text[])
+      and live_broadcast_content in ('live', 'upcoming')
+    `,
+    [absentIds],
+  );
+}
+
 // Fetch live status for video ids from YouTube and save it into videos_cache
 // returns the number of rows saved, ids YouTube does not return are not written
 export async function classifyVideos(args: {
@@ -167,11 +227,22 @@ export async function classifyVideos(args: {
 
   let saved = 0;
   for (let i = 0; i < uniqueIds.length; i += VIDEOS_LIST_MAX_IDS) {
+    const batchIds = uniqueIds.slice(i, i + VIDEOS_LIST_MAX_IDS);
     const items = await fetchVideoDetails({
       accessToken: args.accessToken,
-      videoIds: uniqueIds.slice(i, i + VIDEOS_LIST_MAX_IDS),
+      videoIds: batchIds,
       quotaContext: args.quotaContext,
     });
+    if (items === null) {
+      console.error(`videos.list response had no items array, skipped batch of ${batchIds.length} ids`);
+      continue;
+    }
+
+    const returnedIds = new Set(items.map((item) => item.id));
+    const absentIds = batchIds.filter((id) => !returnedIds.has(id));
+    if (absentIds.length > 0) {
+      await retireAbsentLiveRows(absentIds);
+    }
 
     // repeated ids in one response make the upsert fail
     const rowsById = new Map<string, VideoRow>();
@@ -262,6 +333,8 @@ export async function getDueLiveChannels(
     left join channel_live_check_state s on s.channel_id = c.channel_id
     where s.channel_id is null
        or s.last_checked_at <= now() - make_interval(mins => $2::int)
+    -- never checked first, then least recently checked
+    order by s.last_checked_at asc nulls first
     `,
     [uniqueIds, ttlMinutes],
   );

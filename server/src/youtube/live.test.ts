@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from "vitest";
 import { createMockPool, mockedQuery, mockQueryResult } from "../testUtils/pgMocks.js";
 import type { YoutubeVideo } from "./apiTypes.js";
 
@@ -12,7 +12,7 @@ vi.mock("./quota.js", () => ({
 
 const { pool } = await import("../db/pool.js");
 const { recordQuotaUsage } = await import("./quota.js");
-const { fetchChannelRssVideoIds, classifyVideos, findVideoIdsToClassify, getDueLiveChannels, markLiveChannelsChecked } = await import("./live.js");
+const { fetchChannelRssVideoIds, fetchRssIdsForChannels, classifyVideos, findVideoIdsToClassify, getDueLiveChannels, markLiveChannelsChecked } = await import("./live.js");
 
 const CHANNEL_ID = "UCxxxxxxxxxxxxxxxxxxxxxx";
 
@@ -116,6 +116,171 @@ describe("fetchChannelRssVideoIds", () => {
   });
 });
 
+describe("fetchRssIdsForChannels", () => {
+  let errorSpy: MockInstance;
+
+  beforeEach(() => {
+    global.fetch = vi.fn() as unknown as typeof fetch;
+    errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    errorSpy.mockRestore();
+  });
+
+  function channelIdsOf(count: number): string[] {
+    return Array.from({ length: count }, (_, i) => `UCchannel${String(i).padStart(2, "0")}`);
+  }
+
+  // video ids must match the 11 char pattern in VIDEO_ID_PATTERN
+  function videoIdOf(n: number): string {
+    return `vid${String(n).padStart(8, "0")}`;
+  }
+
+  function rssFeed(ids: string[]): Response {
+    const entries = ids.map((id) => `<entry><yt:videoId>${id}</yt:videoId></entry>`).join("");
+    return new Response(`<feed>${entries}</feed>`, { status: 200 });
+  }
+
+  // a throwing respond becomes a rejected fetch
+  function mockFetchByChannel(respond: (channelId: string) => Response | Promise<Response>) {
+    global.fetch = vi.fn(async (input: string | URL) =>
+      respond(new URL(String(input)).searchParams.get("channel_id") ?? ""),
+    ) as unknown as typeof fetch;
+  }
+
+  it("returns deduplicated ids across channels and dedupes requested channels", async () => {
+    const [c0, c1, c2] = channelIdsOf(3);
+    const feeds: Record<string, string[]> = {
+      [c0]: [videoIdOf(1), videoIdOf(2)],
+      [c1]: [videoIdOf(2), videoIdOf(3)],
+      [c2]: [videoIdOf(4)],
+    };
+    mockFetchByChannel((channelId) => rssFeed(feeds[channelId]));
+
+    const result = await fetchRssIdsForChannels([c0, c1, c2, c0]);
+
+    expect([...result.videoIds].sort()).toEqual([videoIdOf(1), videoIdOf(2), videoIdOf(3), videoIdOf(4)]);
+    expect(result.attemptedChannelIds).toEqual([c0, c1, c2]);
+    expect(result.failedChannels).toBe(0);
+    expect(vi.mocked(global.fetch)).toHaveBeenCalledTimes(3);
+  });
+
+  it("counts a failing channel as failed and keeps the other channels ids", async () => {
+    const [c0, c1, c2] = channelIdsOf(3);
+    const feeds: Record<string, string[]> = {
+      [c0]: [videoIdOf(1)],
+      [c2]: [videoIdOf(2)],
+    };
+    mockFetchByChannel((channelId) =>
+      channelId === c1 ? new Response("outage", { status: 500 }) : rssFeed(feeds[channelId]),
+    );
+
+    const result = await fetchRssIdsForChannels([c0, c1, c2]);
+
+    expect([...result.videoIds].sort()).toEqual([videoIdOf(1), videoIdOf(2)]);
+    expect(result.attemptedChannelIds).toEqual([c0, c1, c2]);
+    expect(result.failedChannels).toBe(1);
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("never has more than 5 requests in flight", async () => {
+    const channels = channelIdsOf(12);
+    let inFlight = 0;
+    let maxInFlight = 0;
+    global.fetch = vi.fn(async () => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await Promise.resolve();
+      inFlight--;
+      return rssFeed([]);
+    }) as unknown as typeof fetch;
+
+    const result = await fetchRssIdsForChannels(channels);
+
+    expect(maxInFlight).toBe(5);
+    expect(vi.mocked(global.fetch)).toHaveBeenCalledTimes(12);
+    expect(result.attemptedChannelIds).toEqual(channels);
+    expect(result.failedChannels).toBe(0);
+  });
+
+  it("stops after the first group when every channel in it fails", async () => {
+    const channels = channelIdsOf(12);
+    mockFetchByChannel(() => new Response("outage", { status: 500 }));
+
+    const result = await fetchRssIdsForChannels(channels);
+
+    expect(vi.mocked(global.fetch)).toHaveBeenCalledTimes(5);
+    expect(result).toEqual({ videoIds: [], attemptedChannelIds: channels.slice(0, 5), failedChannels: 5 });
+    expect(errorSpy).toHaveBeenCalledTimes(5);
+  });
+
+  it("does not stop on a partially failed group", async () => {
+    const channels = channelIdsOf(12);
+    const failing = new Set(channels.slice(0, 4));
+    mockFetchByChannel((channelId) =>
+      failing.has(channelId) ? new Response("outage", { status: 500 }) : rssFeed([videoIdOf(0)]),
+    );
+
+    const result = await fetchRssIdsForChannels(channels);
+
+    expect(vi.mocked(global.fetch)).toHaveBeenCalledTimes(12);
+    expect(result.attemptedChannelIds).toEqual(channels);
+    expect(result.failedChannels).toBe(4);
+  });
+
+  it("makes no requests for an empty channel list", async () => {
+    const result = await fetchRssIdsForChannels([]);
+
+    expect(vi.mocked(global.fetch)).not.toHaveBeenCalled();
+    expect(result).toEqual({ videoIds: [], attemptedChannelIds: [], failedChannels: 0 });
+  });
+
+  it("treats a rejected fetch as a failed channel and logs it", async () => {
+    const [c0, c1] = channelIdsOf(2);
+    mockFetchByChannel((channelId) => {
+      if (channelId === c0) throw new TypeError("fetch failed");
+      return rssFeed([videoIdOf(1)]);
+    });
+
+    const result = await fetchRssIdsForChannels([c0, c1]);
+
+    expect(result).toEqual({ videoIds: [videoIdOf(1)], attemptedChannelIds: [c0, c1], failedChannels: 1 });
+    expect(errorSpy).toHaveBeenCalledWith(`Failed to fetch RSS for channel ${c0}:`, expect.any(TypeError));
+  });
+
+  it("stops starting new groups once the time budget is spent", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-11-08T00:00:00Z"));
+      const channels = channelIdsOf(20);
+      let calls = 0;
+      global.fetch = vi.fn(async () => {
+        // each group takes 20 seconds, advanced on its first request
+        if (calls++ % 5 === 0) vi.setSystemTime(Date.now() + 20_000);
+        return rssFeed([]);
+      }) as unknown as typeof fetch;
+
+      const result = await fetchRssIdsForChannels(channels, 45_000);
+
+      expect(result.attemptedChannelIds).toEqual(channels.slice(0, 15));
+      expect(vi.mocked(global.fetch)).toHaveBeenCalledTimes(15);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("always runs the first group even with no budget", async () => {
+    const channels = channelIdsOf(12);
+    mockFetchByChannel(() => rssFeed([]));
+
+    const result = await fetchRssIdsForChannels(channels, 0);
+
+    expect(result.attemptedChannelIds).toEqual(channels.slice(0, 5));
+    expect(vi.mocked(global.fetch)).toHaveBeenCalledTimes(5);
+  });
+});
+
 const QUOTA_CONTEXT = { action: "refresh-live", requestGroupId: "group-1" };
 const PUBLISHED_AT = "2026-11-01T10:00:00Z";
 
@@ -148,6 +313,19 @@ function mockVideosFetch(respond: (ids: string[]) => Response) {
   const fetchMock = vi.fn(async (input: string | URL) => respond(idsFromUrl(input)));
   global.fetch = fetchMock as unknown as typeof fetch;
   return fetchMock;
+}
+
+// retire updates also go through pool.query, so tests pick calls by sql
+function insertCalls() {
+  return mockedQuery(vi.mocked(pool.query)).mock.calls.filter(([sql]) =>
+    String(sql).includes("insert into videos_cache"),
+  );
+}
+
+function updateCalls() {
+  return mockedQuery(vi.mocked(pool.query)).mock.calls.filter(([sql]) =>
+    String(sql).includes("update videos_cache"),
+  );
 }
 
 describe("classifyVideos", () => {
@@ -335,7 +513,7 @@ describe("classifyVideos", () => {
     });
 
     expect(saved).toBe(1);
-    const [, params] = vi.mocked(pool.query).mock.calls[0];
+    const [, params] = insertCalls()[0];
     expect(params).toContainEqual(["ok1"]);
   });
 
@@ -356,7 +534,7 @@ describe("classifyVideos", () => {
     const saved = await classifyVideos({ accessToken: "token", videoIds: ["a", "b", "c"] });
 
     expect(saved).toBe(1);
-    const [, params] = vi.mocked(pool.query).mock.calls[0];
+    const [, params] = insertCalls()[0];
     expect(params).toContainEqual(["a"]);
   });
 
@@ -395,6 +573,110 @@ describe("classifyVideos", () => {
     expect(saved).toBe(1);
     const [, params] = vi.mocked(pool.query).mock.calls[0];
     expect(params).toContainEqual(["dup"]);
+  });
+
+  it("retires a requested id the response omits and leaves returned ids alone", async () => {
+    mockVideosFetch(() => jsonResponse([validItem("a")]));
+
+    const saved = await classifyVideos({ accessToken: "token", videoIds: ["a", "b", "c"] });
+
+    expect(saved).toBe(1);
+    const updates = updateCalls();
+    expect(updates).toHaveLength(1);
+    const [, params] = updates[0];
+    expect(params?.[0]).toEqual(["b", "c"]);
+  });
+
+  it("runs no retire update when every requested id is returned", async () => {
+    mockVideosFetch((requested) => jsonResponse(requested.map(validItem)));
+
+    await classifyVideos({ accessToken: "token", videoIds: ["a", "b"] });
+
+    expect(updateCalls()).toHaveLength(0);
+  });
+
+  it("does not retire an id that is returned but skipped as invalid", async () => {
+    mockVideosFetch(() =>
+      jsonResponse([
+        validItem("ok1"),
+        { id: "noTitle", snippet: { channelId: "UCchan", publishedAt: PUBLISHED_AT } },
+      ]),
+    );
+
+    const saved = await classifyVideos({ accessToken: "token", videoIds: ["ok1", "noTitle"] });
+
+    expect(saved).toBe(1);
+    expect(updateCalls()).toHaveLength(0);
+  });
+
+  it("keeps the retire update from an earlier batch when a later batch fails", async () => {
+    mockVideosFetch((requested) =>
+      requested.includes("vid50")
+        ? new Response("boom", { status: 500 })
+        : jsonResponse(requested.filter((id) => id !== "vid0").map(validItem)),
+    );
+
+    await expect(
+      classifyVideos({ accessToken: "token", videoIds: idsOf(100) }),
+    ).rejects.toThrow("YouTube video details fetch failed: 500");
+
+    const updates = updateCalls();
+    expect(updates).toHaveLength(1);
+    const [, params] = updates[0];
+    expect(params?.[0]).toEqual(["vid0"]);
+    expect(insertCalls()).toHaveLength(1);
+  });
+
+  it.each([
+    ["an empty object", {}],
+    ["a non-array items value", { items: "nope" }],
+  ])("treats a response with %s as no information and does not retire or upsert", async (_label, body) => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      mockVideosFetch(() => new Response(JSON.stringify(body), { status: 200 }));
+
+      const saved = await classifyVideos({ accessToken: "token", videoIds: ["vid1", "vid2"] });
+
+      expect(saved).toBe(0);
+      expect(insertCalls()).toHaveLength(0);
+      expect(updateCalls()).toHaveLength(0);
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it("retires requested ids when videos.list answers with an empty items array", async () => {
+    mockVideosFetch(() => jsonResponse([]));
+
+    const saved = await classifyVideos({ accessToken: "token", videoIds: ["vid1", "vid2"] });
+
+    expect(saved).toBe(0);
+    expect(insertCalls()).toHaveLength(0);
+    expect(updateCalls()).toHaveLength(1);
+    expect(updateCalls()[0][1]).toEqual([["vid1", "vid2"]]);
+  });
+
+  it("keeps earlier upserts and continues past a batch without an items array", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      let batch = 0;
+      const fetchMock = mockVideosFetch((requested) => {
+        batch++;
+        return batch === 2
+          ? new Response(JSON.stringify({}), { status: 200 })
+          : jsonResponse(requested.map(validItem));
+      });
+
+      const saved = await classifyVideos({ accessToken: "token", videoIds: idsOf(150) });
+
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(saved).toBe(100);
+      expect(insertCalls()).toHaveLength(2);
+      expect(updateCalls()).toHaveLength(0);
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 });
 
