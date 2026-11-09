@@ -78,6 +78,21 @@ describe("GET /api/feed/all", () => {
     expect(lastPage.body.items.map((r: Row) => r.video_id)).toEqual(["a1"]);
     expect(lastPage.body.hasMore).toBe(false);
   });
+
+  // pool is mocked, so this guards the query text only, not the filtering result
+  it("excludes upcoming streams in the feed query", async () => {
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(
+      mockQueryResult({ rows: makeRows() }),
+    );
+
+    const res = await request(buildApp()).get("/api/feed/all");
+
+    expect(res.status).toBe(200);
+    const feedCall = vi
+      .mocked(pool.query)
+      .mock.calls.find(([sql]) => String(sql).includes("join videos_cache"));
+    expect(String(feedCall?.[0])).toContain("coalesce(v.live_broadcast_content, 'none') <> 'upcoming'");
+  });
 });
 
 const LIST_ID = "11111111-1111-1111-1111-111111111111";
@@ -120,6 +135,19 @@ describe("GET /api/feed/lists/:listId", () => {
     const secondPage = await request(buildApp()).get(`/api/feed/lists/${LIST_ID}?offset=2&limit=2`);
     expect(secondPage.body.items.map((r: Row) => r.video_id)).toEqual(["c1", "a2"]);
     expect(secondPage.body.hasMore).toBe(true);
+  });
+
+  // pool is mocked, so this guards the query text only, not the filtering result
+  it("excludes upcoming streams in the feed query", async () => {
+    mockListLookup(makeRows());
+
+    const res = await request(buildApp()).get(`/api/feed/lists/${LIST_ID}`);
+
+    expect(res.status).toBe(200);
+    const feedCall = vi
+      .mocked(pool.query)
+      .mock.calls.find(([sql]) => String(sql).includes("join videos_cache"));
+    expect(String(feedCall?.[0])).toContain("coalesce(v.live_broadcast_content, 'none') <> 'upcoming'");
   });
 
   // listId format must be checked after requireAuth, not via
