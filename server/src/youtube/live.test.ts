@@ -796,9 +796,12 @@ describe("findUpcomingVideoIds", () => {
     const ids = await findUpcomingVideoIds(["UCa", "UCb"], 5);
 
     expect(ids).toEqual(["v1", "v2"]);
+    // pool is mocked, this guards the SQL text only
     const [sql, params] = mockedQuery(vi.mocked(pool.query)).mock.calls[0];
     expect(params).toEqual([["UCa", "UCb"], 5]);
     expect(sql).toContain("live_broadcast_content = 'upcoming'");
     expect(sql).not.toContain("'live'");
+    expect(sql).toContain("order by scheduled_start_time desc nulls last");
+    expect(sql).toContain("limit $2");
   });
 });

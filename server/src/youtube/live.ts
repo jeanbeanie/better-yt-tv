@@ -317,7 +317,8 @@ export async function findVideoIdsToClassify(
 }
 
 // for channels with live off only upcoming rows matter
-// a live row never changes what feeds show, an upcoming row stays hidden until reclassified
+// live rows stay visible in the feeds, upcoming rows stay hidden until reclassified
+// newest scheduled first, old never started streams cannot crowd out recent ones
 export async function findUpcomingVideoIds(channelIds: string[], limit: number): Promise<string[]> {
   if (channelIds.length === 0 || limit <= 0) {
     return [];
@@ -329,7 +330,7 @@ export async function findUpcomingVideoIds(channelIds: string[], limit: number):
     from videos_cache
     where channel_id = any($1::text[])
       and live_broadcast_content = 'upcoming'
-    order by scheduled_start_time asc nulls first
+    order by scheduled_start_time desc nulls last
     limit $2
     `,
     [channelIds, limit],

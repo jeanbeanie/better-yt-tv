@@ -21,6 +21,7 @@ import type {
 } from "../youtube/apiTypes.js";
 
 const LIVE_CLASSIFY_MAX_IDS = 1000;
+const LIVE_UPCOMING_RECHECK_MAX_IDS = 100;
 
 export const youtubeRouter = express.Router();
 
@@ -377,7 +378,7 @@ async function runLiveRefresh(userId: string): Promise<LiveRefreshResult> {
 
   // off channels are rechecked for upcoming rows only, see findUpcomingVideoIds
   const upcomingIds = offChannelIds.length > 0
-    ? await findUpcomingVideoIds(offChannelIds, LIVE_CLASSIFY_MAX_IDS)
+    ? await findUpcomingVideoIds(offChannelIds, LIVE_UPCOMING_RECHECK_MAX_IDS)
     : [];
 
   const dueIds = dueChannels.length > 0
@@ -397,7 +398,9 @@ async function runLiveRefresh(userId: string): Promise<LiveRefreshResult> {
   }
 
   // reached only when classification did not throw, channels skipped by the RSS pass stay due
-  await markLiveChannelsChecked(rss.attemptedChannelIds);
+  if (rss.attemptedChannelIds.length > 0) {
+    await markLiveChannelsChecked(rss.attemptedChannelIds);
+  }
 
   return {
     ok: true,

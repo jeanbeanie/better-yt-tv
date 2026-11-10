@@ -69,7 +69,7 @@ async function fetchFeedForPreference(
     where us.user_id = $1
       -- Fail open if preferences are missing (see docblock above)
       and coalesce(cp.${preferenceColumn}, true) = true
-      -- upcoming streams cannot be played yet, they show on /live
+      -- upcoming streams cannot be played yet
       and coalesce(v.live_broadcast_content, 'none') <> 'upcoming'
       and (
         -- Same fail-open reasoning as above for Shorts exclusion
