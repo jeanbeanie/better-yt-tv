@@ -69,6 +69,8 @@ async function fetchFeedForPreference(
     where us.user_id = $1
       -- Fail open if preferences are missing (see docblock above)
       and coalesce(cp.${preferenceColumn}, true) = true
+      -- upcoming streams cannot be played yet
+      and coalesce(v.live_broadcast_content, 'none') <> 'upcoming'
       and (
         -- Same fail-open reasoning as above for Shorts exclusion
         coalesce(cp.excluded_shorts, false) = false
@@ -254,6 +256,8 @@ feedRouter.get("/lists/:listId", requireAuth, async (req, res, next) => {
         on uvs.user_id = l.user_id
        and uvs.video_id = v.video_id
       where lc.list_id = $2
+        -- same upcoming stream exclusion as GET /all
+        and coalesce(v.live_broadcast_content, 'none') <> 'upcoming'
         and (
           -- If Shorts are allowed for this channel (or preferences are
           -- missing entirely, fail open rather than silently excluding),
