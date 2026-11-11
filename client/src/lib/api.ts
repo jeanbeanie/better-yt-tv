@@ -1,3 +1,7 @@
+import { isDemoMode } from "./demo/mode";
+import { demoFetch } from "./demo/demoFetch";
+import { demoRefreshResult } from "./demo/demoRefresh";
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 // extend built-in Error class
@@ -58,10 +62,12 @@ async function parseApiError(resp: Response, fallback: string): Promise<ApiError
 
 // reusable wrapper for endpoints
 async function apiFetch<T>(path: string, init: RequestInit, fallback: string): Promise<T> {
-  const resp = await fetch(`${API_BASE}${path}`, {
+  const url = `${API_BASE}${path}`;
+  const request: RequestInit = {
     credentials: "include",
     ...init, // method, headers, body, etc...
-  });
+  };
+  const resp = await (isDemoMode() ? demoFetch(url, request) : fetch(url, request));
 
   if (!resp.ok) {
     throw await parseApiError(resp, fallback);
@@ -148,16 +154,7 @@ export async function deleteAccount() {
 
 // Do a one-time sync from YouTube into the DB
 export async function syncSubscriptions(): Promise<{ ok: boolean; syncedCount: number }> {
-  const resp = await fetch(`${API_BASE}/api/youtube/sync-subscriptions`, {
-    method: "POST",
-    credentials: "include",
-  });
-
-  if (!resp.ok) {
-    throw await parseApiError(resp, "sync subscriptions failed");
-  }
-
-  return resp.json();
+  return apiFetch<{ ok: boolean; syncedCount: number }>("/api/youtube/sync-subscriptions", { method: "POST" }, "sync subscriptions failed");
 }
 
 export type RefreshAllCacheResult = {
@@ -184,6 +181,8 @@ export async function refreshAllCache(
   options: { manual?: boolean } = {},
 ): Promise<RefreshAllCacheResult> {
   const manual = options.manual ?? false;
+  // demo returns before any cooldown, in-flight, fetch, or storage write
+  if (isDemoMode()) return demoRefreshResult(manual);
 
   if (!manual) {
     const lastAt = Number(window.localStorage.getItem(AUTO_REFRESH_STORAGE_KEY) ?? 0);
@@ -202,18 +201,15 @@ export async function refreshAllCache(
   if (refreshAllCacheInFlight) return refreshAllCacheInFlight;
 
   const inFlight = (async () => {
-    const resp = await fetch(`${API_BASE}/api/youtube/refresh-all-cache`, {
-      method: "POST",
-      credentials: "include", // tells browser to send cookies with this request, necessary for auth
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ manual }),
-    });
-
-    if (!resp.ok) {
-      throw await parseApiError(resp, "refresh all cache failed");
-    }
-
-    const result = await resp.json();
+    const result = await apiFetch<RefreshAllCacheResult>(
+      "/api/youtube/refresh-all-cache",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ manual }),
+      },
+      "refresh all cache failed",
+    );
     lastKnownRefreshPaused = result.refreshPaused;
     window.localStorage.setItem(AUTO_REFRESH_STORAGE_KEY, String(Date.now()));
     return result;

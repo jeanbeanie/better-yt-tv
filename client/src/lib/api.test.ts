@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   ApiError,
   getAllFeed,
@@ -6,11 +6,13 @@ import {
   markVideoUnwatched,
   shouldRedirectToLogin,
   refreshAllCache,
+  syncSubscriptions,
   getAppSettings,
   updateAppSettings,
   getLoginUrl,
   saveInviteCode,
 } from "./api";
+import { DEMO_REFRESHED_CHANNELS, DEMO_CACHED_VIDEOS } from "./demo/demoRefresh";
 
 function mockFetchOnce(body: string, status: number) {
   globalThis.fetch = vi.fn().mockResolvedValue(new Response(body, { status })) as unknown as typeof fetch;
@@ -213,6 +215,81 @@ describe("refreshAllCache cooldown", () => {
   });
 });
 
+describe("syncSubscriptions request", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("sends a bare POST with credentials and returns the parsed body", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true, syncedCount: 4 }), { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await syncSubscriptions();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:5179/api/youtube/sync-subscriptions", { method: "POST", credentials: "include" });
+    expect(result).toEqual({ ok: true, syncedCount: 4 });
+  });
+
+  it("throws an ApiError with the fallback message when the body has none", async () => {
+    mockFetchOnce("{}", 500);
+
+    const err = await syncSubscriptions().catch((e) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ message: "sync subscriptions failed: 500", status: 500 });
+  });
+});
+
+describe("refreshAllCache request shape", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const resultBody = JSON.stringify({
+    ok: true,
+    refreshPaused: false,
+    refreshedChannels: 1,
+    skippedChannels: 0,
+    failedChannels: 0,
+    cachedVideos: 3,
+  });
+
+  it("sends a POST with credentials, a JSON content-type header, and the manual flag in the body", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(resultBody, { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await refreshAllCache({ manual: true });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:5179/api/youtube/refresh-all-cache", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ manual: true }),
+    });
+  });
+
+  it("sends manual: false for an automatic call", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(resultBody, { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await refreshAllCache();
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.body).toBe(JSON.stringify({ manual: false }));
+  });
+
+  it("throws an ApiError with the fallback message when the body has none", async () => {
+    mockFetchOnce("{}", 500);
+
+    const err = await refreshAllCache({ manual: true }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ message: "refresh all cache failed: 500", status: 500 });
+  });
+});
+
 describe("app settings", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -266,6 +343,124 @@ describe("getLoginUrl", () => {
 
     expect(getLoginUrl()).toBe(
       "http://localhost:5179/api/auth/login?invite=code%20with%20spaces",
+    );
+  });
+});
+
+describe("demo mode", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    window.history.pushState({}, "", "/");
+  });
+
+  function installLeakMock() {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response("{}", { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    return fetchMock;
+  }
+
+  it("serves every wrapper from demoFetch and never calls fetch", async () => {
+    window.history.pushState({}, "", "/demo/all");
+    const fetchMock = installLeakMock();
+
+    const feedErr = await getAllFeed().catch((err) => err);
+    const watchErr = await markVideoWatched("v1").catch((err) => err);
+    const syncErr = await syncSubscriptions().catch((err) => err);
+
+    for (const err of [feedErr, watchErr, syncErr]) {
+      expect(err).toBeInstanceOf(ApiError);
+      expect(err).toMatchObject({ message: "Not found", status: 404 });
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("refreshAllCache returns the canned manual result without touching fetch or storage", async () => {
+    window.history.pushState({}, "", "/demo/all");
+    const fetchMock = installLeakMock();
+
+    const result = await refreshAllCache({ manual: true });
+
+    expect(result).toEqual({
+      ok: true,
+      refreshPaused: false,
+      refreshedChannels: DEMO_REFRESHED_CHANNELS,
+      skippedChannels: 0,
+      failedChannels: 0,
+      cachedVideos: DEMO_CACHED_VIDEOS,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+    expect(window.localStorage.getItem("betterYtTv.lastAutoRefreshAt")).toBeNull();
+  });
+
+  it("refreshAllCache returns zeros for a background call", async () => {
+    window.history.pushState({}, "", "/demo/all");
+    const fetchMock = installLeakMock();
+
+    const result = await refreshAllCache();
+
+    expect(result).toEqual({
+      ok: true,
+      refreshPaused: false,
+      refreshedChannels: 0,
+      skippedChannels: 0,
+      failedChannels: 0,
+      cachedVideos: 0,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+    expect(window.localStorage.getItem("betterYtTv.lastAutoRefreshAt")).toBeNull();
+  });
+
+  it("a demo refresh leaves no cooldown behind for the real app", async () => {
+    window.history.pushState({}, "", "/demo/all");
+    const demoFetchMock = installLeakMock();
+    await refreshAllCache();
+    expect(demoFetchMock).toHaveBeenCalledTimes(0);
+
+    window.history.pushState({}, "", "/");
+    const realFetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            refreshPaused: false,
+            refreshedChannels: 1,
+            skippedChannels: 0,
+            failedChannels: 0,
+            cachedVideos: 4,
+          }),
+          { status: 200 },
+        ),
+      );
+    globalThis.fetch = realFetchMock as unknown as typeof fetch;
+
+    await refreshAllCache();
+
+    expect(realFetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("non-demo fetch", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("getAllFeed calls fetch with the API url and credentials", async () => {
+    window.history.pushState({}, "", "/");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ items: [], hasMore: false }), { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await getAllFeed();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:5179/api/feed/all",
+      expect.objectContaining({ credentials: "include" }),
     );
   });
 });
