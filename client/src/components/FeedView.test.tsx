@@ -394,4 +394,46 @@ describe("FeedView demo storage keys", () => {
     expect(window.localStorage.getItem("betterYtTv.demo.test.selectedVideoId")).toBe("v2");
     expect(window.localStorage.getItem("test.selectedVideoId")).toBeNull();
   });
+
+  it("restores catch-up mode from the demo key in demo mode", async () => {
+    window.history.pushState({}, "", "/demo/all");
+    window.localStorage.setItem("betterYtTv.demo.catchUpMode", "false");
+    window.localStorage.setItem("betterYtTv.catchUpMode", "true");
+
+    render(
+      <FeedView
+        items={[VIDEO_1]}
+        onSetWatched={vi.fn()}
+        emptyState={<div />}
+        storageKey=""
+      />,
+    );
+
+    expect(await screen.findByLabelText(/catch-up mode/i)).not.toBeChecked();
+  });
+
+  it("restores the selected video from the demo storageKey in demo mode", async () => {
+    window.history.pushState({}, "", "/demo/all");
+    window.localStorage.setItem("betterYtTv.demo.test.selectedVideoId", "v2");
+    window.localStorage.setItem("test.selectedVideoId", "v1");
+
+    render(
+      <FeedView
+        items={[VIDEO_1, VIDEO_2]}
+        onSetWatched={vi.fn()}
+        emptyState={<div />}
+        storageKey="test.selectedVideoId"
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Second Video" })).toHaveAttribute(
+        "aria-current",
+        "true",
+      ),
+    );
+    expect(screen.getByRole("button", { name: "First Video" })).not.toHaveAttribute(
+      "aria-current",
+    );
+  });
 });

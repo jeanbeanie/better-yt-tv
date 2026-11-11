@@ -327,4 +327,16 @@ describe("ListsSettingsPage demo storage keys", () => {
     expect(window.localStorage.getItem("betterYtTv.demo.editOnCreate")).toBe("false");
     expect(window.localStorage.getItem("betterYtTv.editOnCreate")).toBeNull();
   });
+
+  it("restores the edit-on-create toggle from the demo key in demo mode", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists");
+    window.localStorage.setItem("betterYtTv.demo.editOnCreate", "false");
+    window.localStorage.setItem("betterYtTv.editOnCreate", "true");
+    vi.mocked(getLists).mockResolvedValue({ lists: [] });
+
+    renderPage();
+
+    await screen.findByText("You don't have any lists yet.");
+    expect(screen.getByRole("checkbox", { name: "Edit List After Creating" })).not.toBeChecked();
+  });
 });

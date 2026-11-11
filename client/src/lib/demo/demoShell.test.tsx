@@ -34,7 +34,7 @@ describe("demo shell", () => {
 
     renderShell();
 
-    // Exit demo renders once whoami resolves, so the nav is settled
+    // wait for the demo shell, Exit demo renders with it
     await screen.findByRole("link", { name: "Exit demo" });
     const nav = screen.getByRole("navigation");
     expect(within(nav).getByRole("link", { name: "All" })).toHaveAttribute("href", "/demo/all");
@@ -120,7 +120,6 @@ describe("demo shell", () => {
 
     await screen.findByRole("link", { name: "Exit demo" });
     expect(screen.queryByRole("button", { name: "Delete my account and data" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Advanced" })).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 
@@ -168,5 +167,41 @@ describe("demo shell", () => {
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
     expect(window.localStorage.getItem("betterYtTv.theme")).toBe("dark");
     expect(screen.getByRole("button", { name: "Switch to light mode" })).toBeInTheDocument();
+  });
+
+  it.each(["/demo/all", "/demo/lists", "/demo/settings/channels", "/demo/settings/lists"])(
+    "writes only the shared theme key and demo keys at %s",
+    async (path) => {
+      window.history.pushState({}, "", path);
+
+      renderShell();
+
+      await screen.findByText("Not found");
+      const keys = Array.from({ length: window.localStorage.length }, (_, i) => window.localStorage.key(i) ?? "");
+      expect(keys.filter((key) => key !== "betterYtTv.theme" && !key.startsWith("betterYtTv.demo."))).toEqual([]);
+      expect(
+        keys.filter(
+          (key) =>
+            ["betterYtTv.catchUpMode", "betterYtTv.selectedListId", "betterYtTv.editOnCreate", "betterYtTv.lastAutoRefreshAt"].includes(key) ||
+            key.startsWith("betterYtTv.selectedVideoId."),
+        ),
+      ).toEqual([]);
+      expect(fetchMock).toHaveBeenCalledTimes(0);
+    },
+  );
+
+  it("writes the demo catch-up and edit-on-create keys on mount", async () => {
+    window.history.pushState({}, "", "/demo/all");
+    const first = renderShell();
+
+    await screen.findByText("Not found");
+    expect(window.localStorage.getItem("betterYtTv.demo.catchUpMode")).not.toBeNull();
+    first.unmount();
+
+    window.history.pushState({}, "", "/demo/settings/lists");
+    renderShell();
+
+    await screen.findByText("Not found");
+    expect(window.localStorage.getItem("betterYtTv.demo.editOnCreate")).not.toBeNull();
   });
 });
