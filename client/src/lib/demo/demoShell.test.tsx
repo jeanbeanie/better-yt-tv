@@ -177,7 +177,7 @@ describe("demo shell", () => {
   it.each([
     ["/demo/all", FEED_FIRST_TITLE],
     ["/demo/lists", "Not found"],
-    ["/demo/settings/channels", "Not found"],
+    ["/demo/settings/channels", "NASA"],
     ["/demo/settings/lists", "Not found"],
   ])(
     "writes only the shared theme key and demo keys at %s",
@@ -226,6 +226,24 @@ describe("demo shell", () => {
     );
 
     await screen.findByRole("button", { name: `Mark "${FEED_FIRST_TITLE}" as unwatched` });
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("lists the fixture channels and shows sync and refresh results", async () => {
+    window.history.pushState({}, "", "/demo/settings/channels");
+    const user = userEvent.setup();
+
+    renderShell();
+
+    await screen.findByRole("heading", { name: "NASA" });
+    expect(screen.getAllByText(/^demo-/)).toHaveLength(11);
+
+    await user.click(screen.getByRole("button", { name: "Sync Subscriptions" }));
+    await screen.findByText("Synced 11 channels.");
+
+    await user.click(screen.getByRole("button", { name: "Manually Refresh Feed" }));
+    await screen.findByText("Refreshed 11 channels, skipped 0, cached 60 videos.");
+
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 });

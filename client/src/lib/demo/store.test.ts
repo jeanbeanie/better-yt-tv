@@ -275,3 +275,72 @@ describe("demo store isolation", () => {
     expect(item?.is_watched).toBe(false);
   });
 });
+
+describe("demo store channels", () => {
+  const SERVER_ORDER = [
+    "3Blue1Brown",
+    "Blender",
+    "CGP Grey",
+    "Computerphile",
+    "exit node",
+    "Fireship",
+    "Kurzgesagt – In a Nutshell",
+    "NASA",
+    "SmarterEveryDay",
+    "TED-Ed",
+    "Veritasium",
+  ];
+
+  it("returns the 11 fixture channels in the server's title order", () => {
+    const channels = createDemoStore(NOW).getChannels();
+
+    expect(channels).toHaveLength(11);
+    expect(channels.map((c) => c.title)).toEqual(SERVER_ORDER);
+    expect(channels[0]).toEqual({
+      channelId: "demo-3blue1brown",
+      title: "3Blue1Brown",
+      thumbUrl: null,
+      enabledAll: true,
+      enabledLive: true,
+      excludedShorts: true,
+    });
+  });
+
+  it("returns copies, so mutating returned rows leaves the store and feed unchanged", () => {
+    const store = createDemoStore(NOW);
+    const returned = store.getChannels();
+    returned.pop();
+    returned[0].title = "Changed";
+    returned[0].enabledAll = false;
+
+    const again = store.getChannels();
+    expect(again).toHaveLength(11);
+    expect(again[0].title).toBe("3Blue1Brown");
+    expect(again[0].enabledAll).toBe(true);
+    expect(feedIds(store)).toContain("pvUy69I_Xuk");
+  });
+
+  it("keeps two stores separate, including from the override input", () => {
+    const input = DEMO_CHANNELS.map((c) => ({ ...c }));
+    const first = createDemoStore(NOW, { channels: input });
+    const second = createDemoStore(NOW);
+
+    input[1].title = "Mutated input";
+    first.getChannels()[0].enabledLive = false;
+
+    expect(first.getChannels().map((c) => c.title)).toContain("Blender");
+    expect(first.getChannels().map((c) => c.title)).not.toContain("Mutated input");
+    expect(second.getChannels().every((c) => c.enabledLive)).toBe(true);
+  });
+
+  it("leaves DEMO_CHANNELS unchanged after reads and mutations", () => {
+    const snapshot = structuredClone(DEMO_CHANNELS);
+    const store = createDemoStore(NOW);
+    store.getChannels().forEach((c) => {
+      c.title = "Changed";
+      c.excludedShorts = false;
+    });
+
+    expect(DEMO_CHANNELS).toEqual(snapshot);
+  });
+});

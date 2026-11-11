@@ -50,10 +50,24 @@ async function markUnwatched({ params }: RouteContext): Promise<Response> {
   return json({ ok: true });
 }
 
+// dynamic import, same chunk split as getFeedAll, keeps fixtures out of the index chunk
+async function getChannels(): Promise<Response> {
+  const { getDemoStore } = await import("./store");
+  return json({ channels: getDemoStore().getChannels() });
+}
+
+// no network, the count comes from the store so it cannot drift from the fixtures
+async function syncSubscriptions(): Promise<Response> {
+  const { getDemoStore } = await import("./store");
+  return json({ ok: true, syncedCount: getDemoStore().getChannels().length });
+}
+
 const routes: Route[] = [
   { method: "GET", pattern: compilePattern("/api/feed/all"), handle: getFeedAll },
   { method: "POST", pattern: compilePattern("/api/feed/videos/:videoId/watch"), handle: markWatched },
   { method: "POST", pattern: compilePattern("/api/feed/videos/:videoId/unwatch"), handle: markUnwatched },
+  { method: "GET", pattern: compilePattern("/api/channels"), handle: getChannels },
+  { method: "POST", pattern: compilePattern("/api/youtube/sync-subscriptions"), handle: syncSubscriptions },
 ];
 
 // fail closed transport for demo mode, unknown routes 404

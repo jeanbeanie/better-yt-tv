@@ -368,12 +368,14 @@ describe("demo mode", () => {
 
     const watched = await markVideoWatched("v1");
     const unwatched = await markVideoUnwatched("v1");
-    const syncErr = await syncSubscriptions().catch((err) => err);
+    const sync = await syncSubscriptions();
+    const appSettingsErr = await getAppSettings().catch((err) => err);
 
     expect(watched).toEqual({ ok: true });
     expect(unwatched).toEqual({ ok: true });
-    expect(syncErr).toBeInstanceOf(ApiError);
-    expect(syncErr).toMatchObject({ message: "Not found", status: 404 });
+    expect(sync).toEqual({ ok: true, syncedCount: 11 });
+    expect(appSettingsErr).toBeInstanceOf(ApiError);
+    expect(appSettingsErr).toMatchObject({ message: "Not found", status: 404 });
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 

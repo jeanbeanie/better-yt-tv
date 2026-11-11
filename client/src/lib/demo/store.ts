@@ -4,6 +4,9 @@ import { DEMO_CHANNELS, DEMO_VIDEOS, type DemoVideo } from "./fixtures";
 const HOUR_MS = 60 * 60 * 1000;
 const SHORTS_MAX_SECONDS = 60;
 
+// title order like the server's order by channel_title, en-US collation
+const titleCollator = new Intl.Collator("en-US");
+
 export type DemoStoreOverrides = {
   channels?: Channel[];
   videos?: DemoVideo[];
@@ -13,6 +16,7 @@ export type DemoStore = {
   getAllFeed(params: { offset: number; limit: number }): { items: FeedItem[]; hasMore: boolean };
   setWatched(videoId: string): void;
   setUnwatched(videoId: string): void;
+  getChannels(): Channel[];
 };
 
 // input sorted published_at desc, the channel with the newest video comes out first
@@ -93,7 +97,15 @@ export function createDemoStore(now: Date | number, overrides: DemoStoreOverride
     watchedAt.set(videoId, null);
   }
 
-  return { getAllFeed, setWatched, setUnwatched };
+  // copies so callers cannot change store state
+  // sorted by title to match GET /api/channels
+  function getChannels(): Channel[] {
+    return [...channels.values()]
+      .map((channel) => ({ ...channel }))
+      .sort((a, b) => titleCollator.compare(a.title, b.title));
+  }
+
+  return { getAllFeed, setWatched, setUnwatched, getChannels };
 }
 
 let singleton: DemoStore | null = null;

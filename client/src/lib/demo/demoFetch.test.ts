@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { demoFetch } from "./demoFetch";
 import { resetDemoStore } from "./store";
-import { getAllFeed } from "../api";
+import { getAllFeed, getChannels, syncSubscriptions, type Channel } from "../api";
 
 const NOW = new Date("2026-11-11T12:00:00Z");
 const FEED_FIELDS = [
@@ -228,5 +228,76 @@ describe("demoFetch", () => {
     await demoFetch(unwatchPath(WATCH_ID), { method: "POST" });
 
     expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("serves GET /api/channels as JSON with the 11 fixture channels", async () => {
+    const resp = await demoFetch("http://localhost:5179/api/channels", { method: "GET" });
+
+    expect(resp.status).toBe(200);
+    expect(resp.headers.get("Content-Type")).toBe("application/json");
+    const body = (await resp.json()) as { channels: Channel[] };
+    expect(body.channels).toHaveLength(11);
+    for (const channel of body.channels) {
+      expect(Object.keys(channel).sort()).toEqual([
+        "channelId",
+        "enabledAll",
+        "enabledLive",
+        "excludedShorts",
+        "thumbUrl",
+        "title",
+      ]);
+      expect(channel).toMatchObject({
+        thumbUrl: null,
+        enabledAll: true,
+        enabledLive: true,
+        excludedShorts: true,
+      });
+    }
+  });
+
+  it("serves POST /api/youtube/sync-subscriptions with the fixture channel count", async () => {
+    const resp = await demoFetch("http://localhost:5179/api/youtube/sync-subscriptions", {
+      method: "POST",
+    });
+
+    expect(resp.status).toBe(200);
+    expect(await resp.json()).toEqual({ ok: true, syncedCount: 11 });
+  });
+
+  it("returns 404 for POST /api/channels and GET /api/youtube/sync-subscriptions", async () => {
+    const post = await demoFetch("http://localhost:5179/api/channels", { method: "POST" });
+    const get = await demoFetch("http://localhost:5179/api/youtube/sync-subscriptions", {
+      method: "GET",
+    });
+
+    expect(post.status).toBe(404);
+    expect(get.status).toBe(404);
+  });
+
+  it("never calls the global fetch for channels or sync", async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await demoFetch("http://localhost:5179/api/channels", { method: "GET" });
+    await demoFetch("http://localhost:5179/api/youtube/sync-subscriptions", { method: "POST" });
+
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("serves channels and sync through the real api wrappers in demo mode", async () => {
+    window.history.pushState({}, "", "/demo/settings/channels");
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      const { channels } = await getChannels();
+      const sync = await syncSubscriptions();
+
+      expect(channels).toHaveLength(11);
+      expect(sync).toEqual({ ok: true, syncedCount: 11 });
+      expect(fetchMock).toHaveBeenCalledTimes(0);
+    } finally {
+      window.history.pushState({}, "", "/");
+    }
   });
 });
