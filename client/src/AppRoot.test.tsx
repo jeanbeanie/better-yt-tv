@@ -43,4 +43,17 @@ describe("AppRoot", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(screen.queryByRole("link", { name: "Exit demo" })).not.toBeInTheDocument();
   });
+
+  it("does not render the demo banner at the real root", async () => {
+    window.history.pushState({}, "", "/");
+
+    render(
+      <MemoryRouter>
+        <AppRoot />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(screen.queryByText(/viewing a demo with sample data/)).not.toBeInTheDocument();
+  });
 });

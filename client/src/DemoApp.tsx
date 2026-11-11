@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Route, Routes } from "react-router-dom";
 import GuardedLink from "./components/GuardedLink";
+import DemoBanner from "./components/DemoBanner";
 import DemoHomePage from "./pages/DemoHomePage";
 import AllPage from "./pages/AllPage";
 import ListsPage from "./pages/ListsPage";
@@ -32,6 +33,7 @@ export default function DemoApp() {
 
   return (
     <div className="layout">
+      <DemoBanner />
       <header style={{ marginBottom: "2rem" }}>
         <nav style={{ display: "flex", gap: "1rem" }}>
           <GuardedLink to="/">Home</GuardedLink>

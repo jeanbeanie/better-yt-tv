@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { getLoginUrl, hasInviteCode, type User } from "../lib/api";
 import ErrorText from "../components/ErrorText";
 import Spinner from "../components/Spinner";
+import { GITHUB_URL, LINKEDIN_URL } from "../lib/contactLinks";
 
 
 type homePageProps = {
@@ -49,12 +50,12 @@ export default function HomePage(props:homePageProps) {
             </p>
             <p style={{ fontSize: "0.875rem" }}>
               Reach out if you&apos;d like access:{" "}
-              <a href="https://github.com/jeanbeanie" target="_blank" rel="noreferrer">
+              <a href={GITHUB_URL} target="_blank" rel="noreferrer">
                 GitHub
               </a>
               {" · "}
               <a
-                href="https://www.linkedin.com/in/jeane-ramos-83339399/"
+                href={LINKEDIN_URL}
                 target="_blank"
                 rel="noreferrer"
               >

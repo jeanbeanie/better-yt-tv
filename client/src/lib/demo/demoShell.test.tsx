@@ -124,6 +124,27 @@ describe("demo shell", () => {
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 
+  it.each(["/demo", "/demo/all", "/demo/lists", "/demo/settings/channels"])(
+    "renders the demo banner with contact links at %s",
+    async (path) => {
+      window.history.pushState({}, "", path);
+
+      renderShell();
+
+      await screen.findByRole("link", { name: "Exit demo" });
+      expect(screen.getByText(/You're viewing a demo with sample data\. Want an invite\?/)).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "GitHub" })).toHaveAttribute(
+        "href",
+        "https://github.com/jeanbeanie",
+      );
+      expect(screen.getByRole("link", { name: "LinkedIn" })).toHaveAttribute(
+        "href",
+        "https://www.linkedin.com/in/jeane-ramos-83339399/",
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(0);
+    },
+  );
+
   it.each(["/demo/live", "/demo/admin"])("renders no Live or Admin page at %s", async (path) => {
     window.history.pushState({}, "", path);
 
