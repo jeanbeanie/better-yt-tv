@@ -6,6 +6,7 @@ import {
   markVideoUnwatched,
   shouldRedirectToLogin,
   refreshAllCache,
+  syncSubscriptions,
   getAppSettings,
   updateAppSettings,
   getLoginUrl,
@@ -210,6 +211,81 @@ describe("refreshAllCache cooldown", () => {
     await refreshAllCache();
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("syncSubscriptions request", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("sends a bare POST with credentials and returns the parsed body", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true, syncedCount: 4 }), { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await syncSubscriptions();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:5179/api/youtube/sync-subscriptions", { method: "POST", credentials: "include" });
+    expect(result).toEqual({ ok: true, syncedCount: 4 });
+  });
+
+  it("throws an ApiError with the fallback message when the body has none", async () => {
+    mockFetchOnce("{}", 500);
+
+    const err = await syncSubscriptions().catch((e) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ message: "sync subscriptions failed: 500", status: 500 });
+  });
+});
+
+describe("refreshAllCache request shape", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const resultBody = JSON.stringify({
+    ok: true,
+    refreshPaused: false,
+    refreshedChannels: 1,
+    skippedChannels: 0,
+    failedChannels: 0,
+    cachedVideos: 3,
+  });
+
+  it("sends a POST with credentials, a JSON content-type header, and the manual flag in the body", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(resultBody, { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await refreshAllCache({ manual: true });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("http://localhost:5179/api/youtube/refresh-all-cache", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ manual: true }),
+    });
+  });
+
+  it("sends manual: false for an automatic call", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(resultBody, { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await refreshAllCache();
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.body).toBe(JSON.stringify({ manual: false }));
+  });
+
+  it("throws an ApiError with the fallback message when the body has none", async () => {
+    mockFetchOnce("{}", 500);
+
+    const err = await refreshAllCache({ manual: true }).catch((e) => e);
+
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ message: "refresh all cache failed: 500", status: 500 });
   });
 });
 

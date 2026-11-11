@@ -148,16 +148,7 @@ export async function deleteAccount() {
 
 // Do a one-time sync from YouTube into the DB
 export async function syncSubscriptions(): Promise<{ ok: boolean; syncedCount: number }> {
-  const resp = await fetch(`${API_BASE}/api/youtube/sync-subscriptions`, {
-    method: "POST",
-    credentials: "include",
-  });
-
-  if (!resp.ok) {
-    throw await parseApiError(resp, "sync subscriptions failed");
-  }
-
-  return resp.json();
+  return apiFetch<{ ok: boolean; syncedCount: number }>("/api/youtube/sync-subscriptions", { method: "POST" }, "sync subscriptions failed");
 }
 
 export type RefreshAllCacheResult = {
@@ -202,18 +193,15 @@ export async function refreshAllCache(
   if (refreshAllCacheInFlight) return refreshAllCacheInFlight;
 
   const inFlight = (async () => {
-    const resp = await fetch(`${API_BASE}/api/youtube/refresh-all-cache`, {
-      method: "POST",
-      credentials: "include", // tells browser to send cookies with this request, necessary for auth
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ manual }),
-    });
-
-    if (!resp.ok) {
-      throw await parseApiError(resp, "refresh all cache failed");
-    }
-
-    const result = await resp.json();
+    const result = await apiFetch<RefreshAllCacheResult>(
+      "/api/youtube/refresh-all-cache",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ manual }),
+      },
+      "refresh all cache failed",
+    );
     lastKnownRefreshPaused = result.refreshPaused;
     window.localStorage.setItem(AUTO_REFRESH_STORAGE_KEY, String(Date.now()));
     return result;
