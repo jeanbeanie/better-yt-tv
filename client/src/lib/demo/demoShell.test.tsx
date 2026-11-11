@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BrowserRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import App from "../../App";
+import AppRoot from "../../AppRoot";
 import { getRouterBasename, isDemoMode } from "./mode";
 
 const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
@@ -12,7 +12,7 @@ const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promis
 function renderShell() {
   return render(
     <BrowserRouter basename={getRouterBasename()}>
-      <App />
+      <AppRoot />
     </BrowserRouter>,
   );
 }
@@ -90,5 +90,62 @@ describe("demo shell", () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(String(fetchMock.mock.calls[0][0])).toContain("/api/auth/whoami");
+  });
+
+  it("shows only Channels and Lists in the demo settings nav", async () => {
+    window.history.pushState({}, "", "/demo/settings/channels");
+
+    renderShell();
+
+    const settingsNav = await screen.findByRole("link", { name: "Channels" }).then(
+      () => screen.getAllByRole("navigation").find((nav) => within(nav).queryByRole("link", { name: "Channels" })),
+    );
+    if (!settingsNav) throw new Error("settings nav not found");
+    expect(within(settingsNav).getByRole("link", { name: "Channels" })).toHaveAttribute(
+      "href",
+      "/demo/settings/channels",
+    );
+    expect(within(settingsNav).getByRole("link", { name: "Lists" })).toHaveAttribute(
+      "href",
+      "/demo/settings/lists",
+    );
+    expect(within(settingsNav).queryByRole("link", { name: "Advanced" })).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("has no advanced settings route in demo", async () => {
+    window.history.pushState({}, "", "/demo/settings/advanced");
+
+    renderShell();
+
+    await screen.findByRole("link", { name: "Exit demo" });
+    expect(screen.queryByRole("button", { name: "Delete my account and data" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Advanced" })).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it.each(["/demo/live", "/demo/admin"])("renders no Live or Admin page at %s", async (path) => {
+    window.history.pushState({}, "", path);
+
+    renderShell();
+
+    await screen.findByRole("link", { name: "Exit demo" });
+    expect(screen.queryByRole("heading", { name: "Live Streams" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Admin" })).not.toBeInTheDocument();
+    expect(screen.getByRole("navigation")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("toggles the theme from the demo nav and persists it to the shared key", async () => {
+    window.history.pushState({}, "", "/demo/all");
+    const user = userEvent.setup();
+
+    renderShell();
+
+    await user.click(await screen.findByRole("button", { name: "Switch to dark mode" }));
+
+    expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+    expect(window.localStorage.getItem("betterYtTv.theme")).toBe("dark");
+    expect(screen.getByRole("button", { name: "Switch to light mode" })).toBeInTheDocument();
   });
 });
