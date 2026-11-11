@@ -5,6 +5,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import AppRoot from "../../AppRoot";
 import { getRouterBasename, isDemoMode } from "./mode";
 
+// first visible fixture title, shown in the player and the queue on /demo/all
+const FEED_FIRST_TITLE = "What's New in Blender 5.3! Official Overview";
+
 const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
   async () => new Response("{}", { status: 200 }),
 );
@@ -48,8 +51,8 @@ describe("demo shell", () => {
     expect(screen.getByRole("link", { name: "Exit demo" })).toHaveAttribute("href", "/");
     expect(screen.queryByRole("button", { name: "Logout" })).not.toBeInTheDocument();
 
-    // fail closed feed 404 surfaces as error text on the All page
-    await screen.findByText("Not found");
+    // demo feed loads from the in memory store on the All page
+    await screen.findAllByText(FEED_FIRST_TITLE);
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 
@@ -176,7 +179,7 @@ describe("demo shell", () => {
 
       renderShell();
 
-      await screen.findByText("Not found");
+      await screen.findAllByText(/Not found|What's New in Blender 5\.3!/);
       const keys = Array.from({ length: window.localStorage.length }, (_, i) => window.localStorage.key(i) ?? "");
       expect(keys.filter((key) => key !== "betterYtTv.theme" && !key.startsWith("betterYtTv.demo."))).toEqual([]);
       expect(
@@ -194,7 +197,7 @@ describe("demo shell", () => {
     window.history.pushState({}, "", "/demo/all");
     const first = renderShell();
 
-    await screen.findByText("Not found");
+    await screen.findAllByText(FEED_FIRST_TITLE);
     expect(window.localStorage.getItem("betterYtTv.demo.catchUpMode")).not.toBeNull();
     first.unmount();
 
