@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import ListsPage from "./ListsPage";
 import { getLists, getListFeed, markVideoWatched, markVideoUnwatched, refreshAllCache } from "../lib/api";
 
@@ -265,5 +265,29 @@ describe("ListsPage", () => {
 
     await screen.findAllByText("First Video");
     expect(screen.queryByText(/temporarily paused/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("ListsPage demo storage keys", () => {
+  afterEach(() => {
+    window.history.pushState({}, "", "/");
+  });
+
+  it("restores the demo selected list and ignores the real key in demo mode", async () => {
+    window.history.pushState({}, "", "/demo/lists");
+    window.localStorage.setItem("betterYtTv.demo.selectedListId", "l2");
+    window.localStorage.setItem("betterYtTv.selectedListId", "l1");
+    vi.mocked(getLists).mockResolvedValue({ lists: [NEWS_LIST, MUSIC_LIST] });
+    vi.mocked(getListFeed).mockResolvedValue({
+      list: { id: "l2", name: "Music" },
+      items: [],
+      hasMore: false,
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(getListFeed).toHaveBeenCalledWith("l2", { limit: 50 }));
+    expect(screen.getByLabelText("Select list:")).toHaveValue("l2");
+    expect(window.localStorage.getItem("betterYtTv.selectedListId")).toBe("l1");
   });
 });

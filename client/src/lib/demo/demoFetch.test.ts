@@ -29,4 +29,18 @@ describe("demoFetch", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
+
+  it("keeps whoami and other routes 404 without calling global fetch", async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const get = await demoFetch("/api/auth/whoami", { method: "GET" });
+    const post = await demoFetch("/api/auth/whoami", { method: "POST" });
+    const logout = await demoFetch("/api/auth/logout", { method: "GET" });
+    const feed = await demoFetch("/api/feed/all");
+    for (const resp of [get, post, logout, feed]) {
+      expect(resp.status).toBe(404);
+      expect(await resp.json()).toEqual({ error: "Not found" });
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
 });

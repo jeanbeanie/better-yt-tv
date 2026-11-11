@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import ListsSettingsPage from "./ListsSettingsPage";
 import { getLists, createList, deleteList } from "../../lib/api";
 
@@ -306,5 +306,37 @@ describe("ListsSettingsPage", () => {
     expect(getLists).toHaveBeenCalledTimes(1);
 
     confirmSpy.mockRestore();
+  });
+});
+
+describe("ListsSettingsPage demo storage keys", () => {
+  afterEach(() => {
+    window.history.pushState({}, "", "/");
+  });
+
+  it("persists the edit-on-create toggle under the demo key in demo mode", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists");
+    vi.mocked(getLists).mockResolvedValue({ lists: [] });
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("You don't have any lists yet.");
+    await user.click(screen.getByRole("checkbox", { name: "Edit List After Creating" }));
+
+    expect(window.localStorage.getItem("betterYtTv.demo.editOnCreate")).toBe("false");
+    expect(window.localStorage.getItem("betterYtTv.editOnCreate")).toBeNull();
+  });
+
+  it("restores the edit-on-create toggle from the demo key in demo mode", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists");
+    window.localStorage.setItem("betterYtTv.demo.editOnCreate", "false");
+    window.localStorage.setItem("betterYtTv.editOnCreate", "true");
+    vi.mocked(getLists).mockResolvedValue({ lists: [] });
+
+    renderPage();
+
+    await screen.findByText("You don't have any lists yet.");
+    expect(screen.getByRole("checkbox", { name: "Edit List After Creating" })).not.toBeChecked();
   });
 });
