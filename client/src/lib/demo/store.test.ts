@@ -4,9 +4,10 @@ import {
   createDemoStore,
   getDemoStore,
   resetDemoStore,
+  type ChannelPatch,
   type DemoStore,
 } from "./store";
-import { DEMO_CHANNELS, type DemoVideo } from "./fixtures";
+import { DEMO_CHANNELS, DEMO_VIDEOS, type DemoVideo } from "./fixtures";
 import type { FeedItem } from "../api";
 
 const NOW = new Date("2026-11-11T12:00:00Z");
@@ -342,5 +343,146 @@ describe("demo store channels", () => {
     });
 
     expect(DEMO_CHANNELS).toEqual(snapshot);
+  });
+});
+
+describe("demo store channel updates", () => {
+  const NASA_SHORTS = ["29ixFQIGZaY", "3Yqi3D4b2RQ", "FkgVB19I6xw"];
+
+  it.each([
+    ["enabledAll", { enabledAll: false }],
+    ["enabledLive", { enabledLive: false }],
+    ["excludedShorts", { excludedShorts: false }],
+  ] as const)("applies %s alone and leaves the other flags", (field, patch) => {
+    const store = createDemoStore(NOW);
+
+    const row = store.updateChannel("demo-blender", patch);
+
+    expect(row).toMatchObject({ channelId: "demo-blender", [field]: false });
+    const others = (["enabledAll", "enabledLive", "excludedShorts"] as const).filter(
+      (key) => key !== field,
+    );
+    for (const key of others) expect(row?.[key]).toBe(true);
+  });
+
+  it("applies several boolean fields together", () => {
+    const store = createDemoStore(NOW);
+
+    const row = store.updateChannel("demo-blender", {
+      enabledAll: false,
+      enabledLive: false,
+      excludedShorts: false,
+    });
+
+    expect(row).toMatchObject({
+      enabledAll: false,
+      enabledLive: false,
+      excludedShorts: false,
+    });
+    expect(store.getChannels().find((c) => c.channelId === "demo-blender")).toMatchObject({
+      enabledAll: false,
+      enabledLive: false,
+      excludedShorts: false,
+    });
+  });
+
+  it("ignores non-boolean values and keeps the boolean ones", () => {
+    const store = createDemoStore(NOW);
+    const junk = { enabledAll: "no", enabledLive: 0, excludedShorts: null } as unknown as ChannelPatch;
+
+    expect(store.updateChannel("demo-blender", junk)).toMatchObject({
+      enabledAll: true,
+      enabledLive: true,
+      excludedShorts: true,
+    });
+
+    const mixed = { enabledLive: false, excludedShorts: "no" } as unknown as ChannelPatch;
+    expect(store.updateChannel("demo-blender", mixed)).toMatchObject({
+      enabledLive: false,
+      excludedShorts: true,
+    });
+  });
+
+  it("returns null for a channel that is not in the store", () => {
+    const store = createDemoStore(NOW);
+
+    expect(store.updateChannel("demo-missing", { enabledAll: false })).toBeNull();
+  });
+
+  it("stamps updatedAt from the store clock", () => {
+    const store = createDemoStore(NOW);
+
+    expect(store.updateChannel("demo-blender", { enabledAll: false })?.updatedAt).toBe(
+      NOW.toISOString(),
+    );
+  });
+
+  it("returns a copy, so mutating it leaves the store unchanged", () => {
+    const store = createDemoStore(NOW);
+    const row = store.updateChannel("demo-blender", { enabledAll: false });
+    if (!row) throw new Error("expected a row");
+    row.enabledAll = true;
+    row.excludedShorts = false;
+
+    const blender = store.getChannels().find((c) => c.channelId === "demo-blender");
+    expect(blender).toMatchObject({ title: "Blender", enabledAll: false, excludedShorts: true });
+  });
+
+  it("keeps two stores separate", () => {
+    const first = createDemoStore(NOW);
+    const second = createDemoStore(NOW);
+
+    first.updateChannel("demo-blender", { enabledAll: false });
+
+    expect(second.getChannels().every((c) => c.enabledAll)).toBe(true);
+    expect(feedIds(second)).toContain("pvUy69I_Xuk");
+  });
+
+  it("leaves DEMO_CHANNELS unchanged after updates", () => {
+    const snapshot = structuredClone(DEMO_CHANNELS);
+    const store = createDemoStore(NOW);
+    store.updateChannel("demo-blender", { enabledAll: false, excludedShorts: false });
+    store.updateChannel("demo-nasa", { enabledLive: false });
+
+    expect(DEMO_CHANNELS).toEqual(snapshot);
+  });
+
+  it("hides a channel's videos with enabledAll off and restores them when it is flipped back", () => {
+    const store = createDemoStore(NOW);
+    const blenderIds = DEMO_VIDEOS.filter((v) => v.channelId === "demo-blender").map((v) => v.videoId);
+    const before = feedIds(store);
+    expect(blenderIds.every((id) => before.includes(id))).toBe(true);
+
+    store.updateChannel("demo-blender", { enabledAll: false });
+    const hidden = feedIds(store);
+    expect(hidden).toHaveLength(before.length - blenderIds.length);
+    expect(blenderIds.some((id) => hidden.includes(id))).toBe(false);
+
+    store.updateChannel("demo-blender", { enabledAll: true });
+    expect(feedIds(store)).toEqual(before);
+  });
+
+  it("shows NASA's short clips in the feed once excludedShorts is off", () => {
+    const store = createDemoStore(NOW);
+    expect(feedIds(store)).toHaveLength(57);
+    expect(NASA_SHORTS.some((id) => feedIds(store).includes(id))).toBe(false);
+
+    store.updateChannel("demo-nasa", { excludedShorts: false });
+
+    const ids = feedIds(store);
+    expect(ids).toHaveLength(60);
+    for (const id of NASA_SHORTS) expect(ids).toContain(id);
+  });
+
+  it("reflects updates in getChannels", () => {
+    const store = createDemoStore(NOW);
+
+    store.updateChannel("demo-nasa", { enabledAll: false, excludedShorts: false });
+
+    expect(store.getChannels().find((c) => c.channelId === "demo-nasa")).toMatchObject({
+      enabledAll: false,
+      enabledLive: true,
+      excludedShorts: false,
+    });
   });
 });

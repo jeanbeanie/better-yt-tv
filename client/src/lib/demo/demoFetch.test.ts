@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { demoFetch } from "./demoFetch";
 import { resetDemoStore } from "./store";
-import { getAllFeed, getChannels, syncSubscriptions, type Channel } from "../api";
+import { getAllFeed, getChannels, syncSubscriptions, updateChannel, type Channel } from "../api";
 
 const NOW = new Date("2026-11-11T12:00:00Z");
 const FEED_FIELDS = [
@@ -21,11 +21,18 @@ async function feedJson(path: string) {
   return resp.json() as Promise<{ items: FeedRow[]; hasMore: boolean }>;
 }
 
-type FeedRow = { video_id: string; is_watched: boolean; watched_at: string | null };
+type FeedRow = { channel_id: string; video_id: string; is_watched: boolean; watched_at: string | null };
 
 const WATCH_ID = "pvUy69I_Xuk";
 const watchPath = (id: string) => `http://localhost:5179/api/feed/videos/${id}/watch`;
 const unwatchPath = (id: string) => `http://localhost:5179/api/feed/videos/${id}/unwatch`;
+const channelPath = (id: string) => `http://localhost:5179/api/channels/${id}`;
+const patchChannel = (id: string, body?: string) =>
+  demoFetch(channelPath(id), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body,
+  });
 
 describe("demoFetch", () => {
   beforeEach(() => {
@@ -295,6 +302,96 @@ describe("demoFetch", () => {
 
       expect(channels).toHaveLength(11);
       expect(sync).toEqual({ ok: true, syncedCount: 11 });
+      expect(fetchMock).toHaveBeenCalledTimes(0);
+    } finally {
+      window.history.pushState({}, "", "/");
+    }
+  });
+
+  it("PATCHes a channel and reflects it in GET /api/channels and the feed", async () => {
+    const resp = await patchChannel("demo-nasa", JSON.stringify({ enabledAll: false }));
+
+    expect(resp.status).toBe(200);
+    expect(await resp.json()).toEqual({
+      channel: {
+        channelId: "demo-nasa",
+        enabledAll: false,
+        enabledLive: true,
+        excludedShorts: true,
+        updatedAt: NOW.toISOString(),
+      },
+    });
+
+    const list = await demoFetch("http://localhost:5179/api/channels", { method: "GET" });
+    const { channels } = (await list.json()) as { channels: Channel[] };
+    expect(channels.find((c) => c.channelId === "demo-nasa")?.enabledAll).toBe(false);
+
+    const feed = await feedJson("/api/feed/all?limit=200");
+    expect(feed.items.some((item) => item.channel_id === "demo-nasa")).toBe(false);
+  });
+
+  it("leaves the flags a partial patch does not name unchanged", async () => {
+    await patchChannel("demo-nasa", JSON.stringify({ excludedShorts: false }));
+    const resp = await patchChannel("demo-nasa", JSON.stringify({ enabledLive: false }));
+
+    expect(await resp.json()).toMatchObject({
+      channel: { enabledAll: true, enabledLive: false, excludedShorts: false },
+    });
+  });
+
+  it("returns 400 for an empty or non-boolean patch", async () => {
+    const bodies = [undefined, "{}", '{"enabledAll":"yes"}', "not json", "null"];
+    for (const body of bodies) {
+      const resp = await patchChannel("demo-nasa", body);
+      expect(resp.status).toBe(400);
+      expect(await resp.json()).toEqual({ error: "No valid fields to update" });
+    }
+  });
+
+  it("returns 404 for an unknown channel with a valid patch", async () => {
+    const resp = await patchChannel("demo-missing", JSON.stringify({ enabledAll: false }));
+
+    expect(resp.status).toBe(404);
+    expect(await resp.json()).toEqual({ error: "Channel preferences not found" });
+  });
+
+  it("validates the patch before looking up the channel", async () => {
+    const resp = await patchChannel("demo-missing", JSON.stringify({ enabledAll: "yes" }));
+
+    expect(resp.status).toBe(400);
+    expect(await resp.json()).toEqual({ error: "No valid fields to update" });
+  });
+
+  it("returns 404 for GET and POST on the channel path", async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    for (const method of ["GET", "POST"]) {
+      const resp = await demoFetch(channelPath("demo-nasa"), { method });
+      expect(resp.status).toBe(404);
+      expect(await resp.json()).toEqual({ error: "Not found" });
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("never calls the global fetch for channel PATCH", async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await patchChannel("demo-nasa", JSON.stringify({ enabledAll: false }));
+
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("serves the channel PATCH through the real updateChannel wrapper in demo mode", async () => {
+    window.history.pushState({}, "", "/demo/settings/channels");
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      await expect(updateChannel("demo-nasa", { enabledAll: false })).resolves.toMatchObject({
+        channel: { channelId: "demo-nasa", enabledAll: false },
+      });
       expect(fetchMock).toHaveBeenCalledTimes(0);
     } finally {
       window.history.pushState({}, "", "/");

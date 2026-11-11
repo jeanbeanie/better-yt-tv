@@ -12,11 +12,23 @@ export type DemoStoreOverrides = {
   videos?: DemoVideo[];
 };
 
+export type ChannelPatch = {
+  enabledAll?: boolean;
+  enabledLive?: boolean;
+  excludedShorts?: boolean;
+};
+
+// updatedAt is the store clock, same stamp as watched_at
+export type ChannelUpdate = Pick<Channel, "channelId" | "enabledAll" | "enabledLive" | "excludedShorts"> & {
+  updatedAt: string;
+};
+
 export type DemoStore = {
   getAllFeed(params: { offset: number; limit: number }): { items: FeedItem[]; hasMore: boolean };
   setWatched(videoId: string): void;
   setUnwatched(videoId: string): void;
   getChannels(): Channel[];
+  updateChannel(channelId: string, patch: ChannelPatch): ChannelUpdate | null;
 };
 
 // input sorted published_at desc, the channel with the newest video comes out first
@@ -105,7 +117,24 @@ export function createDemoStore(now: Date | number, overrides: DemoStoreOverride
       .sort((a, b) => titleCollator.compare(a.title, b.title));
   }
 
-  return { getAllFeed, setWatched, setUnwatched, getChannels };
+  // non-boolean values ignored, like the server's typeof checks
+  function updateChannel(channelId: string, patch: ChannelPatch): ChannelUpdate | null {
+    const channel = channels.get(channelId);
+    if (!channel) return null;
+    if (typeof patch.enabledAll === "boolean") channel.enabledAll = patch.enabledAll;
+    if (typeof patch.enabledLive === "boolean") channel.enabledLive = patch.enabledLive;
+    if (typeof patch.excludedShorts === "boolean") channel.excludedShorts = patch.excludedShorts;
+    // same fields as the server's PATCH response
+    return {
+      channelId: channel.channelId,
+      enabledAll: channel.enabledAll,
+      enabledLive: channel.enabledLive,
+      excludedShorts: channel.excludedShorts,
+      updatedAt: nowIso,
+    };
+  }
+
+  return { getAllFeed, setWatched, setUnwatched, getChannels, updateChannel };
 }
 
 let singleton: DemoStore | null = null;
