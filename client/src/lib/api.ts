@@ -1,3 +1,7 @@
+import { isDemoMode } from "./demo/mode";
+import { demoFetch } from "./demo/demoFetch";
+import { demoRefreshResult } from "./demo/demoRefresh";
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 // extend built-in Error class
@@ -58,10 +62,12 @@ async function parseApiError(resp: Response, fallback: string): Promise<ApiError
 
 // reusable wrapper for endpoints
 async function apiFetch<T>(path: string, init: RequestInit, fallback: string): Promise<T> {
-  const resp = await fetch(`${API_BASE}${path}`, {
+  const url = `${API_BASE}${path}`;
+  const request: RequestInit = {
     credentials: "include",
     ...init, // method, headers, body, etc...
-  });
+  };
+  const resp = await (isDemoMode() ? demoFetch(url, request) : fetch(url, request));
 
   if (!resp.ok) {
     throw await parseApiError(resp, fallback);
@@ -175,6 +181,8 @@ export async function refreshAllCache(
   options: { manual?: boolean } = {},
 ): Promise<RefreshAllCacheResult> {
   const manual = options.manual ?? false;
+  // demo returns before any cooldown, in-flight, fetch, or storage write
+  if (isDemoMode()) return demoRefreshResult(manual);
 
   if (!manual) {
     const lastAt = Number(window.localStorage.getItem(AUTO_REFRESH_STORAGE_KEY) ?? 0);
