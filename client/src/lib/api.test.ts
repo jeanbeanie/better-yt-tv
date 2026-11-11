@@ -11,7 +11,6 @@ import {
   updateAppSettings,
   getLoginUrl,
   saveInviteCode,
-  getWhoAmI,
 } from "./api";
 import { DEMO_REFRESHED_CHANNELS, DEMO_CACHED_VIDEOS } from "./demo/demoRefresh";
 
@@ -441,18 +440,6 @@ describe("demo mode", () => {
     await refreshAllCache();
 
     expect(realFetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("getWhoAmI resolves to the demo user without touching fetch", async () => {
-    window.history.pushState({}, "", "/demo/all");
-    const fetchMock = installLeakMock();
-
-    const result = await getWhoAmI();
-
-    expect(result).toEqual({
-      user: { id: "demo-user", email: null, google_sub: "demo", is_admin: false },
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 });
 

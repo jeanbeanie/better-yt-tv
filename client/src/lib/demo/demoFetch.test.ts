@@ -30,32 +30,17 @@ describe("demoFetch", () => {
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 
-  it("serves GET /api/auth/whoami as the demo user", async () => {
-    const expected = { user: { id: "demo-user", email: null, google_sub: "demo", is_admin: false } };
-    const absolute = await demoFetch("http://localhost:5179/api/auth/whoami", { method: "GET" });
-    const relative = await demoFetch("/api/auth/whoami");
-    for (const resp of [absolute, relative]) {
-      expect(resp.status).toBe(200);
-      expect(await resp.json()).toEqual(expected);
-    }
-  });
-
-  it("keeps other whoami methods and other routes 404", async () => {
+  it("keeps whoami and other routes 404 without calling global fetch", async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const get = await demoFetch("/api/auth/whoami", { method: "GET" });
     const post = await demoFetch("/api/auth/whoami", { method: "POST" });
     const logout = await demoFetch("/api/auth/logout", { method: "GET" });
     const feed = await demoFetch("/api/feed/all");
-    for (const resp of [post, logout, feed]) {
+    for (const resp of [get, post, logout, feed]) {
       expect(resp.status).toBe(404);
       expect(await resp.json()).toEqual({ error: "Not found" });
     }
-  });
-
-  it("never calls the global fetch for whoami", async () => {
-    const fetchMock = vi.fn();
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
-
-    await demoFetch("/api/auth/whoami");
-
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 });

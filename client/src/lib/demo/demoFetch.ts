@@ -1,7 +1,3 @@
-import type { User } from "../api";
-
-const DEMO_USER: User = { id: "demo-user", email: null, google_sub: "demo", is_admin: false };
-
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -9,9 +5,7 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-const routes: Record<string, () => Response> = {
-  "GET /api/auth/whoami": () => json({ user: DEMO_USER }),
-};
+const routes: Record<string, () => Response> = {};
 
 // fail closed transport for demo mode, unknown routes 404
 export const demoFetch: typeof fetch = async (input, init) => {
