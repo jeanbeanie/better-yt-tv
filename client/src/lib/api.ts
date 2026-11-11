@@ -291,18 +291,19 @@ export async function markVideoUnwatched(videoId: string) {
 ///////////////////////////////
 
 
+export type Channel = {
+  channelId: string;
+  title: string;
+  thumbUrl: string | null;
+  enabledAll: boolean;
+  enabledLive: boolean;
+  excludedShorts: boolean;
+};
+
 // Fetch the current user's synced channels and their preferences
 export async function getChannels() {
   return apiFetch<{
-    // TODO make exportable types for reuse????
-    channels: Array<{
-      channelId: string;
-      title: string;
-      thumbUrl: string | null;
-      enabledAll: boolean;
-      enabledLive: boolean;
-      excludedShorts: boolean;
-    }>;
+    channels: Channel[];
   }>(
     "/api/channels",
     { method: "GET" },
