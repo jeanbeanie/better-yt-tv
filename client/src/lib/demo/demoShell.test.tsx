@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import AppRoot from "../../AppRoot";
 import { getRouterBasename, isDemoMode } from "./mode";
+import { resetDemoStore } from "./store";
 
 // first visible fixture title, shown in the player and the queue on /demo/all
 const FEED_FIRST_TITLE = "What's New in Blender 5.3! Official Overview";
@@ -22,6 +23,7 @@ function renderShell() {
 
 describe("demo shell", () => {
   beforeEach(() => {
+    resetDemoStore();
     fetchMock.mockReset();
     fetchMock.mockImplementation(async () => new Response("{}", { status: 200 }));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
@@ -206,5 +208,19 @@ describe("demo shell", () => {
 
     await screen.findByText("Not found");
     expect(window.localStorage.getItem("betterYtTv.demo.editOnCreate")).not.toBeNull();
+  });
+
+  it("marks a queue video watched through the UI and shows it watched after the refresh", async () => {
+    window.history.pushState({}, "", "/demo/all");
+    const user = userEvent.setup();
+
+    renderShell();
+
+    await user.click(
+      await screen.findByRole("button", { name: `Mark "${FEED_FIRST_TITLE}" as watched` }),
+    );
+
+    await screen.findByRole("button", { name: `Mark "${FEED_FIRST_TITLE}" as unwatched` });
+    expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 });

@@ -37,7 +37,24 @@ async function getFeedAll({ url }: RouteContext): Promise<Response> {
   return json(getDemoStore().getAllFeed(parsePagination(url.searchParams)));
 }
 
-const routes: Route[] = [{ method: "GET", pattern: compilePattern("/api/feed/all"), handle: getFeedAll }];
+// dynamic so store and fixtures stay out of the index chunk, same as getFeedAll
+async function markWatched({ params }: RouteContext): Promise<Response> {
+  const { getDemoStore } = await import("./store");
+  getDemoStore().setWatched(params.videoId);
+  return json({ ok: true });
+}
+
+async function markUnwatched({ params }: RouteContext): Promise<Response> {
+  const { getDemoStore } = await import("./store");
+  getDemoStore().setUnwatched(params.videoId);
+  return json({ ok: true });
+}
+
+const routes: Route[] = [
+  { method: "GET", pattern: compilePattern("/api/feed/all"), handle: getFeedAll },
+  { method: "POST", pattern: compilePattern("/api/feed/videos/:videoId/watch"), handle: markWatched },
+  { method: "POST", pattern: compilePattern("/api/feed/videos/:videoId/unwatch"), handle: markUnwatched },
+];
 
 // fail closed transport for demo mode, unknown routes 404
 export const demoFetch: typeof fetch = async (input, init) => {

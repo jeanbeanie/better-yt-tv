@@ -18,8 +18,14 @@ const FEED_FIELDS = [
 async function feedJson(path: string) {
   const resp = await demoFetch(`http://localhost:5179${path}`, { method: "GET" });
   expect(resp.status).toBe(200);
-  return resp.json() as Promise<{ items: { video_id: string }[]; hasMore: boolean }>;
+  return resp.json() as Promise<{ items: FeedRow[]; hasMore: boolean }>;
 }
+
+type FeedRow = { video_id: string; is_watched: boolean; watched_at: string | null };
+
+const WATCH_ID = "pvUy69I_Xuk";
+const watchPath = (id: string) => `http://localhost:5179/api/feed/videos/${id}/watch`;
+const unwatchPath = (id: string) => `http://localhost:5179/api/feed/videos/${id}/unwatch`;
 
 describe("demoFetch", () => {
   beforeEach(() => {
@@ -135,5 +141,92 @@ describe("demoFetch", () => {
     } finally {
       window.history.pushState({}, "", "/");
     }
+  });
+
+  it("marks a video watched and leaves the other items unchanged", async () => {
+    const before = await feedJson("/api/feed/all?limit=200");
+
+    const resp = await demoFetch(watchPath(WATCH_ID), { method: "POST" });
+    expect(resp.status).toBe(200);
+    expect(await resp.json()).toEqual({ ok: true });
+
+    const after = await feedJson("/api/feed/all?limit=200");
+    const row = after.items.find((item) => item.video_id === WATCH_ID);
+    expect(row?.is_watched).toBe(true);
+    expect(row?.watched_at).not.toBeNull();
+    expect(after.items.filter((item) => item.video_id !== WATCH_ID)).toEqual(
+      before.items.filter((item) => item.video_id !== WATCH_ID),
+    );
+  });
+
+  it("unwatch after watch keeps the item in the feed with null watched_at", async () => {
+    await demoFetch(watchPath(WATCH_ID), { method: "POST" });
+
+    const resp = await demoFetch(unwatchPath(WATCH_ID), { method: "POST" });
+    expect(resp.status).toBe(200);
+    expect(await resp.json()).toEqual({ ok: true });
+
+    const after = await feedJson("/api/feed/all?limit=200");
+    const row = after.items.find((item) => item.video_id === WATCH_ID);
+    expect(row).toMatchObject({ is_watched: false, watched_at: null });
+  });
+
+  it("unwatch of a never watched id returns ok and leaves the feed unchanged", async () => {
+    const before = await feedJson("/api/feed/all?limit=200");
+
+    const resp = await demoFetch(unwatchPath(WATCH_ID), { method: "POST" });
+    expect(resp.status).toBe(200);
+    expect(await resp.json()).toEqual({ ok: true });
+
+    expect(await feedJson("/api/feed/all?limit=200")).toEqual(before);
+  });
+
+  it("accepts an unknown video id and leaves the feed unchanged", async () => {
+    const before = await feedJson("/api/feed/all?limit=200");
+
+    for (const path of [watchPath("not-a-fixture-id"), unwatchPath("not-a-fixture-id")]) {
+      const resp = await demoFetch(path, { method: "POST" });
+      expect(resp.status).toBe(200);
+      expect(await resp.json()).toEqual({ ok: true });
+    }
+
+    expect(await feedJson("/api/feed/all?limit=200")).toEqual(before);
+  });
+
+  it.each(["i1bE2c-SlcA", "_y9JuojAIg0", "-0JKHuzJ67A"])(
+    "matches video id %s with dashes and underscores",
+    async (id) => {
+      const watched = await demoFetch(watchPath(id), { method: "POST" });
+      expect(watched.status).toBe(200);
+      const afterWatch = await feedJson("/api/feed/all?limit=200");
+      expect(afterWatch.items.find((item) => item.video_id === id)?.is_watched).toBe(true);
+
+      const unwatched = await demoFetch(unwatchPath(id), { method: "POST" });
+      expect(unwatched.status).toBe(200);
+      const afterUnwatch = await feedJson("/api/feed/all?limit=200");
+      expect(afterUnwatch.items.find((item) => item.video_id === id)?.is_watched).toBe(false);
+    },
+  );
+
+  it("returns 404 for GET on the watch and unwatch paths", async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    for (const path of [watchPath(WATCH_ID), unwatchPath(WATCH_ID)]) {
+      const resp = await demoFetch(path, { method: "GET" });
+      expect(resp.status).toBe(404);
+      expect(await resp.json()).toEqual({ error: "Not found" });
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("never calls the global fetch for watch or unwatch", async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await demoFetch(watchPath(WATCH_ID), { method: "POST" });
+    await demoFetch(unwatchPath(WATCH_ID), { method: "POST" });
+
+    expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 });
