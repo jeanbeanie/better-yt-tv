@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { isDemoMode } from "./mode";
+import { isDemoMode, getRouterBasename } from "./mode";
 
 function setPath(path: string) {
   window.history.pushState({}, "", path);
@@ -38,5 +38,21 @@ describe("isDemoMode", () => {
     expect(isDemoMode()).toBe(true);
     setPath("/");
     expect(isDemoMode()).toBe(false);
+  });
+});
+
+describe("getRouterBasename", () => {
+  afterEach(() => {
+    setPath("/");
+  });
+
+  it.each(["/demo", "/demo/all"])("is /demo at %s", (path) => {
+    setPath(path);
+    expect(getRouterBasename()).toBe("/demo");
+  });
+
+  it.each(["/", "/all", "/demonstration"])("is / at %s", (path) => {
+    setPath(path);
+    expect(getRouterBasename()).toBe("/");
   });
 });

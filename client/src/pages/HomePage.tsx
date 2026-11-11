@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { getLoginUrl, hasInviteCode, type User } from "../lib/api";
+import { isDemoMode } from "../lib/demo/mode";
 import ErrorText from "../components/ErrorText";
 import Spinner from "../components/Spinner";
 
@@ -13,6 +14,7 @@ type homePageProps = {
 export default function HomePage(props:homePageProps) {
   const {user, error, loading} = props;
   const canLogin = hasInviteCode();
+  const demo = isDemoMode();
 
   return (
     <main>
@@ -33,7 +35,7 @@ export default function HomePage(props:homePageProps) {
 
         {error && <ErrorText>{error}</ErrorText>}
 
-        {!loading && !user && canLogin && (
+        {!demo && !loading && !user && canLogin && (
           <div style={{ marginTop: "2rem" }}>
             <p style={{ fontSize: "0.875rem", marginBottom: "1rem" }}>Just hit play.</p>
             <a href={getLoginUrl()} className="button button-primary">
@@ -42,7 +44,7 @@ export default function HomePage(props:homePageProps) {
           </div>
         )}
 
-        {!loading && !user && !canLogin && (
+        {!demo && !loading && !user && !canLogin && (
           <div style={{ marginTop: "2rem" }}>
             <p style={{ fontSize: "1.25rem", fontWeight: 600, color: "var(--text)", marginBottom: "0.75rem" }}>
               This app requires an invite right now!
@@ -64,12 +66,19 @@ export default function HomePage(props:homePageProps) {
           </div>
         )}
 
-        {!loading && user && (
+        {!demo && !loading && user && (
           <div style={{ marginTop: "2rem" }}>
             <p style={{ fontSize: "0.875rem", marginBottom: "1rem" }}>
               Logged in as <strong>{user.email ?? "No email found"}</strong>
             </p>
 
+            <Link to="/all" className="button button-primary">
+              Go to /all videos
+            </Link>
+          </div>
+        )}
+        {demo && !loading && (
+          <div style={{ marginTop: "2rem" }}>
             <Link to="/all" className="button button-primary">
               Go to /all videos
             </Link>

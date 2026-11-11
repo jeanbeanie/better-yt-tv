@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import App from "./App";
 import { getWhoAmI, hasInviteCode, saveInviteCode } from "./lib/api";
 
@@ -127,5 +127,54 @@ describe("footer links", () => {
 
     expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/privacy");
     expect(screen.getByRole("link", { name: "Terms" })).toHaveAttribute("href", "/terms");
+  });
+});
+
+describe("demo nav and footer", () => {
+  const demoUser = { id: "1", email: "user@example.com", google_sub: "sub-1", is_admin: false };
+
+  beforeEach(() => {
+    vi.mocked(getWhoAmI).mockReset();
+    vi.mocked(getWhoAmI).mockResolvedValue({ user: demoUser });
+    vi.mocked(hasInviteCode).mockReset();
+    vi.mocked(hasInviteCode).mockReturnValue(true);
+    window.localStorage.setItem("betterYtTv.theme", "light");
+  });
+
+  afterEach(() => {
+    window.history.pushState({}, "", "/");
+  });
+
+  it("hides Streams and Logout and shows Exit demo at /demo", async () => {
+    window.history.pushState({}, "", "/demo");
+
+    renderApp();
+
+    const exit = await screen.findByRole("link", { name: "Exit demo" });
+    expect(exit).toHaveAttribute("href", "/");
+    expect(screen.queryByRole("link", { name: "Streams" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Logout" })).not.toBeInTheDocument();
+  });
+
+  it("hides the nav Login link at /demo with no user", async () => {
+    vi.mocked(getWhoAmI).mockResolvedValue({ user: null });
+    window.history.pushState({}, "", "/demo");
+
+    renderApp();
+
+    // HomePage demo link marks the end of loading
+    await screen.findByRole("link", { name: "Go to /all videos" });
+    const nav = screen.getByRole("navigation");
+    expect(within(nav).queryByRole("link", { name: "Login" })).not.toBeInTheDocument();
+  });
+
+  it("keeps Streams and Logout and omits Exit demo outside demo", async () => {
+    window.history.pushState({}, "", "/");
+
+    renderApp();
+
+    await screen.findByRole("button", { name: "Logout" });
+    expect(screen.getByRole("link", { name: "Streams" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Exit demo" })).not.toBeInTheDocument();
   });
 });

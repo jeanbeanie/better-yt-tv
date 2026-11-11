@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Route, Routes, useNavigate } from "react-router-dom";
 import { getLoginUrl, getWhoAmI, hasInviteCode, logout, saveInviteCode, type User } from "./lib/api";
+import { isDemoMode } from "./lib/demo/mode";
 import { isNavigationAllowed } from "./lib/navigationGuard";
 import Button from "./components/Button";
 import GuardedLink from "./components/GuardedLink";
@@ -31,6 +32,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">(getInitialTheme);
   const navigate = useNavigate();
+  const demo = isDemoMode();
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -83,14 +85,14 @@ function App() {
         <nav style={{ display: "flex", gap: "1rem" }}>
           
           <GuardedLink to="/">Home</GuardedLink>
-          {!loading && !user && hasInviteCode() &&
+          {!demo && !loading && !user && hasInviteCode() &&
             <a href={getLoginUrl()}>Login</a>
           }
           {!loading && user && (
             <>
             <GuardedLink to="/all">All</GuardedLink>
             <GuardedLink to="/lists">Lists</GuardedLink>
-            <GuardedLink to="/live">Streams</GuardedLink>
+            {!demo && <GuardedLink to="/live">Streams</GuardedLink>}
             <GuardedLink to="/settings">Settings</GuardedLink>
             </>
           )}
@@ -128,7 +130,11 @@ function App() {
       <div style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "2rem 0"}}>
       {!loading && user && (
         <div>
-          <Button onClick={() => void handleLogout()}>Logout</Button>
+          {demo ? (
+            <a href="/" className="button">Exit demo</a>
+          ) : (
+            <Button onClick={() => void handleLogout()}>Logout</Button>
+          )}
         </div>
       )}
       <GuardedLink to="/changelog">Changelog</GuardedLink>

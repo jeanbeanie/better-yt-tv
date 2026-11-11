@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import HomePage from "./HomePage";
 import { hasInviteCode } from "../lib/api";
 
@@ -69,5 +69,47 @@ describe("HomePage", () => {
     renderHomePage({ error: "Something went wrong" });
 
     expect(screen.getByText("Something went wrong")).toBeInTheDocument();
+  });
+});
+
+describe("HomePage in demo", () => {
+  const demoUser = { id: "1", email: "user@example.com", google_sub: "sub-1", is_admin: false };
+
+  afterEach(() => {
+    window.history.pushState({}, "", "/");
+  });
+
+  function expectDemoOnly() {
+    expect(screen.getByRole("link", { name: "Go to /all videos" })).toHaveAttribute("href", "/all");
+    expect(screen.queryByRole("link", { name: "Login" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/requires an invite/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/logged in as/i)).not.toBeInTheDocument();
+  }
+
+  it("shows only the demo link with no user and an invite code", () => {
+    window.history.pushState({}, "", "/demo");
+    vi.mocked(hasInviteCode).mockReturnValue(true);
+
+    renderHomePage();
+
+    expectDemoOnly();
+  });
+
+  it("shows only the demo link with no user and no invite code", () => {
+    window.history.pushState({}, "", "/demo");
+    vi.mocked(hasInviteCode).mockReturnValue(false);
+
+    renderHomePage();
+
+    expectDemoOnly();
+  });
+
+  it("shows only the demo link with a user", () => {
+    window.history.pushState({}, "", "/demo");
+    vi.mocked(hasInviteCode).mockReturnValue(true);
+
+    renderHomePage({ user: demoUser });
+
+    expectDemoOnly();
   });
 });
