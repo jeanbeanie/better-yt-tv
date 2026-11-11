@@ -1,8 +1,8 @@
 import type { RefreshAllCacheResult } from "../api";
 
 // canned counts for the demo refresh result
-export const DEMO_REFRESHED_CHANNELS = 10;
-export const DEMO_CACHED_VIDEOS = 40;
+export const DEMO_REFRESHED_CHANNELS = 11;
+export const DEMO_CACHED_VIDEOS = 60;
 
 export function demoRefreshResult(manual: boolean): RefreshAllCacheResult {
   if (manual) {

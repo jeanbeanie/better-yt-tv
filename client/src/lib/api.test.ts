@@ -366,14 +366,14 @@ describe("demo mode", () => {
     window.history.pushState({}, "", "/demo/all");
     const fetchMock = installLeakMock();
 
-    const feedErr = await getAllFeed().catch((err) => err);
-    const watchErr = await markVideoWatched("v1").catch((err) => err);
+    const watched = await markVideoWatched("v1");
+    const unwatched = await markVideoUnwatched("v1");
     const syncErr = await syncSubscriptions().catch((err) => err);
 
-    for (const err of [feedErr, watchErr, syncErr]) {
-      expect(err).toBeInstanceOf(ApiError);
-      expect(err).toMatchObject({ message: "Not found", status: 404 });
-    }
+    expect(watched).toEqual({ ok: true });
+    expect(unwatched).toEqual({ ok: true });
+    expect(syncErr).toBeInstanceOf(ApiError);
+    expect(syncErr).toMatchObject({ message: "Not found", status: 404 });
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 

@@ -4,6 +4,10 @@ import { BrowserRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import AppRoot from "../../AppRoot";
 import { getRouterBasename, isDemoMode } from "./mode";
+import { resetDemoStore } from "./store";
+
+// first visible fixture title, shown in the player and the queue on /demo/all
+const FEED_FIRST_TITLE = "What's New in Blender 5.3! Official Overview";
 
 const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
   async () => new Response("{}", { status: 200 }),
@@ -19,6 +23,7 @@ function renderShell() {
 
 describe("demo shell", () => {
   beforeEach(() => {
+    resetDemoStore();
     fetchMock.mockReset();
     fetchMock.mockImplementation(async () => new Response("{}", { status: 200 }));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
@@ -48,8 +53,8 @@ describe("demo shell", () => {
     expect(screen.getByRole("link", { name: "Exit demo" })).toHaveAttribute("href", "/");
     expect(screen.queryByRole("button", { name: "Logout" })).not.toBeInTheDocument();
 
-    // fail closed feed 404 surfaces as error text on the All page
-    await screen.findByText("Not found");
+    // demo feed loads from the in memory store on the All page
+    await screen.findAllByText(FEED_FIRST_TITLE);
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 
@@ -169,14 +174,19 @@ describe("demo shell", () => {
     expect(screen.getByRole("button", { name: "Switch to light mode" })).toBeInTheDocument();
   });
 
-  it.each(["/demo/all", "/demo/lists", "/demo/settings/channels", "/demo/settings/lists"])(
+  it.each([
+    ["/demo/all", FEED_FIRST_TITLE],
+    ["/demo/lists", "Not found"],
+    ["/demo/settings/channels", "Not found"],
+    ["/demo/settings/lists", "Not found"],
+  ])(
     "writes only the shared theme key and demo keys at %s",
-    async (path) => {
+    async (path, expectedText) => {
       window.history.pushState({}, "", path);
 
       renderShell();
 
-      await screen.findByText("Not found");
+      await screen.findAllByText(expectedText);
       const keys = Array.from({ length: window.localStorage.length }, (_, i) => window.localStorage.key(i) ?? "");
       expect(keys.filter((key) => key !== "betterYtTv.theme" && !key.startsWith("betterYtTv.demo."))).toEqual([]);
       expect(
@@ -194,7 +204,7 @@ describe("demo shell", () => {
     window.history.pushState({}, "", "/demo/all");
     const first = renderShell();
 
-    await screen.findByText("Not found");
+    await screen.findAllByText(FEED_FIRST_TITLE);
     expect(window.localStorage.getItem("betterYtTv.demo.catchUpMode")).not.toBeNull();
     first.unmount();
 
@@ -203,5 +213,19 @@ describe("demo shell", () => {
 
     await screen.findByText("Not found");
     expect(window.localStorage.getItem("betterYtTv.demo.editOnCreate")).not.toBeNull();
+  });
+
+  it("marks a queue video watched through the UI and shows it watched after the refresh", async () => {
+    window.history.pushState({}, "", "/demo/all");
+    const user = userEvent.setup();
+
+    renderShell();
+
+    await user.click(
+      await screen.findByRole("button", { name: `Mark "${FEED_FIRST_TITLE}" as watched` }),
+    );
+
+    await screen.findByRole("button", { name: `Mark "${FEED_FIRST_TITLE}" as unwatched` });
+    expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 });
