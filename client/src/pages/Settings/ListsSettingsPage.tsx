@@ -15,11 +15,12 @@ import Button from "../../components/Button";
 import Spinner from "../../components/Spinner";
 import CheckboxLabel from "../../components/CheckboxLabel";
 import TextField from "../../components/TextField";
+import { prefStorageKey } from "../../lib/demo/prefStorageKey";
 
 const EDIT_ON_CREATE_STORAGE_KEY = "betterYtTv.editOnCreate";
 
 function getInitialEditOnCreate(): boolean {
-  const stored = window.localStorage.getItem(EDIT_ON_CREATE_STORAGE_KEY);
+  const stored = window.localStorage.getItem(prefStorageKey(EDIT_ON_CREATE_STORAGE_KEY));
   if (stored !== null) return stored === "true";
   return true;
 }
@@ -37,7 +38,7 @@ export default function ListsSettingsPage() {
   const [editOnCreate, setEditOnCreate] = useState(getInitialEditOnCreate);
 
   useEffect(() => {
-    window.localStorage.setItem(EDIT_ON_CREATE_STORAGE_KEY, String(editOnCreate));
+    window.localStorage.setItem(prefStorageKey(EDIT_ON_CREATE_STORAGE_KEY), String(editOnCreate));
   }, [editOnCreate]);
 
   function redirectIfAuthError(err: unknown): boolean {

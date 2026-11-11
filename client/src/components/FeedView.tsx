@@ -9,6 +9,7 @@ import CheckboxLabel from "./CheckboxLabel";
 import Thumbnail from "./Thumbnail";
 import ErrorText from "./ErrorText";
 import { formatPublishedAt } from "../lib/formatPublishedAt";
+import { prefStorageKey } from "../lib/demo/prefStorageKey";
 
 // Outlined "open eye" glyph for an unwatched video
 function EyeOutlineIcon() {
@@ -104,14 +105,14 @@ export default function FeedView({
   }, [selectedVideoId]);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("betterYtTv.catchUpMode");
+    const saved = window.localStorage.getItem(prefStorageKey("betterYtTv.catchUpMode"));
     if (saved !== null) {
       setCatchUpMode(saved === "true");
     }
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem("betterYtTv.catchUpMode", String(catchUpMode));
+    window.localStorage.setItem(prefStorageKey("betterYtTv.catchUpMode"), String(catchUpMode));
   }, [catchUpMode]);
 
   useEffect(() => {
@@ -120,7 +121,7 @@ export default function FeedView({
     }
 
     // restore remembered video for this key if still in the feed, else first item
-    const stored = storageKey ? window.localStorage.getItem(storageKey) : null;
+    const stored = storageKey ? window.localStorage.getItem(prefStorageKey(storageKey)) : null;
     const isStoredValid = stored && items.some((item) => item.video_id === stored);
     setSelectedVideoId(isStoredValid ? stored : (items[0]?.video_id ?? null));
   }, [items, selectedVideoId, storageKey]);
@@ -130,7 +131,7 @@ export default function FeedView({
     if (!storageKey || !selectedVideoId) {
       return;
     }
-    window.localStorage.setItem(storageKey, selectedVideoId);
+    window.localStorage.setItem(prefStorageKey(storageKey), selectedVideoId);
   }, [storageKey, selectedVideoId]);
 
   function findNextUnwatchedVideo(items: FeedItem[], currentVideoId: string) {

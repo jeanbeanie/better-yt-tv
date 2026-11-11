@@ -15,6 +15,7 @@ import ErrorText from "../components/ErrorText";
 import MutedText from "../components/MutedText";
 import Spinner from "../components/Spinner";
 import RefreshPausedNotice from "../components/RefreshPausedNotice";
+import { prefStorageKey } from "../lib/demo/prefStorageKey";
 
 const SELECTED_LIST_STORAGE_KEY = "betterYtTv.selectedListId";
 const DEFAULT_LIMIT = 50;
@@ -55,7 +56,7 @@ export default function ListsPage() {
           setSelectedListId(requestedListId);
         } else {
           // restore the previously selected list if it still exists, else default to the first
-          const stored = window.localStorage.getItem(SELECTED_LIST_STORAGE_KEY);
+          const stored = window.localStorage.getItem(prefStorageKey(SELECTED_LIST_STORAGE_KEY));
           const isStoredStillValid =
             stored && loadedLists.some((list) => list.id === stored);
           setSelectedListId(isStoredStillValid ? stored : loadedLists[0].id);
@@ -76,7 +77,7 @@ export default function ListsPage() {
   useEffect(() => {
     // Persist the selected list so it's remembered next time this page loads
     if (!selectedListId) return;
-    window.localStorage.setItem(SELECTED_LIST_STORAGE_KEY, selectedListId);
+    window.localStorage.setItem(prefStorageKey(SELECTED_LIST_STORAGE_KEY), selectedListId);
   }, [selectedListId]);
 
   async function loadFeed() {
