@@ -30,14 +30,14 @@ function parsePagination(params: URLSearchParams) {
   return { offset, limit: Math.min(limit, 200) };
 }
 
-// dynamic so store and fixtures split into their own chunk, a static import
-// here would pull them into the main bundle through api.ts
+// dynamic import keeps store and fixtures in their own chunk
+// a static import would pull them into the main bundle through api.ts
 async function getFeedAll({ url }: RouteContext): Promise<Response> {
   const { getDemoStore } = await import("./store");
   return json(getDemoStore().getAllFeed(parsePagination(url.searchParams)));
 }
 
-// dynamic so store and fixtures stay out of the index chunk, same as getFeedAll
+// dynamic import, same chunk split as getFeedAll
 async function markWatched({ params }: RouteContext): Promise<Response> {
   const { getDemoStore } = await import("./store");
   getDemoStore().setWatched(params.videoId);

@@ -26,7 +26,8 @@ describe("main entry", () => {
     window.history.pushState({}, "", "/");
   });
 
-  it("mounts the demo shell under the /demo basename with no network calls", async () => {
+  // cold import of the demo feed graph can exceed the default 5s
+  it("mounts the demo shell under the /demo basename with no network calls", { timeout: 15_000 }, async () => {
     const fetchMock = await mountMain("/demo/all");
 
     await screen.findByRole("link", { name: "Exit demo" });

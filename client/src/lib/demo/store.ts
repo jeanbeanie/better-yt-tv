@@ -15,8 +15,7 @@ export type DemoStore = {
   setUnwatched(videoId: string): void;
 };
 
-// rows sorted published_at desc, so each channel's first row is its newest
-// the channel with the newest video comes out first, no separate sort needed
+// input sorted published_at desc, the channel with the newest video comes out first
 export function applyRoundRobin<T extends { channel_id: string }>(rows: T[]): T[] {
   const channelQueues = new Map<string, T[]>();
 
@@ -37,7 +36,8 @@ export function applyRoundRobin<T extends { channel_id: string }>(rows: T[]): T[
 }
 
 // now is a Date or epoch ms
-// overrides replace the fixtures, channels are copied so the store never aliases input
+// overrides replace the fixtures
+// channels are copied, the store never aliases the input
 export function createDemoStore(now: Date | number, overrides: DemoStoreOverrides = {}): DemoStore {
   const nowMs = typeof now === "number" ? now : now.getTime();
   const nowIso = new Date(nowMs).toISOString();
@@ -98,7 +98,7 @@ export function createDemoStore(now: Date | number, overrides: DemoStoreOverride
 
 let singleton: DemoStore | null = null;
 
-// built on first use so importing this module does not read the clock
+// built on first use, importing this module does not read the clock
 export function getDemoStore(): DemoStore {
   if (singleton === null) singleton = createDemoStore(Date.now());
   return singleton;

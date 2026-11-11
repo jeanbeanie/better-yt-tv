@@ -174,14 +174,19 @@ describe("demo shell", () => {
     expect(screen.getByRole("button", { name: "Switch to light mode" })).toBeInTheDocument();
   });
 
-  it.each(["/demo/all", "/demo/lists", "/demo/settings/channels", "/demo/settings/lists"])(
+  it.each([
+    ["/demo/all", FEED_FIRST_TITLE],
+    ["/demo/lists", "Not found"],
+    ["/demo/settings/channels", "Not found"],
+    ["/demo/settings/lists", "Not found"],
+  ])(
     "writes only the shared theme key and demo keys at %s",
-    async (path) => {
+    async (path, expectedText) => {
       window.history.pushState({}, "", path);
 
       renderShell();
 
-      await screen.findAllByText(/Not found|What's New in Blender 5\.3!/);
+      await screen.findAllByText(expectedText);
       const keys = Array.from({ length: window.localStorage.length }, (_, i) => window.localStorage.key(i) ?? "");
       expect(keys.filter((key) => key !== "betterYtTv.theme" && !key.startsWith("betterYtTv.demo."))).toEqual([]);
       expect(
