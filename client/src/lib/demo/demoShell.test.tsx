@@ -1,5 +1,5 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { BrowserRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import AppRoot from "../../AppRoot";
@@ -10,6 +10,8 @@ import { resetDemoStore } from "./store";
 const FEED_FIRST_TITLE = "What's New in Blender 5.3! Official Overview";
 // second channel's newest video, shown on /demo/all once Blender is off
 const NASA_FEED_TITLE = "NASA's SpaceX Crew-13 Mission (Official NASA Trailer)";
+// first Dev talk video, newest of the three channels in that list
+const DEV_TALK_FIRST_TITLE = "Did Anthropic just save its $1 trillion IPO?";
 
 const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
   async () => new Response("{}", { status: 200 }),
@@ -21,6 +23,12 @@ function renderShell() {
       <AppRoot />
     </BrowserRouter>,
   );
+}
+
+// flag persists in localStorage, each test sets it explicitly
+async function setEditOnCreate(user: UserEvent, on: boolean) {
+  const toggle = screen.getByRole("checkbox", { name: "Edit List After Creating" });
+  if ((toggle as HTMLInputElement).checked !== on) await user.click(toggle);
 }
 
 describe("demo shell", () => {
@@ -178,9 +186,9 @@ describe("demo shell", () => {
 
   it.each([
     ["/demo/all", FEED_FIRST_TITLE],
-    ["/demo/lists", "Not found"],
+    ["/demo/lists", "Space nerd"],
     ["/demo/settings/channels", "NASA"],
-    ["/demo/settings/lists", "Not found"],
+    ["/demo/settings/lists", "Space nerd"],
   ])(
     "writes only the shared theme key and demo keys at %s",
     async (path, expectedText) => {
@@ -213,7 +221,7 @@ describe("demo shell", () => {
     window.history.pushState({}, "", "/demo/settings/lists");
     renderShell();
 
-    await screen.findByText("Not found");
+    await screen.findByText("Space nerd");
     expect(window.localStorage.getItem("betterYtTv.demo.editOnCreate")).not.toBeNull();
   });
 
@@ -299,6 +307,283 @@ describe("demo shell", () => {
 
     await user.click(screen.getByRole("link", { name: "All" }));
     await screen.findAllByText(FEED_FIRST_TITLE);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("shows the Space nerd feed on /demo/lists with no network calls", async () => {
+    window.history.pushState({}, "", "/demo/lists");
+
+    renderShell();
+
+    expect(await screen.findByRole("combobox")).toHaveValue("demo-list-space-nerd");
+    await screen.findByText(NASA_FEED_TITLE);
+    expect(screen.queryByText(FEED_FIRST_TITLE)).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("switches the lists feed when another list is picked", async () => {
+    window.history.pushState({}, "", "/demo/lists");
+    const user = userEvent.setup();
+
+    renderShell();
+
+    await user.selectOptions(await screen.findByRole("combobox"), "demo-list-dev-talk");
+
+    await screen.findAllByText(DEV_TALK_FIRST_TITLE);
+    expect(screen.queryByText(NASA_FEED_TITLE)).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("lists the three demo lists with their channel counts", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists");
+
+    renderShell();
+
+    await screen.findByText("Space nerd");
+    expect(screen.getByText("Dev talk")).toBeInTheDocument();
+    expect(screen.getByText("Quick learning")).toBeInTheDocument();
+    expect(screen.getByText("5 channels")).toBeInTheDocument();
+    expect(screen.getAllByText("3 channels")).toHaveLength(2);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("shows the channels of a list in the editor in title order", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists/demo-list-dev-talk");
+
+    renderShell();
+
+    const heading = await screen.findByRole("heading", { name: "Channels in this list" });
+    const section = heading.parentElement as HTMLElement;
+    await waitFor(() =>
+      expect(within(section).getAllByText(/^(Computerphile|exit node|Fireship)$/)).toHaveLength(3),
+    );
+    const titles = within(section).getAllByText(/^(Computerphile|exit node|Fireship)$/);
+    expect(titles.map((el) => el.textContent)).toEqual(["Computerphile", "exit node", "Fireship"]);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("shows the not found state for an unknown list id in the editor", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists/demo-list-missing");
+
+    renderShell();
+
+    await screen.findByText("List not found.");
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("creates a list on the settings page with edit-after-create off", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists");
+    const user = userEvent.setup();
+    renderShell();
+    await screen.findByText("Space nerd");
+    await setEditOnCreate(user, false);
+
+    await user.type(screen.getByRole("textbox", { name: "New list name" }), "Road trip");
+    await user.click(screen.getByRole("button", { name: "Create new list" }));
+
+    await screen.findByText("Road trip");
+    expect(screen.getByText("0 channels")).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/demo/settings/lists");
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("shows the duplicate name error and adds no second row", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists");
+    const user = userEvent.setup();
+    renderShell();
+    await screen.findByText("Space nerd");
+    await setEditOnCreate(user, false);
+
+    await user.type(screen.getByRole("textbox", { name: "New list name" }), "Space nerd");
+    await user.click(screen.getByRole("button", { name: "Create new list" }));
+
+    await screen.findByText("You already have a list with this name.");
+    expect(screen.getAllByText("Space nerd")).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("deletes a list after confirm and keeps the other lists", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists");
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    try {
+      renderShell();
+      const devTalk = (await screen.findByRole("link", { name: "Dev talk" })).closest("li") as HTMLElement;
+
+      await user.click(within(devTalk).getByRole("button", { name: "Delete" }));
+
+      await waitFor(() => expect(screen.queryByRole("link", { name: "Dev talk" })).toBeNull());
+    } finally {
+      confirm.mockRestore();
+    }
+    expect(screen.getByRole("link", { name: "Space nerd" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Quick learning" })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("opens the editor for a new list when edit-after-create is on", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists");
+    const user = userEvent.setup();
+    renderShell();
+    await screen.findByText("Space nerd");
+    await setEditOnCreate(user, true);
+
+    await user.type(screen.getByRole("textbox", { name: "New list name" }), "Road trip");
+    await user.click(screen.getByRole("button", { name: "Create new list" }));
+
+    await waitFor(() => expect(window.location.pathname).toBe("/demo/settings/lists/demo-list-1"));
+    expect(await screen.findByRole("textbox", { name: "List name" })).toHaveValue("Road trip");
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("saves a rename and an added channel, then shows them on the settings lists", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists/demo-list-dev-talk");
+    const user = userEvent.setup();
+    const first = renderShell();
+    const nameInput = await screen.findByRole("textbox", { name: "List name" });
+    await user.clear(nameInput);
+    await user.type(nameInput, "Dev talk plus");
+    await user.type(
+      screen.getByRole("textbox", { name: "Search your subscribed channels" }),
+      "Blender",
+    );
+    await user.click(await screen.findByRole("button", { name: "Add Blender" }));
+    await user.click(screen.getAllByRole("button", { name: "Save list" })[0]);
+    await screen.findAllByText("Saved");
+    first.unmount();
+
+    window.history.pushState({}, "", "/demo/settings/lists");
+    renderShell();
+    const link = await screen.findByRole("link", { name: "Dev talk plus" });
+    expect(within(link.closest("li") as HTMLElement).getByText("4 channels")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Dev talk" })).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("shows an added channel's videos and drops a removed channel's from the list feed", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists/demo-list-dev-talk");
+    const user = userEvent.setup();
+    const first = renderShell();
+    const section = (await screen.findByRole("heading", { name: "Channels in this list" }))
+      .parentElement as HTMLElement;
+    const fireshipRow = (await within(section).findByText("Fireship")).parentElement as HTMLElement;
+    await user.click(within(fireshipRow).getByRole("button", { name: "Remove" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Search your subscribed channels" }),
+      "Blender",
+    );
+    await user.click(await screen.findByRole("button", { name: "Add Blender" }));
+    await user.click(screen.getAllByRole("button", { name: "Save list" })[0]);
+    await screen.findAllByText("Saved");
+    first.unmount();
+
+    window.history.pushState({}, "", "/demo/lists");
+    renderShell();
+    await user.selectOptions(await screen.findByRole("combobox"), "demo-list-dev-talk");
+    await screen.findAllByText("Mutex Explained - Computerphile");
+    await screen.findAllByText("Making of: The Blender Open Movies Exhibition");
+    expect(screen.queryByText(DEV_TALK_FIRST_TITLE)).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("shows the duplicate name error on save and keeps the saved name and channels", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists/demo-list-dev-talk");
+    const user = userEvent.setup();
+    const first = renderShell();
+    const nameInput = await screen.findByRole("textbox", { name: "List name" });
+    await user.clear(nameInput);
+    await user.type(nameInput, "Space nerd");
+    await user.click(screen.getAllByRole("button", { name: "Save list" })[0]);
+    await screen.findAllByText("You already have a list with this name.");
+    first.unmount();
+
+    window.history.pushState({}, "", "/demo/settings/lists");
+    renderShell();
+    const devTalk = (await screen.findByRole("link", { name: "Dev talk" })).closest("li") as HTMLElement;
+    expect(within(devTalk).getByText("3 channels")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Space nerd" })).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("creates a list, adds a channel in its editor, and shows only that channel in the list feed", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists");
+    const user = userEvent.setup();
+    const first = renderShell();
+    await screen.findByText("Space nerd");
+    await setEditOnCreate(user, true);
+
+    await user.type(screen.getByRole("textbox", { name: "New list name" }), "Road trip");
+    await user.click(screen.getByRole("button", { name: "Create new list" }));
+    await waitFor(() => expect(window.location.pathname).toBe("/demo/settings/lists/demo-list-1"));
+    await screen.findByRole("textbox", { name: "List name" });
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Search your subscribed channels" }),
+      "NASA",
+    );
+    await user.click(await screen.findByRole("button", { name: "Add NASA" }));
+    await user.click(screen.getAllByRole("button", { name: "Save list" })[0]);
+    await screen.findAllByText("Saved");
+    first.unmount();
+
+    window.history.pushState({}, "", "/demo/lists");
+    renderShell();
+    await user.selectOptions(await screen.findByRole("combobox"), "demo-list-1");
+    await screen.findAllByText(NASA_FEED_TITLE);
+    expect(screen.queryByText(FEED_FIRST_TITLE)).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("deletes a list from its editor and lands on the lists settings page without it", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists/demo-list-dev-talk");
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    try {
+      const first = renderShell();
+      await screen.findByRole("textbox", { name: "List name" });
+      await user.click(screen.getByRole("button", { name: "Delete list" }));
+
+      await waitFor(() => expect(window.location.pathname).toBe("/demo/settings/lists"));
+      expect(await screen.findByRole("link", { name: "Space nerd" })).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Dev talk" })).toBeNull();
+      expect(screen.getByRole("link", { name: "Quick learning" })).toBeInTheDocument();
+      expect(confirm).toHaveBeenCalledTimes(1);
+      first.unmount();
+    } finally {
+      confirm.mockRestore();
+    }
+
+    window.history.pushState({}, "", "/demo/settings/lists/demo-list-dev-talk");
+    renderShell();
+    await screen.findByText("List not found.");
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("falls back to the first list on /demo/lists after the selected list is deleted", async () => {
+    window.history.pushState({}, "", "/demo/lists");
+    const user = userEvent.setup();
+    const first = renderShell();
+    await user.selectOptions(await screen.findByRole("combobox"), "demo-list-dev-talk");
+    await screen.findAllByText(DEV_TALK_FIRST_TITLE);
+    first.unmount();
+
+    window.history.pushState({}, "", "/demo/settings/lists");
+    const second = renderShell();
+    const devTalk = (await screen.findByRole("link", { name: "Dev talk" })).closest("li") as HTMLElement;
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    try {
+      await user.click(within(devTalk).getByRole("button", { name: "Delete" }));
+      await waitFor(() => expect(screen.queryByRole("link", { name: "Dev talk" })).toBeNull());
+    } finally {
+      confirm.mockRestore();
+    }
+    second.unmount();
+
+    window.history.pushState({}, "", "/demo/lists");
+    renderShell();
+    expect(await screen.findByRole("combobox")).toHaveValue("demo-list-space-nerd");
+    await screen.findByText(NASA_FEED_TITLE);
+    expect(screen.queryByText(/failed to load|not found/i)).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 });

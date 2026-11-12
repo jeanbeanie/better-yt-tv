@@ -99,11 +99,100 @@ async function patchChannelsBulk({ body }: RouteContext): Promise<Response> {
   return json({ ok: true, updatedCount });
 }
 
+// dynamic import, same chunk split as getFeedAll
+async function getLists(): Promise<Response> {
+  const { getDemoStore } = await import("./store");
+  return json({ lists: getDemoStore().getLists() });
+}
+
+// dynamic import, same chunk split as getFeedAll
+async function getList({ params }: RouteContext): Promise<Response> {
+  const { getDemoStore } = await import("./store");
+  const list = getDemoStore().getList(params.listId);
+  if (!list) return json({ error: "List not found" }, 404);
+  return json({ list });
+}
+
+// dynamic import, same chunk split as getFeedAll
+// same pagination as /all, body shape matches the server
+async function getListFeed({ url, params }: RouteContext): Promise<Response> {
+  const { getDemoStore } = await import("./store");
+  const feed = getDemoStore().getListFeed(params.listId, parsePagination(url.searchParams));
+  if (!feed) return json({ error: "List not found" }, 404);
+  return json(feed);
+}
+
+// list name rules, same messages and order as the server
+const LIST_NAME_MAX_LENGTH = 100;
+
+// trims first, non string counts as empty
+// checked in order: required, then length
+function validateListName(raw: unknown): { name: string } | { error: string } {
+  const name = typeof raw === "string" ? raw.trim() : "";
+  if (!name) return { error: "Name is required" };
+  if (name.length > LIST_NAME_MAX_LENGTH) {
+    return { error: `Name must be ${LIST_NAME_MAX_LENGTH} characters or fewer` };
+  }
+  return { name };
+}
+
+// dynamic import, same chunk split as getFeedAll
+// non-object bodies count as empty, they get the 400
+async function createList({ body }: RouteContext): Promise<Response> {
+  const { getDemoStore } = await import("./store");
+  const fields = (typeof body === "object" && body !== null ? body : {}) as { name?: unknown };
+  const result = validateListName(fields.name);
+  if ("error" in result) return json({ error: result.error }, 400);
+  const list = getDemoStore().createList(result.name);
+  // duplicate check runs after the name rules
+  if (!list) return json({ error: "You already have a list with this name." }, 409);
+  return json({ list }, 201);
+}
+
+// dynamic import, same chunk split as getFeedAll
+async function deleteList({ params }: RouteContext): Promise<Response> {
+  const { getDemoStore } = await import("./store");
+  if (!getDemoStore().deleteList(params.listId)) return json({ error: "List not found" }, 404);
+  return json({ ok: true });
+}
+
+// dynamic import, same chunk split as getFeedAll
+// order: unknown id 404, then name, then channelIds, then the duplicate check in the store
+async function saveList({ params, body }: RouteContext): Promise<Response> {
+  const { getDemoStore } = await import("./store");
+  const store = getDemoStore();
+  if (!store.getList(params.listId)) return json({ error: "List not found" }, 404);
+  // non-object bodies count as empty, they get the 400
+  const fields = (typeof body === "object" && body !== null ? body : {}) as {
+    name?: unknown;
+    channelIds?: unknown;
+  };
+  const result = validateListName(fields.name);
+  if ("error" in result) return json({ error: result.error }, 400);
+  if (!Array.isArray(fields.channelIds)) {
+    return json({ error: "channelIds must be an array" }, 400);
+  }
+  const saved = store.saveList(params.listId, result.name, fields.channelIds);
+  if ("error" in saved) {
+    if (saved.error === "duplicate") {
+      return json({ error: "You already have a list with this name." }, 409);
+    }
+    return json({ error: "List not found" }, 404);
+  }
+  return json({ list: saved.list });
+}
+
 const routes: Route[] = [
   { method: "GET", pattern: compilePattern("/api/feed/all"), handle: getFeedAll },
   { method: "POST", pattern: compilePattern("/api/feed/videos/:videoId/watch"), handle: markWatched },
   { method: "POST", pattern: compilePattern("/api/feed/videos/:videoId/unwatch"), handle: markUnwatched },
   { method: "GET", pattern: compilePattern("/api/channels"), handle: getChannels },
+  { method: "GET", pattern: compilePattern("/api/lists"), handle: getLists },
+  { method: "GET", pattern: compilePattern("/api/lists/:listId"), handle: getList },
+  { method: "GET", pattern: compilePattern("/api/feed/lists/:listId"), handle: getListFeed },
+  { method: "POST", pattern: compilePattern("/api/lists"), handle: createList },
+  { method: "DELETE", pattern: compilePattern("/api/lists/:listId"), handle: deleteList },
+  { method: "PUT", pattern: compilePattern("/api/lists/:listId"), handle: saveList },
   { method: "POST", pattern: compilePattern("/api/youtube/sync-subscriptions"), handle: syncSubscriptions },
   { method: "PATCH", pattern: compilePattern("/api/channels/bulk"), handle: patchChannelsBulk },
   // bulk routes must stay above this entry

@@ -6,9 +6,10 @@ import {
   resetDemoStore,
   type ChannelPatch,
   type DemoStore,
+  type SaveListResult,
 } from "./store";
-import { DEMO_CHANNELS, DEMO_VIDEOS, type DemoVideo } from "./fixtures";
-import type { FeedItem } from "../api";
+import { DEMO_CHANNELS, DEMO_LISTS, DEMO_VIDEOS, type DemoList, type DemoVideo } from "./fixtures";
+import type { Channel, FeedItem, ListDetail } from "../api";
 
 const NOW = new Date("2026-11-11T12:00:00Z");
 const ALL = { offset: 0, limit: 200 };
@@ -585,4 +586,507 @@ describe("demo store bulk updates", () => {
 
     expect(feedIds(store)).toHaveLength(60);
   });
+});
+
+describe("demo store lists", () => {
+  const SAVED_AT = "2026-11-11T12:00:00.000Z";
+
+  // list-one names gamma before alpha, title order comes from the sort
+  // demo-ghost is missing from the store, dropped from counts and detail
+  const SMALL_CHANNELS: Channel[] = [
+    {
+      channelId: "demo-alpha",
+      title: "Alpha",
+      thumbUrl: "https://example.test/alpha.jpg",
+      enabledAll: true,
+      enabledLive: true,
+      excludedShorts: true,
+    },
+    { channelId: "demo-beta", title: "Beta", thumbUrl: null, enabledAll: true, enabledLive: true, excludedShorts: true },
+    { channelId: "demo-gamma", title: "gamma", thumbUrl: null, enabledAll: true, enabledLive: true, excludedShorts: true },
+    { channelId: "demo-delta", title: "Delta", thumbUrl: null, enabledAll: true, enabledLive: true, excludedShorts: true },
+  ];
+
+  const SMALL_LISTS: DemoList[] = [
+    { listId: "list-one", name: "One", channelIds: ["demo-gamma", "demo-alpha", "demo-ghost"] },
+    { listId: "list-two", name: "Two", channelIds: ["demo-beta"] },
+    { listId: "list-empty", name: "Empty", channelIds: ["demo-ghost"] },
+  ];
+
+  // oracle written out by hand, not read from the store
+  const LIST_ONE_DETAIL: ListDetail = {
+    id: "list-one",
+    name: "One",
+    createdAt: SAVED_AT,
+    updatedAt: SAVED_AT,
+    channelIds: ["demo-alpha", "demo-gamma"],
+    channels: [
+      { channelId: "demo-alpha", title: "Alpha", thumbUrl: "https://example.test/alpha.jpg" },
+      { channelId: "demo-gamma", title: "gamma", thumbUrl: null },
+    ],
+  };
+
+  function listStore(videos: DemoVideo[] = []): DemoStore {
+    return createDemoStore(NOW, { channels: SMALL_CHANNELS, videos, lists: SMALL_LISTS });
+  }
+
+  function listFeedIds(store: DemoStore, listId: string): string[] {
+    return store.getListFeed(listId, ALL)!.items.map((i) => i.video_id);
+  }
+
+  function itemFor(items: FeedItem[], videoId: string): FeedItem | undefined {
+    return items.find((i) => i.video_id === videoId);
+  }
+
+  // list-one holds gamma and alpha, delta is in no list
+  function roundRobinVideos(): DemoVideo[] {
+    return [
+      video({ videoId: "d1", channelId: "demo-delta", hoursAgo: 0.5 }),
+      video({ videoId: "g1", channelId: "demo-gamma", hoursAgo: 1 }),
+      video({ videoId: "g2", channelId: "demo-gamma", hoursAgo: 2 }),
+      video({ videoId: "a1", channelId: "demo-alpha", hoursAgo: 3 }),
+      video({ videoId: "a2", channelId: "demo-alpha", hoursAgo: 4 }),
+      video({ videoId: "b1", channelId: "demo-beta", hoursAgo: 5 }),
+    ];
+  }
+
+  it("lists summaries in creation order with channel counts that skip unknown ids", () => {
+    expect(listStore().getLists()).toEqual([
+      { id: "list-one", name: "One", channelCount: 2, createdAt: SAVED_AT, updatedAt: SAVED_AT },
+      { id: "list-two", name: "Two", channelCount: 1, createdAt: SAVED_AT, updatedAt: SAVED_AT },
+      { id: "list-empty", name: "Empty", channelCount: 0, createdAt: SAVED_AT, updatedAt: SAVED_AT },
+    ]);
+  });
+
+  it("returns list detail with channels in title order and unknown ids dropped", () => {
+    expect(listStore().getList("list-one")).toEqual(LIST_ONE_DETAIL);
+  });
+
+  it("returns an empty detail when every channel id is unknown", () => {
+    expect(listStore().getList("list-empty")).toEqual({
+      id: "list-empty",
+      name: "Empty",
+      createdAt: SAVED_AT,
+      updatedAt: SAVED_AT,
+      channelIds: [],
+      channels: [],
+    });
+  });
+
+  it("counts a channel listed twice once", () => {
+    const store = createDemoStore(NOW, {
+      channels: SMALL_CHANNELS,
+      videos: [],
+      lists: [{ listId: "dup", name: "Dup", channelIds: ["demo-alpha", "demo-alpha"] }],
+    });
+
+    expect(store.getLists()[0].channelCount).toBe(1);
+    expect(store.getList("dup")!.channelIds).toEqual(["demo-alpha"]);
+  });
+
+  it("returns null for an unknown list id in both detail and feed", () => {
+    const store = listStore(roundRobinVideos());
+
+    expect(store.getList("list-missing")).toBeNull();
+    expect(store.getListFeed("list-missing", ALL)).toBeNull();
+  });
+
+  it("keeps a channel switched off in the All feed, while the All feed drops it", () => {
+    const store = listStore([
+      video({ videoId: "g1", channelId: "demo-gamma", hoursAgo: 1 }),
+      video({ videoId: "a1", channelId: "demo-alpha", hoursAgo: 2 }),
+    ]);
+
+    store.updateChannel("demo-alpha", { enabledAll: false });
+
+    expect(feedIds(store)).toEqual(["g1"]);
+    expect(listFeedIds(store, "list-one")).toEqual(["g1", "a1"]);
+  });
+
+  it("hides a known short in a list when excludedShorts is on", () => {
+    const store = listStore([
+      video({ videoId: "g1", channelId: "demo-gamma", hoursAgo: 1, durationSeconds: 60 }),
+      video({ videoId: "g2", channelId: "demo-gamma", hoursAgo: 2, durationSeconds: 61 }),
+      video({ videoId: "g3", channelId: "demo-gamma", hoursAgo: 3, durationSeconds: null }),
+      video({ videoId: "a1", channelId: "demo-alpha", hoursAgo: 4, durationSeconds: 30 }),
+    ]);
+
+    expect(listFeedIds(store, "list-one")).toEqual(["g2", "g3"]);
+  });
+
+  it("keeps a known short in a list when the channel's excludedShorts is off", () => {
+    const store = listStore([
+      video({ videoId: "g1", channelId: "demo-gamma", hoursAgo: 1, durationSeconds: 60 }),
+      video({ videoId: "g2", channelId: "demo-gamma", hoursAgo: 2, durationSeconds: 61 }),
+      video({ videoId: "g3", channelId: "demo-gamma", hoursAgo: 3, durationSeconds: null }),
+      video({ videoId: "a1", channelId: "demo-alpha", hoursAgo: 4, durationSeconds: 30 }),
+    ]);
+
+    store.updateChannel("demo-gamma", { excludedShorts: false });
+
+    expect(listFeedIds(store, "list-one")).toEqual(["g1", "g2", "g3"]);
+  });
+
+  it("drops a video whose channel is missing from the store", () => {
+    const store = listStore([
+      video({ videoId: "gh1", channelId: "demo-ghost", hoursAgo: 1 }),
+      video({ videoId: "g1", channelId: "demo-gamma", hoursAgo: 2 }),
+    ]);
+
+    expect(listFeedIds(store, "list-one")).toEqual(["g1"]);
+  });
+
+  it("keeps only the list's channels and round robins across them", () => {
+    const store = listStore(roundRobinVideos());
+
+    expect(listFeedIds(store, "list-one")).toEqual(["g1", "a1", "g2", "a2"]);
+    expect(listFeedIds(store, "list-two")).toEqual(["b1"]);
+    expect(store.getListFeed("list-one", ALL)!.list).toEqual({ id: "list-one", name: "One" });
+  });
+
+  it("slices list pages and sets hasMore only when items remain", () => {
+    const store = listStore(roundRobinVideos());
+    const page = (offset: number, limit: number) => {
+      const feed = store.getListFeed("list-one", { offset, limit })!;
+      return { ids: feed.items.map((i) => i.video_id), hasMore: feed.hasMore };
+    };
+
+    expect(page(0, 3)).toEqual({ ids: ["g1", "a1", "g2"], hasMore: true });
+    expect(page(3, 3)).toEqual({ ids: ["a2"], hasMore: false });
+    expect(page(0, 2)).toEqual({ ids: ["g1", "a1"], hasMore: true });
+    expect(page(2, 2)).toEqual({ ids: ["g2", "a2"], hasMore: false });
+    expect(page(0, 4)).toEqual({ ids: ["g1", "a1", "g2", "a2"], hasMore: false });
+  });
+
+  it("shows watched state in both feeds and clears it on unwatch", () => {
+    const store = listStore(roundRobinVideos());
+
+    store.setWatched("g1");
+    expect(itemFor(store.getAllFeed(ALL).items, "g1")).toMatchObject({
+      is_watched: true,
+      watched_at: SAVED_AT,
+    });
+    expect(itemFor(store.getListFeed("list-one", ALL)!.items, "g1")).toMatchObject({
+      is_watched: true,
+      watched_at: SAVED_AT,
+    });
+
+    store.setUnwatched("g1");
+    expect(itemFor(store.getAllFeed(ALL).items, "g1")).toMatchObject({
+      is_watched: false,
+      watched_at: null,
+    });
+    expect(itemFor(store.getListFeed("list-one", ALL)!.items, "g1")).toMatchObject({
+      is_watched: false,
+      watched_at: null,
+    });
+  });
+
+  it("returns copies of list summaries", () => {
+    const store = listStore();
+
+    const summaries = store.getLists();
+    summaries[0].name = "Changed";
+    summaries[0].channelCount = 99;
+    summaries.pop();
+
+    expect(store.getLists()).toEqual([
+      { id: "list-one", name: "One", channelCount: 2, createdAt: SAVED_AT, updatedAt: SAVED_AT },
+      { id: "list-two", name: "Two", channelCount: 1, createdAt: SAVED_AT, updatedAt: SAVED_AT },
+      { id: "list-empty", name: "Empty", channelCount: 0, createdAt: SAVED_AT, updatedAt: SAVED_AT },
+    ]);
+  });
+
+  it("returns copies of list details", () => {
+    const store = listStore();
+
+    const detail = store.getList("list-one")!;
+    detail.name = "Changed";
+    detail.channelIds.push("demo-beta");
+    detail.channels[0].title = "Changed";
+    detail.channels.pop();
+
+    expect(store.getList("list-one")).toEqual(LIST_ONE_DETAIL);
+  });
+
+  it("returns copies of list feeds and their items", () => {
+    const store = listStore(roundRobinVideos());
+
+    const feed = store.getListFeed("list-one", ALL)!;
+    feed.list.name = "Changed";
+    feed.items[0].is_watched = true;
+    feed.items[0].title = "Changed";
+    feed.items.pop();
+
+    const next = store.getListFeed("list-one", ALL)!;
+    expect(next.list).toEqual({ id: "list-one", name: "One" });
+    expect(next.items.map((i) => i.video_id)).toEqual(["g1", "a1", "g2", "a2"]);
+    expect(next.items[0]).toMatchObject({ is_watched: false, title: "Video" });
+  });
+
+  it("copies override lists so later input mutation does not reach the store", () => {
+    const lists = structuredClone(SMALL_LISTS);
+    const store = createDemoStore(NOW, { channels: SMALL_CHANNELS, videos: [], lists });
+
+    lists[0].name = "Changed";
+    lists[0].channelIds.push("demo-beta");
+    lists.push({ listId: "list-late", name: "Late", channelIds: ["demo-alpha"] });
+
+    expect(store.getLists().map((l) => [l.id, l.name, l.channelCount])).toEqual([
+      ["list-one", "One", 2],
+      ["list-two", "Two", 1],
+      ["list-empty", "Empty", 0],
+    ]);
+    expect(store.getList("list-one")).toEqual(LIST_ONE_DETAIL);
+  });
+
+  it("counts ids up from demo-list-1 and skips an id already in use", () => {
+    const store = createDemoStore(NOW, {
+      channels: SMALL_CHANNELS,
+      videos: [],
+      lists: [{ listId: "demo-list-1", name: "Taken", channelIds: [] }],
+    });
+
+    expect(store.createList("Alpha")!.id).toBe("demo-list-2");
+    expect(store.createList("Beta")!.id).toBe("demo-list-3");
+  });
+
+  it("keeps ids unique after a delete and a create", () => {
+    const store = listStore();
+    const first = store.createList("Alpha")!;
+    const second = store.createList("Beta")!;
+    store.deleteList(first.id);
+    const third = store.createList("Gamma")!;
+
+    expect([first.id, second.id, third.id]).toEqual(["demo-list-1", "demo-list-2", "demo-list-3"]);
+  });
+
+  it("appends a new list last in the summaries with 0 channels", () => {
+    const store = listStore();
+
+    const created = store.createList("Fresh")!;
+
+    expect(store.getLists()).toHaveLength(4);
+    expect(store.getLists()[3]).toEqual({
+      id: created.id,
+      name: "Fresh",
+      channelCount: 0,
+      createdAt: SAVED_AT,
+      updatedAt: SAVED_AT,
+    });
+  });
+
+  it("returns null for an exact duplicate name and adds nothing", () => {
+    const store = listStore();
+
+    expect(store.createList("One")).toBeNull();
+    expect(store.getLists().map((list) => list.id)).toEqual(["list-one", "list-two", "list-empty"]);
+  });
+
+  it("treats a different case as a new name", () => {
+    const store = listStore();
+
+    expect(store.createList("one")).not.toBeNull();
+    expect(store.getLists().map((list) => list.name)).toEqual(["One", "Two", "Empty", "one"]);
+  });
+
+  it("returns the create result without a channels key", () => {
+    const store = listStore();
+
+    const created = store.createList("Fresh")!;
+
+    expect(Object.keys(created).sort()).toEqual(["channelIds", "createdAt", "id", "name", "updatedAt"]);
+    expect(created).toEqual({
+      id: "demo-list-1",
+      name: "Fresh",
+      createdAt: SAVED_AT,
+      updatedAt: SAVED_AT,
+      channelIds: [],
+    });
+    expect(store.getList(created.id)).toEqual({ ...created, channels: [] });
+  });
+
+  it("deletes a list once and reports false after that", () => {
+    const store = listStore();
+
+    expect(store.deleteList("list-two")).toBe(true);
+    expect(store.deleteList("list-two")).toBe(false);
+    expect(store.deleteList("list-missing")).toBe(false);
+  });
+
+  it("removes a deleted list from summaries, detail, and list feed", () => {
+    const store = listStore(roundRobinVideos());
+
+    store.deleteList("list-one");
+
+    expect(store.getLists().map((l) => l.id)).toEqual(["list-two", "list-empty"]);
+    expect(store.getList("list-one")).toBeNull();
+    expect(store.getListFeed("list-one", ALL)).toBeNull();
+  });
+
+  it("leaves other lists, channels, and the All feed alone after a delete", () => {
+    const store = listStore(roundRobinVideos());
+    const feedBefore = feedIds(store);
+    const channelsBefore = store.getChannels();
+
+    store.deleteList("list-one");
+
+    expect(store.getList("list-two")).toEqual({
+      id: "list-two",
+      name: "Two",
+      createdAt: SAVED_AT,
+      updatedAt: SAVED_AT,
+      channelIds: ["demo-beta"],
+      channels: [{ channelId: "demo-beta", title: "Beta", thumbUrl: null }],
+    });
+    expect(store.getChannels()).toEqual(channelsBefore);
+    expect(feedIds(store)).toEqual(feedBefore);
+  });
+
+  it("never changes the fixture lists when creating or deleting", () => {
+    const snapshot = structuredClone(DEMO_LISTS);
+    const store = createDemoStore(NOW);
+
+    store.createList("Fresh");
+    store.deleteList(DEMO_LISTS[0].listId);
+
+    expect(DEMO_LISTS).toEqual(snapshot);
+  });
+
+  it("resetDemoStore brings the fixture lists and the id counter back", () => {
+    const first = getDemoStore();
+    first.deleteList(DEMO_LISTS[0].listId);
+    first.createList("Fresh");
+
+    resetDemoStore();
+    const second = getDemoStore();
+
+    expect(second.getLists().map((l) => l.id)).toEqual(DEMO_LISTS.map((l) => l.listId));
+    expect(second.createList("Again")!.id).toBe("demo-list-1");
+  });
+
+  it("renames a list and replaces its membership", () => {
+    const store = listStore();
+
+    const result = store.saveList("list-one", "Renamed", ["demo-beta"]);
+
+    expect(result).toEqual({
+      list: {
+        id: "list-one",
+        name: "Renamed",
+        createdAt: SAVED_AT,
+        updatedAt: SAVED_AT,
+        channelIds: ["demo-beta"],
+        channels: [{ channelId: "demo-beta", title: "Beta", thumbUrl: null }],
+      },
+    });
+    expect(store.getList("list-one")).toEqual(savedDetail(result));
+    expect(store.getLists().find((l) => l.id === "list-one")).toMatchObject({
+      name: "Renamed",
+      channelCount: 1,
+    });
+  });
+
+  it("dedupes channel ids and returns them sorted by title", () => {
+    const store = listStore();
+
+    const detail = savedDetail(store.saveList("list-two", "Two", ["demo-gamma", "demo-alpha", "demo-gamma", "demo-beta", "demo-alpha"]));
+
+    expect(detail.channelIds).toEqual(["demo-alpha", "demo-beta", "demo-gamma"]);
+    expect(detail.channels.map((c) => c.title)).toEqual(["Alpha", "Beta", "gamma"]);
+  });
+
+  it("drops unknown and non string channel ids", () => {
+    const store = listStore();
+    const junk = ["demo-ghost", 5, null, { channelId: "demo-alpha" }, "demo-alpha"] as unknown as string[];
+
+    const detail = savedDetail(store.saveList("list-two", "Two", junk));
+
+    expect(detail.channelIds).toEqual(["demo-alpha"]);
+  });
+
+  it("allows a save that keeps the list's own name", () => {
+    const store = listStore();
+
+    const result = store.saveList("list-one", "One", ["demo-alpha", "demo-gamma"]);
+
+    expect(savedDetail(result)).toEqual(LIST_ONE_DETAIL);
+  });
+
+  it("refuses another list's exact name and changes nothing", () => {
+    const store = listStore();
+    const before = store.getList("list-one");
+    const summaries = store.getLists();
+
+    const result = store.saveList("list-one", "Two", ["demo-delta"]);
+
+    expect(result).toEqual({ error: "duplicate" });
+    expect(store.getList("list-one")).toEqual(before);
+    expect(store.getLists()).toEqual(summaries);
+  });
+
+  it("allows another list's name in a different case", () => {
+    const store = listStore();
+
+    const detail = savedDetail(store.saveList("list-one", "two", ["demo-beta"]));
+
+    expect(detail.name).toBe("two");
+  });
+
+  it("returns not_found for an unknown id before checking the name", () => {
+    const store = listStore();
+    const summaries = store.getLists();
+
+    expect(store.saveList("list-missing", "Two", ["demo-beta"])).toEqual({ error: "not_found" });
+    expect(store.saveList("list-missing", "Fresh", ["demo-beta"])).toEqual({ error: "not_found" });
+    expect(store.getLists()).toEqual(summaries);
+  });
+
+  it("empties the list when channelIds is empty", () => {
+    const store = listStore();
+
+    const detail = savedDetail(store.saveList("list-one", "One", []));
+
+    expect(detail.channelIds).toEqual([]);
+    expect(detail.channels).toEqual([]);
+    expect(store.getLists().find((l) => l.id === "list-one")).toMatchObject({ channelCount: 0 });
+  });
+
+  it("reflects the saved membership in the list feed", () => {
+    const store = listStore(roundRobinVideos());
+    expect(listFeedIds(store, "list-one")).toEqual(["g1", "a1", "g2", "a2"]);
+
+    store.saveList("list-one", "One", ["demo-alpha", "demo-beta"]);
+
+    expect(listFeedIds(store, "list-one")).toEqual(["a1", "b1", "a2"]);
+  });
+
+  it("returns a detail the caller can change without touching the store", () => {
+    const store = listStore();
+    const result = store.saveList("list-one", "One", ["demo-alpha"]);
+
+    savedDetail(result).channels.pop();
+    savedDetail(result).channelIds.push("demo-beta");
+
+    expect(store.getList("list-one")!.channelIds).toEqual(["demo-alpha"]);
+  });
+
+  it("never changes the fixture lists or channels when saving", () => {
+    const listsSnapshot = structuredClone(DEMO_LISTS);
+    const store = createDemoStore(NOW);
+    const other = store.getList("demo-list-space-nerd");
+    const channelsBefore = store.getChannels();
+
+    store.saveList("demo-list-dev-talk", "Renamed", ["demo-blender"]);
+
+    expect(DEMO_LISTS).toEqual(listsSnapshot);
+    expect(store.getList("demo-list-space-nerd")).toEqual(other);
+    expect(store.getChannels()).toEqual(channelsBefore);
+  });
+
+  // unwraps a successful save, fails the test otherwise
+  function savedDetail(result: SaveListResult): ListDetail {
+    if (!("list" in result)) throw new Error(`expected a saved list, got ${result.error}`);
+    return result.list;
+  }
 });
