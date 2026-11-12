@@ -156,6 +156,32 @@ async function deleteList({ params }: RouteContext): Promise<Response> {
   return json({ ok: true });
 }
 
+// dynamic import, same chunk split as getFeedAll
+// order: unknown id 404, then name, then channelIds, then the duplicate check in the store
+async function saveList({ params, body }: RouteContext): Promise<Response> {
+  const { getDemoStore } = await import("./store");
+  const store = getDemoStore();
+  if (!store.getList(params.listId)) return json({ error: "List not found" }, 404);
+  // non-object bodies count as empty, so they get the 400
+  const fields = (typeof body === "object" && body !== null ? body : {}) as {
+    name?: unknown;
+    channelIds?: unknown;
+  };
+  const result = validateListName(fields.name);
+  if ("error" in result) return json({ error: result.error }, 400);
+  if (!Array.isArray(fields.channelIds)) {
+    return json({ error: "channelIds must be an array" }, 400);
+  }
+  const saved = store.saveList(params.listId, result.name, fields.channelIds);
+  if ("error" in saved) {
+    if (saved.error === "duplicate") {
+      return json({ error: "You already have a list with this name." }, 409);
+    }
+    return json({ error: "List not found" }, 404);
+  }
+  return json({ list: saved.list });
+}
+
 const routes: Route[] = [
   { method: "GET", pattern: compilePattern("/api/feed/all"), handle: getFeedAll },
   { method: "POST", pattern: compilePattern("/api/feed/videos/:videoId/watch"), handle: markWatched },
@@ -166,6 +192,7 @@ const routes: Route[] = [
   { method: "GET", pattern: compilePattern("/api/feed/lists/:listId"), handle: getListFeed },
   { method: "POST", pattern: compilePattern("/api/lists"), handle: createList },
   { method: "DELETE", pattern: compilePattern("/api/lists/:listId"), handle: deleteList },
+  { method: "PUT", pattern: compilePattern("/api/lists/:listId"), handle: saveList },
   { method: "POST", pattern: compilePattern("/api/youtube/sync-subscriptions"), handle: syncSubscriptions },
   { method: "PATCH", pattern: compilePattern("/api/channels/bulk"), handle: patchChannelsBulk },
   // bulk routes must stay above this entry

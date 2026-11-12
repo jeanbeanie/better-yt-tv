@@ -24,6 +24,9 @@ export type ChannelUpdate = Pick<Channel, "channelId" | "enabledAll" | "enabledL
   updatedAt: string;
 };
 
+// not_found for an unknown id, duplicate for another list's exact name
+export type SaveListResult = { list: ListDetail } | { error: "not_found" | "duplicate" };
+
 export type DemoStore = {
   getAllFeed(params: { offset: number; limit: number }): { items: FeedItem[]; hasMore: boolean };
   setWatched(videoId: string): void;
@@ -39,6 +42,7 @@ export type DemoStore = {
   ): { list: { id: string; name: string }; items: FeedItem[]; hasMore: boolean } | null;
   createList(name: string): Omit<ListDetail, "channels"> | null;
   deleteList(listId: string): boolean;
+  saveList(listId: string, name: string, channelIds: string[]): SaveListResult;
 };
 
 // input sorted published_at desc, the channel with the newest video comes out first
@@ -243,6 +247,20 @@ export function createDemoStore(now: Date | number, overrides: DemoStoreOverride
     return lists.delete(listId);
   }
 
+  // checks run before any write, a refused save changes nothing
+  // channels.has also drops non string ids
+  function saveList(listId: string, name: string, channelIds: string[]): SaveListResult {
+    const list = lists.get(listId);
+    if (!list) return { error: "not_found" };
+    for (const other of lists.values()) {
+      if (other !== list && other.name === name) return { error: "duplicate" };
+    }
+    list.name = name;
+    // Set keeps first appearance order, detail sorts by title anyway
+    list.channelIds = [...new Set(channelIds)].filter((id) => channels.has(id));
+    return { list: getList(listId)! };
+  }
+
   return {
     getAllFeed,
     getLists,
@@ -250,6 +268,7 @@ export function createDemoStore(now: Date | number, overrides: DemoStoreOverride
     getListFeed,
     createList,
     deleteList,
+    saveList,
     setWatched,
     setUnwatched,
     getChannels,

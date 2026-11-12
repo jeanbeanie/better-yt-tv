@@ -10,6 +10,7 @@ import {
   getList,
   getListFeed,
   getLists,
+  saveList,
   syncSubscriptions,
   updateChannel,
   type Channel,
@@ -61,6 +62,7 @@ const listFeedPath = (id: string, query = "") =>
   `http://localhost:5179/api/feed/lists/${id}${query}`;
 const listsPath = "http://localhost:5179/api/lists";
 const postList = (body?: string) => demoFetch(listsPath, { method: "POST", body });
+const putList = (id: string, body?: string) => demoFetch(listPath(id), { method: "PUT", body });
 
 describe("demoFetch", () => {
   beforeEach(() => {
@@ -838,6 +840,188 @@ describe("demoFetch", () => {
       expect(lists.map((l) => l.name)).toContain("Road trip");
 
       expect(await deleteList(list.id)).toEqual({ ok: true });
+      expect(fetchMock).toHaveBeenCalledTimes(0);
+    } finally {
+      window.history.pushState({}, "", "/");
+    }
+  });
+
+  it("saves a list with 200 and the same shape as GET /api/lists/:listId", async () => {
+    const resp = await putList(
+      DEV_TALK,
+      JSON.stringify({ name: "Dev talk 2", channelIds: ["demo-blender"] }),
+    );
+    expect(resp.status).toBe(200);
+
+    const body = (await resp.json()) as { list: Record<string, unknown> };
+    expect(Object.keys(body.list).sort()).toEqual(["channelIds", "channels", "createdAt", "id", "name", "updatedAt"]);
+    const detail = (await (await demoFetch(listPath(DEV_TALK), { method: "GET" })).json()) as unknown;
+    expect(body).toEqual(detail);
+    expect(body.list).toMatchObject({ id: DEV_TALK, name: "Dev talk 2", channelIds: ["demo-blender"] });
+  });
+
+  it("returns 400 Name is required for a missing, blank, non-string, or non-object body", async () => {
+    const bodies = [
+      undefined,
+      "not json",
+      JSON.stringify({ channelIds: [] }),
+      JSON.stringify({ name: "   ", channelIds: [] }),
+      JSON.stringify({ name: 42, channelIds: [] }),
+      JSON.stringify([]),
+      JSON.stringify(null),
+      JSON.stringify(7),
+    ];
+    for (const body of bodies) {
+      const resp = await putList(DEV_TALK, body);
+      expect(resp.status).toBe(400);
+      expect(await resp.json()).toEqual({ error: "Name is required" });
+    }
+  });
+
+  it("checks the length on the trimmed name, 101 fails and 100 passes", async () => {
+    const tooLong = await putList(DEV_TALK, JSON.stringify({ name: "a".repeat(101), channelIds: [] }));
+    expect(tooLong.status).toBe(400);
+    expect(await tooLong.json()).toEqual({ error: "Name must be 100 characters or fewer" });
+
+    const padded = await putList(
+      DEV_TALK,
+      JSON.stringify({ name: `  ${"a".repeat(100)}  `, channelIds: [] }),
+    );
+    expect(padded.status).toBe(200);
+    const body = (await padded.json()) as { list: { name: string } };
+    expect(body.list.name).toHaveLength(100);
+  });
+
+  it("returns 400 channelIds must be an array for a missing, string, object, or null value", async () => {
+    const bodies = [
+      JSON.stringify({ name: "Dev talk" }),
+      JSON.stringify({ name: "Dev talk", channelIds: "demo-blender" }),
+      JSON.stringify({ name: "Dev talk", channelIds: {} }),
+      JSON.stringify({ name: "Dev talk", channelIds: null }),
+    ];
+    for (const body of bodies) {
+      const resp = await putList(DEV_TALK, body);
+      expect(resp.status).toBe(400);
+      expect(await resp.json()).toEqual({ error: "channelIds must be an array" });
+    }
+  });
+
+  it("checks the unknown id, then the name, then channelIds, then the duplicate name", async () => {
+    const badAll = JSON.stringify({ name: "", channelIds: "x" });
+    expect(await (await putList("demo-list-missing", badAll)).json()).toEqual({ error: "List not found" });
+    expect(await (await putList(DEV_TALK, badAll)).json()).toEqual({ error: "Name is required" });
+
+    const badChannels = await putList(DEV_TALK, JSON.stringify({ name: "Renamed", channelIds: "x" }));
+    expect(await badChannels.json()).toEqual({ error: "channelIds must be an array" });
+
+    const dupAndBad = await putList(DEV_TALK, JSON.stringify({ name: "Space nerd", channelIds: "x" }));
+    expect(dupAndBad.status).toBe(400);
+    expect(await dupAndBad.json()).toEqual({ error: "channelIds must be an array" });
+  });
+
+  it("returns 404 List not found for an unknown list id and changes nothing", async () => {
+    const resp = await putList("demo-list-missing", JSON.stringify({ name: "Fresh", channelIds: [] }));
+    expect(resp.status).toBe(404);
+    expect(await resp.json()).toEqual({ error: "List not found" });
+
+    const index = (await (await demoFetch(listsPath, { method: "GET" })).json()) as {
+      lists: { name: string }[];
+    };
+    expect(index.lists.map((l) => l.name)).not.toContain("Fresh");
+  });
+
+  it("returns 409 for another list's name after trimming and leaves the list unchanged", async () => {
+    const before = await (await demoFetch(listPath(DEV_TALK), { method: "GET" })).json();
+
+    const resp = await putList(
+      DEV_TALK,
+      JSON.stringify({ name: "  Space nerd  ", channelIds: ["demo-blender"] }),
+    );
+    expect(resp.status).toBe(409);
+    expect(await resp.json()).toEqual({ error: "You already have a list with this name." });
+
+    expect(await (await demoFetch(listPath(DEV_TALK), { method: "GET" })).json()).toEqual(before);
+  });
+
+  it("allows a list to keep its own name and a different case of another list's name", async () => {
+    const same = await putList(DEV_TALK, JSON.stringify({ name: "Dev talk", channelIds: [] }));
+    expect(same.status).toBe(200);
+
+    const otherCase = await putList(DEV_TALK, JSON.stringify({ name: "space nerd", channelIds: [] }));
+    expect(otherCase.status).toBe(200);
+  });
+
+  it("drops unknown channel ids and collapses duplicates", async () => {
+    const resp = await putList(
+      DEV_TALK,
+      JSON.stringify({
+        name: "Dev talk",
+        channelIds: ["demo-missing", "demo-nasa", "demo-nasa", 7, null, "demo-blender"],
+      }),
+    );
+    expect(resp.status).toBe(200);
+
+    const body = (await resp.json()) as { list: { channelIds: string[]; channels: { channelId: string }[] } };
+    expect(body.list.channelIds).toEqual(["demo-blender", "demo-nasa"]);
+    expect(body.list.channels.map((c) => c.channelId)).toEqual(["demo-blender", "demo-nasa"]);
+  });
+
+  it("shows a saved list in the index, detail, and list feed", async () => {
+    await putList(
+      DEV_TALK,
+      JSON.stringify({ name: "Renamed talk", channelIds: ["demo-blender", "demo-fireship"] }),
+    );
+
+    const index = (await (await demoFetch(listsPath, { method: "GET" })).json()) as {
+      lists: { id: string; name: string; channelCount: number }[];
+    };
+    expect(index.lists.find((l) => l.id === DEV_TALK)).toMatchObject({
+      name: "Renamed talk",
+      channelCount: 2,
+    });
+
+    const detail = (await (await demoFetch(listPath(DEV_TALK), { method: "GET" })).json()) as {
+      list: { name: string; channelIds: string[] };
+    };
+    expect(detail.list).toMatchObject({
+      name: "Renamed talk",
+      channelIds: ["demo-blender", "demo-fireship"],
+    });
+
+    const feed = (await feedJson(listFeedPath(DEV_TALK, "?limit=200"))) as {
+      list: { id: string; name: string };
+      items: FeedRow[];
+      hasMore: boolean;
+    };
+    expect(feed.list).toEqual({ id: DEV_TALK, name: "Renamed talk" });
+    const feedChannels = new Set((feed.items as FeedRow[]).map((i) => i.channel_id));
+    expect(feedChannels).toEqual(new Set(["demo-blender", "demo-fireship"]));
+  });
+
+  it("never calls the global fetch for list save", async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await putList(DEV_TALK, JSON.stringify({ name: "Dev talk", channelIds: [] }));
+
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("serves the save wrapper through the real saveList api function in demo mode", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists/demo-list-dev-talk");
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      const { list } = await saveList(DEV_TALK, { name: "Api talk", channelIds: ["demo-nasa"] });
+      expect(list).toMatchObject({ name: "Api talk", channelIds: ["demo-nasa"] });
+
+      const { lists } = await getLists();
+      expect(lists.map((l) => l.name)).toContain("Api talk");
+
+      await expect(saveList(SPACE_NERD, { name: "Api talk", channelIds: [] })).rejects.toThrow(
+        "You already have a list with this name.",
+      );
       expect(fetchMock).toHaveBeenCalledTimes(0);
     } finally {
       window.history.pushState({}, "", "/");

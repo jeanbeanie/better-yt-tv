@@ -435,4 +435,73 @@ describe("demo shell", () => {
     expect(await screen.findByRole("textbox", { name: "List name" })).toHaveValue("Road trip");
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
+
+  it("saves a rename and an added channel, then shows them on the settings lists", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists/demo-list-dev-talk");
+    const user = userEvent.setup();
+    const first = renderShell();
+    const nameInput = await screen.findByRole("textbox", { name: "List name" });
+    await user.clear(nameInput);
+    await user.type(nameInput, "Dev talk plus");
+    await user.type(
+      screen.getByRole("textbox", { name: "Search your subscribed channels" }),
+      "Blender",
+    );
+    await user.click(await screen.findByRole("button", { name: "Add Blender" }));
+    await user.click(screen.getAllByRole("button", { name: "Save list" })[0]);
+    await screen.findAllByText("Saved");
+    first.unmount();
+
+    window.history.pushState({}, "", "/demo/settings/lists");
+    renderShell();
+    const link = await screen.findByRole("link", { name: "Dev talk plus" });
+    expect(within(link.closest("li") as HTMLElement).getByText("4 channels")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Dev talk" })).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("shows an added channel's videos and drops a removed channel's from the list feed", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists/demo-list-dev-talk");
+    const user = userEvent.setup();
+    const first = renderShell();
+    const section = (await screen.findByRole("heading", { name: "Channels in this list" }))
+      .parentElement as HTMLElement;
+    const fireshipRow = (await within(section).findByText("Fireship")).parentElement as HTMLElement;
+    await user.click(within(fireshipRow).getByRole("button", { name: "Remove" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Search your subscribed channels" }),
+      "Blender",
+    );
+    await user.click(await screen.findByRole("button", { name: "Add Blender" }));
+    await user.click(screen.getAllByRole("button", { name: "Save list" })[0]);
+    await screen.findAllByText("Saved");
+    first.unmount();
+
+    window.history.pushState({}, "", "/demo/lists");
+    renderShell();
+    await user.selectOptions(await screen.findByRole("combobox"), "demo-list-dev-talk");
+    await screen.findAllByText("Mutex Explained - Computerphile");
+    await screen.findAllByText("Making of: The Blender Open Movies Exhibition");
+    expect(screen.queryByText(DEV_TALK_FIRST_TITLE)).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("shows the duplicate name error on save and keeps the saved name and channels", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists/demo-list-dev-talk");
+    const user = userEvent.setup();
+    const first = renderShell();
+    const nameInput = await screen.findByRole("textbox", { name: "List name" });
+    await user.clear(nameInput);
+    await user.type(nameInput, "Space nerd");
+    await user.click(screen.getAllByRole("button", { name: "Save list" })[0]);
+    await screen.findAllByText("You already have a list with this name.");
+    first.unmount();
+
+    window.history.pushState({}, "", "/demo/settings/lists");
+    renderShell();
+    const devTalk = (await screen.findByRole("link", { name: "Dev talk" })).closest("li") as HTMLElement;
+    expect(within(devTalk).getByText("3 channels")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Space nerd" })).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
 });
