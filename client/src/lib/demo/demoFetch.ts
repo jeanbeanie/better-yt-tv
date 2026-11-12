@@ -64,19 +64,39 @@ async function syncSubscriptions(): Promise<Response> {
   return json({ ok: true, syncedCount: getDemoStore().getChannels().length });
 }
 
+// shared by both PATCH handlers
+function hasBooleanField(fields: ChannelPatch): boolean {
+  return [fields.enabledAll, fields.enabledLive, fields.excludedShorts].some(
+    (value) => typeof value === "boolean",
+  );
+}
+
 // dynamic import, same chunk split as getFeedAll
 // non-object bodies count as empty, so they get the 400
 async function patchChannel({ params, body }: RouteContext): Promise<Response> {
   const { getDemoStore } = await import("./store");
   const fields = (typeof body === "object" && body !== null ? body : {}) as ChannelPatch;
-  const hasValidField = [fields.enabledAll, fields.enabledLive, fields.excludedShorts].some(
-    (value) => typeof value === "boolean",
-  );
-  if (!hasValidField) return json({ error: "No valid fields to update" }, 400);
+  if (!hasBooleanField(fields)) return json({ error: "No valid fields to update" }, 400);
   // store ignores non-boolean values
   const channel = getDemoStore().updateChannel(params.channelId, fields);
   if (!channel) return json({ error: "Channel preferences not found" }, 404);
   return json({ channel });
+}
+
+// dynamic import, same chunk split as getFeedAll
+// channelIds is checked before the fields, like the server
+async function patchChannelsBulk({ body }: RouteContext): Promise<Response> {
+  const { getDemoStore } = await import("./store");
+  const raw = typeof body === "object" && body !== null ? body : {};
+  const channelIds = "channelIds" in raw ? raw.channelIds : undefined;
+  if (!Array.isArray(channelIds) || channelIds.length === 0) {
+    return json({ error: "channelIds is required" }, 400);
+  }
+  const fields = raw as ChannelPatch;
+  if (!hasBooleanField(fields)) return json({ error: "No valid fields to update" }, 400);
+  // ids that match no channel are skipped by the store
+  const updatedCount = getDemoStore().updateChannels(channelIds, fields);
+  return json({ ok: true, updatedCount });
 }
 
 const routes: Route[] = [
@@ -85,6 +105,7 @@ const routes: Route[] = [
   { method: "POST", pattern: compilePattern("/api/feed/videos/:videoId/unwatch"), handle: markUnwatched },
   { method: "GET", pattern: compilePattern("/api/channels"), handle: getChannels },
   { method: "POST", pattern: compilePattern("/api/youtube/sync-subscriptions"), handle: syncSubscriptions },
+  { method: "PATCH", pattern: compilePattern("/api/channels/bulk"), handle: patchChannelsBulk },
   // bulk routes must stay above this entry
   { method: "PATCH", pattern: compilePattern("/api/channels/:channelId"), handle: patchChannel },
 ];

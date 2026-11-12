@@ -29,6 +29,7 @@ export type DemoStore = {
   setUnwatched(videoId: string): void;
   getChannels(): Channel[];
   updateChannel(channelId: string, patch: ChannelPatch): ChannelUpdate | null;
+  updateChannels(channelIds: string[], patch: ChannelPatch): number;
 };
 
 // input sorted published_at desc, the channel with the newest video comes out first
@@ -49,6 +50,13 @@ export function applyRoundRobin<T extends { channel_id: string }>(rows: T[]): T[
     }
   }
   return result;
+}
+
+// non-boolean values ignored, like the server's typeof checks
+function applyBooleanFields(channel: Channel, patch: ChannelPatch): void {
+  if (typeof patch.enabledAll === "boolean") channel.enabledAll = patch.enabledAll;
+  if (typeof patch.enabledLive === "boolean") channel.enabledLive = patch.enabledLive;
+  if (typeof patch.excludedShorts === "boolean") channel.excludedShorts = patch.excludedShorts;
 }
 
 // now is a Date or epoch ms
@@ -117,13 +125,11 @@ export function createDemoStore(now: Date | number, overrides: DemoStoreOverride
       .sort((a, b) => titleCollator.compare(a.title, b.title));
   }
 
-  // non-boolean values ignored, like the server's typeof checks
+  // non-boolean values ignored, see applyBooleanFields
   function updateChannel(channelId: string, patch: ChannelPatch): ChannelUpdate | null {
     const channel = channels.get(channelId);
     if (!channel) return null;
-    if (typeof patch.enabledAll === "boolean") channel.enabledAll = patch.enabledAll;
-    if (typeof patch.enabledLive === "boolean") channel.enabledLive = patch.enabledLive;
-    if (typeof patch.excludedShorts === "boolean") channel.excludedShorts = patch.excludedShorts;
+    applyBooleanFields(channel, patch);
     // same fields as the server's PATCH response
     return {
       channelId: channel.channelId,
@@ -134,7 +140,18 @@ export function createDemoStore(now: Date | number, overrides: DemoStoreOverride
     };
   }
 
-  return { getAllFeed, setWatched, setUnwatched, getChannels, updateChannel };
+  // counts distinct known channels, unknown ids are skipped
+  function updateChannels(channelIds: string[], patch: ChannelPatch): number {
+    const matched = new Set<Channel>();
+    for (const channelId of channelIds) {
+      const channel = channels.get(channelId);
+      if (channel) matched.add(channel);
+    }
+    for (const channel of matched) applyBooleanFields(channel, patch);
+    return matched.size;
+  }
+
+  return { getAllFeed, setWatched, setUnwatched, getChannels, updateChannel, updateChannels };
 }
 
 let singleton: DemoStore | null = null;

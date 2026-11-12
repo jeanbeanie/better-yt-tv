@@ -486,3 +486,103 @@ describe("demo store channel updates", () => {
     });
   });
 });
+
+describe("demo store bulk updates", () => {
+  const ALL_IDS = DEMO_CHANNELS.map((c) => c.channelId);
+
+  it("applies each flag to every listed channel and leaves the others alone", () => {
+    const store = createDemoStore(NOW);
+    const listed = ["demo-blender", "demo-nasa"];
+
+    const count = store.updateChannels(listed, {
+      enabledAll: false,
+      enabledLive: false,
+      excludedShorts: false,
+    });
+
+    expect(count).toBe(2);
+    const channels = store.getChannels();
+    for (const channel of channels.filter((c) => listed.includes(c.channelId))) {
+      expect(channel).toMatchObject({ enabledAll: false, enabledLive: false, excludedShorts: false });
+    }
+    for (const channel of channels.filter((c) => !listed.includes(c.channelId))) {
+      expect(channel).toMatchObject({ enabledAll: true, enabledLive: true, excludedShorts: true });
+    }
+  });
+
+  it("returns the matched count and ignores unknown ids", () => {
+    const store = createDemoStore(NOW);
+
+    expect(store.updateChannels(["demo-blender", "demo-missing"], { enabledAll: false })).toBe(1);
+
+    expect(store.getChannels()).toHaveLength(11);
+    expect(store.getChannels().find((c) => c.channelId === "demo-blender")?.enabledAll).toBe(false);
+  });
+
+  it("returns 0 and changes nothing when every id is unknown", () => {
+    const store = createDemoStore(NOW);
+    const before = store.getChannels();
+
+    expect(store.updateChannels(["demo-missing", "demo-also-missing"], { enabledAll: false })).toBe(0);
+
+    expect(store.getChannels()).toEqual(before);
+    expect(feedIds(store)).toHaveLength(57);
+  });
+
+  it("counts a duplicated id once", () => {
+    const store = createDemoStore(NOW);
+
+    expect(store.updateChannels(["demo-blender", "demo-blender"], { enabledAll: false })).toBe(1);
+  });
+
+  it("ignores non-string ids and non-boolean values", () => {
+    const store = createDemoStore(NOW);
+    const badIds = [5, null, { id: "demo-blender" }] as unknown as string[];
+
+    expect(store.updateChannels(badIds, { enabledAll: false })).toBe(0);
+
+    const junk = { enabledAll: "no", enabledLive: 0, excludedShorts: null } as unknown as ChannelPatch;
+    expect(store.updateChannels(["demo-blender"], junk)).toBe(1);
+    expect(store.getChannels().find((c) => c.channelId === "demo-blender")).toMatchObject({
+      enabledAll: true,
+      enabledLive: true,
+      excludedShorts: true,
+    });
+  });
+
+  it("keeps two stores separate and leaves DEMO_CHANNELS unchanged", () => {
+    const snapshot = structuredClone(DEMO_CHANNELS);
+    const first = createDemoStore(NOW);
+    const second = createDemoStore(NOW);
+
+    first.updateChannels(ALL_IDS, { enabledAll: false, excludedShorts: false });
+
+    expect(second.getChannels().every((c) => c.enabledAll && c.excludedShorts)).toBe(true);
+    expect(DEMO_CHANNELS).toEqual(snapshot);
+  });
+
+  it("removes the videos of every disabled channel from getAllFeed", () => {
+    const store = createDemoStore(NOW);
+    const targets = ["demo-blender", "demo-nasa"];
+    const before = feedIds(store);
+    const removed = DEMO_VIDEOS.filter((v) => targets.includes(v.channelId))
+      .map((v) => v.videoId)
+      .filter((id) => before.includes(id));
+    expect(removed.length).toBeGreaterThan(0);
+
+    store.updateChannels(targets, { enabledAll: false });
+
+    const after = feedIds(store);
+    expect(after).toHaveLength(before.length - removed.length);
+    expect(removed.some((id) => after.includes(id))).toBe(false);
+  });
+
+  it("shows all 60 fixture videos once excludedShorts is off on every channel", () => {
+    const store = createDemoStore(NOW);
+    expect(feedIds(store)).toHaveLength(57);
+
+    expect(store.updateChannels(ALL_IDS, { excludedShorts: false })).toBe(11);
+
+    expect(feedIds(store)).toHaveLength(60);
+  });
+});

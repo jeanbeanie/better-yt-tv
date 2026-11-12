@@ -269,4 +269,36 @@ describe("demo shell", () => {
     expect(screen.queryAllByText(FEED_FIRST_TITLE)).toHaveLength(0);
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
+
+  it("switches every channel off with the bulk control and restores the feed when it is flipped back", async () => {
+    window.history.pushState({}, "", "/demo/settings/channels");
+    const user = userEvent.setup();
+
+    renderShell();
+
+    await screen.findByRole("heading", { name: "NASA" });
+    const bulkAll = screen.getByRole("checkbox", { name: "Include in All" });
+    await waitFor(() => expect(bulkAll).toBeEnabled());
+    await user.click(bulkAll);
+    await waitFor(() => expect(bulkAll).toBeEnabled());
+
+    const rowAll = screen.getAllByRole("checkbox", { name: "Enable in All" });
+    expect(rowAll).toHaveLength(11);
+    for (const box of rowAll) expect(box).not.toBeChecked();
+
+    await user.click(screen.getByRole("link", { name: "All" }));
+    await screen.findByText(/No videos yet/);
+    expect(screen.queryAllByText(FEED_FIRST_TITLE)).toHaveLength(0);
+
+    await user.click(screen.getByRole("link", { name: "Settings" }));
+    await user.click(await screen.findByRole("checkbox", { name: "Include in All" }));
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "Include in All" })).toBeEnabled());
+    for (const box of screen.getAllByRole("checkbox", { name: "Enable in All" })) {
+      expect(box).toBeChecked();
+    }
+
+    await user.click(screen.getByRole("link", { name: "All" }));
+    await screen.findAllByText(FEED_FIRST_TITLE);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
 });
