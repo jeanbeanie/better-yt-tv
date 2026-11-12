@@ -4,15 +4,32 @@ import { DEMO_CHANNELS, DEMO_VIDEOS, type DemoVideo } from "./fixtures";
 const HOUR_MS = 60 * 60 * 1000;
 const SHORTS_MAX_SECONDS = 60;
 
+// title order like the server's order by channel_title, en-US collation
+const titleCollator = new Intl.Collator("en-US");
+
 export type DemoStoreOverrides = {
   channels?: Channel[];
   videos?: DemoVideo[];
+};
+
+export type ChannelPatch = {
+  enabledAll?: boolean;
+  enabledLive?: boolean;
+  excludedShorts?: boolean;
+};
+
+// updatedAt is the store clock, same stamp as watched_at
+export type ChannelUpdate = Pick<Channel, "channelId" | "enabledAll" | "enabledLive" | "excludedShorts"> & {
+  updatedAt: string;
 };
 
 export type DemoStore = {
   getAllFeed(params: { offset: number; limit: number }): { items: FeedItem[]; hasMore: boolean };
   setWatched(videoId: string): void;
   setUnwatched(videoId: string): void;
+  getChannels(): Channel[];
+  updateChannel(channelId: string, patch: ChannelPatch): ChannelUpdate | null;
+  updateChannels(channelIds: string[], patch: ChannelPatch): number;
 };
 
 // input sorted published_at desc, the channel with the newest video comes out first
@@ -33,6 +50,13 @@ export function applyRoundRobin<T extends { channel_id: string }>(rows: T[]): T[
     }
   }
   return result;
+}
+
+// non-boolean values ignored, like the server's typeof checks
+function applyBooleanFields(channel: Channel, patch: ChannelPatch): void {
+  if (typeof patch.enabledAll === "boolean") channel.enabledAll = patch.enabledAll;
+  if (typeof patch.enabledLive === "boolean") channel.enabledLive = patch.enabledLive;
+  if (typeof patch.excludedShorts === "boolean") channel.excludedShorts = patch.excludedShorts;
 }
 
 // now is a Date or epoch ms
@@ -93,7 +117,41 @@ export function createDemoStore(now: Date | number, overrides: DemoStoreOverride
     watchedAt.set(videoId, null);
   }
 
-  return { getAllFeed, setWatched, setUnwatched };
+  // copies, callers cannot change store state
+  // sorted by title to match GET /api/channels
+  function getChannels(): Channel[] {
+    return [...channels.values()]
+      .map((channel) => ({ ...channel }))
+      .sort((a, b) => titleCollator.compare(a.title, b.title));
+  }
+
+  // non-boolean values ignored, see applyBooleanFields
+  function updateChannel(channelId: string, patch: ChannelPatch): ChannelUpdate | null {
+    const channel = channels.get(channelId);
+    if (!channel) return null;
+    applyBooleanFields(channel, patch);
+    // same fields as the server's PATCH response
+    return {
+      channelId: channel.channelId,
+      enabledAll: channel.enabledAll,
+      enabledLive: channel.enabledLive,
+      excludedShorts: channel.excludedShorts,
+      updatedAt: nowIso,
+    };
+  }
+
+  // counts distinct known channels, unknown ids are skipped
+  function updateChannels(channelIds: string[], patch: ChannelPatch): number {
+    const matched = new Set<Channel>();
+    for (const channelId of channelIds) {
+      const channel = channels.get(channelId);
+      if (channel) matched.add(channel);
+    }
+    for (const channel of matched) applyBooleanFields(channel, patch);
+    return matched.size;
+  }
+
+  return { getAllFeed, setWatched, setUnwatched, getChannels, updateChannel, updateChannels };
 }
 
 let singleton: DemoStore | null = null;

@@ -8,6 +8,8 @@ import { resetDemoStore } from "./store";
 
 // first visible fixture title, shown in the player and the queue on /demo/all
 const FEED_FIRST_TITLE = "What's New in Blender 5.3! Official Overview";
+// second channel's newest video, shown on /demo/all once Blender is off
+const NASA_FEED_TITLE = "NASA's SpaceX Crew-13 Mission (Official NASA Trailer)";
 
 const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
   async () => new Response("{}", { status: 200 }),
@@ -177,7 +179,7 @@ describe("demo shell", () => {
   it.each([
     ["/demo/all", FEED_FIRST_TITLE],
     ["/demo/lists", "Not found"],
-    ["/demo/settings/channels", "Not found"],
+    ["/demo/settings/channels", "NASA"],
     ["/demo/settings/lists", "Not found"],
   ])(
     "writes only the shared theme key and demo keys at %s",
@@ -226,6 +228,77 @@ describe("demo shell", () => {
     );
 
     await screen.findByRole("button", { name: `Mark "${FEED_FIRST_TITLE}" as unwatched` });
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("lists the fixture channels and shows sync and refresh results", async () => {
+    window.history.pushState({}, "", "/demo/settings/channels");
+    const user = userEvent.setup();
+
+    renderShell();
+
+    await screen.findByRole("heading", { name: "NASA" });
+    expect(screen.getAllByText(/^demo-/)).toHaveLength(11);
+
+    await user.click(screen.getByRole("button", { name: "Sync Subscriptions" }));
+    await screen.findByText("Synced 11 channels.");
+
+    await user.click(screen.getByRole("button", { name: "Manually Refresh Feed" }));
+    await screen.findByText("Refreshed 11 channels, skipped 0, cached 60 videos.");
+
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("hides a channel's videos on All after switching it off in Channels", async () => {
+    window.history.pushState({}, "", "/demo/settings/channels");
+    const user = userEvent.setup();
+
+    renderShell();
+
+    await screen.findByRole("heading", { name: "Blender" });
+    const blender = screen.getByRole("group", { name: "Settings for Blender" });
+    const enableAll = within(blender).getByRole("checkbox", { name: "Enable in All" });
+    await user.click(enableAll);
+    // wait for the save to finish so the store has the change before All loads
+    await waitFor(() => expect(enableAll).not.toBeChecked());
+    await waitFor(() => expect(enableAll).toBeEnabled());
+
+    await user.click(screen.getByRole("link", { name: "All" }));
+
+    await screen.findAllByText(NASA_FEED_TITLE);
+    expect(screen.queryAllByText(FEED_FIRST_TITLE)).toHaveLength(0);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("switches every channel off with the bulk control and restores the feed when it is flipped back", async () => {
+    window.history.pushState({}, "", "/demo/settings/channels");
+    const user = userEvent.setup();
+
+    renderShell();
+
+    await screen.findByRole("heading", { name: "NASA" });
+    const bulkAll = screen.getByRole("checkbox", { name: "Include in All" });
+    await waitFor(() => expect(bulkAll).toBeEnabled());
+    await user.click(bulkAll);
+    await waitFor(() => expect(bulkAll).toBeEnabled());
+
+    const rowAll = screen.getAllByRole("checkbox", { name: "Enable in All" });
+    expect(rowAll).toHaveLength(11);
+    for (const box of rowAll) expect(box).not.toBeChecked();
+
+    await user.click(screen.getByRole("link", { name: "All" }));
+    await screen.findByText(/No videos yet/);
+    expect(screen.queryAllByText(FEED_FIRST_TITLE)).toHaveLength(0);
+
+    await user.click(screen.getByRole("link", { name: "Settings" }));
+    await user.click(await screen.findByRole("checkbox", { name: "Include in All" }));
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "Include in All" })).toBeEnabled());
+    for (const box of screen.getAllByRole("checkbox", { name: "Enable in All" })) {
+      expect(box).toBeChecked();
+    }
+
+    await user.click(screen.getByRole("link", { name: "All" }));
+    await screen.findAllByText(FEED_FIRST_TITLE);
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 });
