@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DEMO_CHANNELS, DEMO_VIDEOS } from "./fixtures";
+import { DEMO_CHANNELS, DEMO_LISTS, DEMO_VIDEOS } from "./fixtures";
 
 describe("demo fixtures", () => {
   it("has 11 unique channels", () => {
@@ -64,6 +64,60 @@ describe("demo fixtures", () => {
       expect(c.enabledLive).toBe(true);
       expect(c.excludedShorts).toBe(true);
       expect(c.thumbUrl).toBeNull();
+    }
+  });
+});
+
+describe("demo list fixtures", () => {
+  it("has exactly 3 lists", () => {
+    expect(DEMO_LISTS).toHaveLength(3);
+  });
+
+  it("gives every list a unique id and name", () => {
+    expect(new Set(DEMO_LISTS.map((l) => l.listId)).size).toBe(DEMO_LISTS.length);
+    expect(new Set(DEMO_LISTS.map((l) => l.name)).size).toBe(DEMO_LISTS.length);
+  });
+
+  it("prefixes every list id with demo-list-", () => {
+    for (const l of DEMO_LISTS) {
+      expect(l.listId.startsWith("demo-list-")).toBe(true);
+    }
+  });
+
+  it("points every list channel at a known channel", () => {
+    const channelIds = new Set(DEMO_CHANNELS.map((c) => c.channelId));
+    for (const l of DEMO_LISTS) {
+      for (const channelId of l.channelIds) {
+        expect(channelIds.has(channelId)).toBe(true);
+      }
+    }
+  });
+
+  it("lists each channel at most once per list", () => {
+    for (const l of DEMO_LISTS) {
+      expect(new Set(l.channelIds).size).toBe(l.channelIds.length);
+    }
+  });
+
+  it("keeps every list non empty", () => {
+    for (const l of DEMO_LISTS) {
+      expect(l.channelIds.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("puts at least one channel in two lists", () => {
+    const counts = new Map<string, number>();
+    for (const l of DEMO_LISTS) {
+      for (const channelId of l.channelIds) {
+        counts.set(channelId, (counts.get(channelId) ?? 0) + 1);
+      }
+    }
+    expect([...counts.values()].some((n) => n >= 2)).toBe(true);
+  });
+
+  it("leaves demo-blender out of every list", () => {
+    for (const l of DEMO_LISTS) {
+      expect(l.channelIds).not.toContain("demo-blender");
     }
   });
 });

@@ -1,5 +1,5 @@
-import type { Channel, FeedItem } from "../api";
-import { DEMO_CHANNELS, DEMO_VIDEOS, type DemoVideo } from "./fixtures";
+import type { Channel, FeedItem, ListChannel, ListDetail, ListSummary } from "../api";
+import { DEMO_CHANNELS, DEMO_LISTS, DEMO_VIDEOS, type DemoList, type DemoVideo } from "./fixtures";
 
 const HOUR_MS = 60 * 60 * 1000;
 const SHORTS_MAX_SECONDS = 60;
@@ -10,6 +10,7 @@ const titleCollator = new Intl.Collator("en-US");
 export type DemoStoreOverrides = {
   channels?: Channel[];
   videos?: DemoVideo[];
+  lists?: DemoList[];
 };
 
 export type ChannelPatch = {
@@ -30,6 +31,12 @@ export type DemoStore = {
   getChannels(): Channel[];
   updateChannel(channelId: string, patch: ChannelPatch): ChannelUpdate | null;
   updateChannels(channelIds: string[], patch: ChannelPatch): number;
+  getLists(): ListSummary[];
+  getList(listId: string): ListDetail | null;
+  getListFeed(
+    listId: string,
+    params: { offset: number; limit: number },
+  ): { list: { id: string; name: string }; items: FeedItem[]; hasMore: boolean } | null;
 };
 
 // input sorted published_at desc, the channel with the newest video comes out first
@@ -70,14 +77,27 @@ export function createDemoStore(now: Date | number, overrides: DemoStoreOverride
   const channels = new Map<string, Channel>(
     (overrides.channels ?? DEMO_CHANNELS).map((c) => [c.channelId, { ...c }]),
   );
+  // copies each list and its membership, the store never aliases the input
+  // duplicate channel ids collapse like the server's list_channels key
+  const lists = new Map<string, DemoList>(
+    (overrides.lists ?? DEMO_LISTS).map((l): [string, DemoList] => [
+      l.listId,
+      { listId: l.listId, name: l.name, channelIds: [...new Set(l.channelIds)] },
+    ]),
+  );
   // value is null after unwatch, the entry is kept like the server row
   const watchedAt = new Map<string, string | null>();
 
-  function getAllFeed({ offset, limit }: { offset: number; limit: number }) {
+  // one builder for the All and list feeds, so their filters cannot drift
+  // includeChannel decides membership, shorts and watched state are shared
+  function buildFeed(
+    includeChannel: (channel: Channel) => boolean,
+    { offset, limit }: { offset: number; limit: number },
+  ): { items: FeedItem[]; hasMore: boolean } {
     const entries = videos.flatMap((video) => {
       const channel = channels.get(video.channelId);
       // unknown channel hidden, matching the server's join on subscriptions
-      if (!channel || !channel.enabledAll) return [];
+      if (!channel || !includeChannel(channel)) return [];
       // unknown duration kept
       const isShort =
         video.durationSeconds !== null && video.durationSeconds <= SHORTS_MAX_SECONDS;
@@ -107,6 +127,10 @@ export function createDemoStore(now: Date | number, overrides: DemoStoreOverride
       items: ordered.slice(offset, offset + limit),
       hasMore: offset + limit < ordered.length,
     };
+  }
+
+  function getAllFeed({ offset, limit }: { offset: number; limit: number }) {
+    return buildFeed((channel) => channel.enabledAll, { offset, limit });
   }
 
   function setWatched(videoId: string) {
@@ -151,7 +175,62 @@ export function createDemoStore(now: Date | number, overrides: DemoStoreOverride
     return matched.size;
   }
 
-  return { getAllFeed, setWatched, setUnwatched, getChannels, updateChannel, updateChannels };
+  // fresh objects, callers cannot change store state
+  // unknown channel ids are skipped in counts and detail
+  function getLists(): ListSummary[] {
+    return [...lists.values()].map((list) => ({
+      id: list.listId,
+      name: list.name,
+      channelCount: list.channelIds.filter((id) => channels.has(id)).length,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    }));
+  }
+
+  // channels sorted by title, channelIds in that same order
+  function getList(listId: string): ListDetail | null {
+    const list = lists.get(listId);
+    if (!list) return null;
+    const members = list.channelIds
+      .flatMap((channelId) => {
+        const channel = channels.get(channelId);
+        return channel ? [channel] : [];
+      })
+      .sort((a, b) => titleCollator.compare(a.title, b.title));
+    return {
+      id: list.listId,
+      name: list.name,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      channelIds: members.map((c) => c.channelId),
+      channels: members.map(
+        (c): ListChannel => ({ channelId: c.channelId, title: c.title, thumbUrl: c.thumbUrl }),
+      ),
+    };
+  }
+
+  // ignores enabledAll, a channel can be off in the All feed but still in a list
+  function getListFeed(listId: string, { offset, limit }: { offset: number; limit: number }) {
+    const list = lists.get(listId);
+    if (!list) return null;
+    const memberIds = new Set(list.channelIds);
+    return {
+      list: { id: list.listId, name: list.name },
+      ...buildFeed((channel) => memberIds.has(channel.channelId), { offset, limit }),
+    };
+  }
+
+  return {
+    getAllFeed,
+    getLists,
+    getList,
+    getListFeed,
+    setWatched,
+    setUnwatched,
+    getChannels,
+    updateChannel,
+    updateChannels,
+  };
 }
 
 let singleton: DemoStore | null = null;

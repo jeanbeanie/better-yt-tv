@@ -10,6 +10,9 @@ export type DemoVideo = {
   durationSeconds: number | null;
 };
 
+// list membership only, the store reads channel data from DEMO_CHANNELS
+export type DemoList = { listId: string; name: string; channelIds: string[] };
+
 function thumb(videoId: string): string {
   return `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
 }
@@ -92,4 +95,23 @@ export const DEMO_VIDEOS: DemoVideo[] = [
   { videoId: "J1WoNuemKOg", channelId: "demo-veritasium", title: "We sent a camera to space to film the solar eclipse", hoursAgo: 319, thumbUrl: thumb("J1WoNuemKOg"), durationSeconds: null },
   { videoId: "BHdbsHFs2P0", channelId: "demo-3blue1brown", title: "Why you can't comb a hairy ball, and why we care", hoursAgo: 324, thumbUrl: thumb("BHdbsHFs2P0"), durationSeconds: null },
   { videoId: "G_em1hHPnXY", channelId: "demo-fireship", title: "China just dropped a new frontier model... and nobody can explain how", hoursAgo: 330, thumbUrl: thumb("G_em1hHPnXY"), durationSeconds: null },
+];
+
+// membership order is fixture order, the store sorts by title on read
+export const DEMO_LISTS: DemoList[] = [
+  {
+    listId: "demo-list-space-nerd",
+    name: "Space nerd",
+    channelIds: ["demo-nasa", "demo-kurzgesagt", "demo-veritasium", "demo-3blue1brown", "demo-smarter-every-day"],
+  },
+  {
+    listId: "demo-list-dev-talk",
+    name: "Dev talk",
+    channelIds: ["demo-fireship", "demo-computerphile", "demo-exit-node"],
+  },
+  {
+    listId: "demo-list-quick-learning",
+    name: "Quick learning",
+    channelIds: ["demo-ted-ed", "demo-cgp-grey", "demo-kurzgesagt"],
+  },
 ];
