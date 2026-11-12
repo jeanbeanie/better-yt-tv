@@ -7,7 +7,7 @@ import {
   type ChannelPatch,
   type DemoStore,
 } from "./store";
-import { DEMO_CHANNELS, DEMO_VIDEOS, type DemoList, type DemoVideo } from "./fixtures";
+import { DEMO_CHANNELS, DEMO_LISTS, DEMO_VIDEOS, type DemoList, type DemoVideo } from "./fixtures";
 import type { Channel, FeedItem, ListDetail } from "../api";
 
 const NOW = new Date("2026-11-11T12:00:00Z");
@@ -837,5 +837,130 @@ describe("demo store lists", () => {
       ["list-empty", "Empty", 0],
     ]);
     expect(store.getList("list-one")).toEqual(LIST_ONE_DETAIL);
+  });
+
+  it("counts ids up from demo-list-1 and skips an id already in use", () => {
+    const store = createDemoStore(NOW, {
+      channels: SMALL_CHANNELS,
+      videos: [],
+      lists: [{ listId: "demo-list-1", name: "Taken", channelIds: [] }],
+    });
+
+    expect(store.createList("Alpha")!.id).toBe("demo-list-2");
+    expect(store.createList("Beta")!.id).toBe("demo-list-3");
+  });
+
+  it("keeps ids unique after a delete and a create", () => {
+    const store = listStore();
+    const first = store.createList("Alpha")!;
+    const second = store.createList("Beta")!;
+    store.deleteList(first.id);
+    const third = store.createList("Gamma")!;
+
+    expect([first.id, second.id, third.id]).toEqual(["demo-list-1", "demo-list-2", "demo-list-3"]);
+  });
+
+  it("appends a new list last in the summaries with 0 channels", () => {
+    const store = listStore();
+
+    const created = store.createList("Fresh")!;
+
+    expect(store.getLists()).toHaveLength(4);
+    expect(store.getLists()[3]).toEqual({
+      id: created.id,
+      name: "Fresh",
+      channelCount: 0,
+      createdAt: SAVED_AT,
+      updatedAt: SAVED_AT,
+    });
+  });
+
+  it("returns null for an exact duplicate name and adds nothing", () => {
+    const store = listStore();
+
+    expect(store.createList("One")).toBeNull();
+    expect(store.getLists().map((list) => list.id)).toEqual(["list-one", "list-two", "list-empty"]);
+  });
+
+  it("treats a different case as a new name", () => {
+    const store = listStore();
+
+    expect(store.createList("one")).not.toBeNull();
+    expect(store.getLists().map((list) => list.name)).toEqual(["One", "Two", "Empty", "one"]);
+  });
+
+  it("returns the create result without a channels key", () => {
+    const store = listStore();
+
+    const created = store.createList("Fresh")!;
+
+    expect(Object.keys(created).sort()).toEqual(["channelIds", "createdAt", "id", "name", "updatedAt"]);
+    expect(created).toEqual({
+      id: "demo-list-1",
+      name: "Fresh",
+      createdAt: SAVED_AT,
+      updatedAt: SAVED_AT,
+      channelIds: [],
+    });
+    expect(store.getList(created.id)).toEqual({ ...created, channels: [] });
+  });
+
+  it("deletes a list once and reports false after that", () => {
+    const store = listStore();
+
+    expect(store.deleteList("list-two")).toBe(true);
+    expect(store.deleteList("list-two")).toBe(false);
+    expect(store.deleteList("list-missing")).toBe(false);
+  });
+
+  it("removes a deleted list from summaries, detail, and list feed", () => {
+    const store = listStore(roundRobinVideos());
+
+    store.deleteList("list-one");
+
+    expect(store.getLists().map((l) => l.id)).toEqual(["list-two", "list-empty"]);
+    expect(store.getList("list-one")).toBeNull();
+    expect(store.getListFeed("list-one", ALL)).toBeNull();
+  });
+
+  it("leaves other lists, channels, and the All feed alone after a delete", () => {
+    const store = listStore(roundRobinVideos());
+    const feedBefore = feedIds(store);
+    const channelsBefore = store.getChannels();
+
+    store.deleteList("list-one");
+
+    expect(store.getList("list-two")).toEqual({
+      id: "list-two",
+      name: "Two",
+      createdAt: SAVED_AT,
+      updatedAt: SAVED_AT,
+      channelIds: ["demo-beta"],
+      channels: [{ channelId: "demo-beta", title: "Beta", thumbUrl: null }],
+    });
+    expect(store.getChannels()).toEqual(channelsBefore);
+    expect(feedIds(store)).toEqual(feedBefore);
+  });
+
+  it("never changes the fixture lists when creating or deleting", () => {
+    const snapshot = structuredClone(DEMO_LISTS);
+    const store = createDemoStore(NOW);
+
+    store.createList("Fresh");
+    store.deleteList(DEMO_LISTS[0].listId);
+
+    expect(DEMO_LISTS).toEqual(snapshot);
+  });
+
+  it("resetDemoStore brings the fixture lists and the id counter back", () => {
+    const first = getDemoStore();
+    first.deleteList(DEMO_LISTS[0].listId);
+    first.createList("Fresh");
+
+    resetDemoStore();
+    const second = getDemoStore();
+
+    expect(second.getLists().map((l) => l.id)).toEqual(DEMO_LISTS.map((l) => l.listId));
+    expect(second.createList("Again")!.id).toBe("demo-list-1");
   });
 });

@@ -3,6 +3,8 @@ import { demoFetch } from "./demoFetch";
 import { resetDemoStore } from "./store";
 import {
   bulkUpdateChannels,
+  createList,
+  deleteList,
   getAllFeed,
   getChannels,
   getList,
@@ -57,6 +59,8 @@ const DEV_TALK = "demo-list-dev-talk";
 const listPath = (id: string) => `http://localhost:5179/api/lists/${id}`;
 const listFeedPath = (id: string, query = "") =>
   `http://localhost:5179/api/feed/lists/${id}${query}`;
+const listsPath = "http://localhost:5179/api/lists";
+const postList = (body?: string) => demoFetch(listsPath, { method: "POST", body });
 
 describe("demoFetch", () => {
   beforeEach(() => {
@@ -667,8 +671,7 @@ describe("demoFetch", () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const cases: [string, string][] = [
-      ["DELETE", listPath(DEV_TALK)],
-      ["POST", "http://localhost:5179/api/lists"],
+      ["PATCH", listPath(DEV_TALK)],
       ["POST", listFeedPath(DEV_TALK)],
     ];
     for (const [method, path] of cases) {
@@ -705,6 +708,136 @@ describe("demoFetch", () => {
       expect(list).toMatchObject({ id: DEV_TALK, name: "Dev talk" });
       expect(feed.list).toEqual({ id: SPACE_NERD, name: "Space nerd" });
       expect(feed.items).toHaveLength(2);
+      expect(fetchMock).toHaveBeenCalledTimes(0);
+    } finally {
+      window.history.pushState({}, "", "/");
+    }
+  });
+
+  it("creates a list with 201 and the server field set, without channels", async () => {
+    const resp = await postList(JSON.stringify({ name: "Road trip" }));
+    expect(resp.status).toBe(201);
+
+    const body = (await resp.json()) as { list: Record<string, unknown> };
+    expect(Object.keys(body.list).sort()).toEqual(["channelIds", "createdAt", "id", "name", "updatedAt"]);
+    expect(body.list).toMatchObject({ id: "demo-list-1", name: "Road trip", channelIds: [] });
+  });
+
+  it("trims the name before saving it", async () => {
+    const resp = await postList(JSON.stringify({ name: "  Road trip  " }));
+
+    const body = (await resp.json()) as { list: { name: string } };
+    expect(body.list.name).toBe("Road trip");
+  });
+
+  it("returns 400 Name is required for a missing, blank, or non-string name", async () => {
+    const bodies = [
+      undefined,
+      "not json",
+      JSON.stringify({}),
+      JSON.stringify({ name: "   " }),
+      JSON.stringify({ name: 42 }),
+      JSON.stringify([]),
+      JSON.stringify(null),
+      JSON.stringify(7),
+    ];
+    for (const body of bodies) {
+      const resp = await postList(body);
+      expect(resp.status).toBe(400);
+      expect(await resp.json()).toEqual({ error: "Name is required" });
+    }
+  });
+
+  it("checks the required rule before the length rule", async () => {
+    const resp = await postList(JSON.stringify({ name: " ".repeat(150) }));
+
+    expect(resp.status).toBe(400);
+    expect(await resp.json()).toEqual({ error: "Name is required" });
+  });
+
+  it("returns 400 for a name over 100 characters and accepts exactly 100", async () => {
+    const tooLong = await postList(JSON.stringify({ name: "a".repeat(101) }));
+    expect(tooLong.status).toBe(400);
+    expect(await tooLong.json()).toEqual({ error: "Name must be 100 characters or fewer" });
+
+    const exact = await postList(JSON.stringify({ name: "a".repeat(100) }));
+    expect(exact.status).toBe(201);
+    const body = (await exact.json()) as { list: { name: string } };
+    expect(body.list.name).toHaveLength(100);
+  });
+
+  it("returns 409 for a duplicate name after trimming, but not for a different case", async () => {
+    const dup = await postList(JSON.stringify({ name: "Dev talk " }));
+    expect(dup.status).toBe(409);
+    expect(await dup.json()).toEqual({ error: "You already have a list with this name." });
+
+    const otherCase = await postList(JSON.stringify({ name: "dev talk" }));
+    expect(otherCase.status).toBe(201);
+  });
+
+  it("shows a created list in the index, detail, and list feed", async () => {
+    const created = (await (await postList(JSON.stringify({ name: "Road trip" }))).json()) as {
+      list: { id: string };
+    };
+    const id = created.list.id;
+
+    const index = (await (await demoFetch(listsPath, { method: "GET" })).json()) as {
+      lists: { id: string; channelCount: number }[];
+    };
+    expect(index.lists.find((l) => l.id === id)).toMatchObject({ channelCount: 0 });
+
+    const detail = (await (await demoFetch(listPath(id), { method: "GET" })).json()) as { list: unknown };
+    expect(detail.list).toMatchObject({ id, name: "Road trip", channels: [] });
+
+    const feed = await feedJson(listFeedPath(id));
+    expect(feed.items).toEqual([]);
+    expect(feed.hasMore).toBe(false);
+  });
+
+  it("deletes a list with ok and removes it from the index, detail, and list feed", async () => {
+    const created = (await (await postList(JSON.stringify({ name: "Road trip" }))).json()) as {
+      list: { id: string };
+    };
+    const id = created.list.id;
+
+    const resp = await demoFetch(listPath(id), { method: "DELETE" });
+    expect(resp.status).toBe(200);
+    expect(await resp.json()).toEqual({ ok: true });
+
+    const index = (await (await demoFetch(listsPath, { method: "GET" })).json()) as {
+      lists: { id: string }[];
+    };
+    expect(index.lists.some((l) => l.id === id)).toBe(false);
+    expect((await demoFetch(listPath(id), { method: "GET" })).status).toBe(404);
+    expect((await demoFetch(listFeedPath(id), { method: "GET" })).status).toBe(404);
+  });
+
+  it("returns 404 for an unknown list id and for a list already deleted", async () => {
+    const unknown = await demoFetch(listPath("demo-list-missing"), { method: "DELETE" });
+    expect(unknown.status).toBe(404);
+    expect(await unknown.json()).toEqual({ error: "List not found" });
+
+    const first = await demoFetch(listPath(DEV_TALK), { method: "DELETE" });
+    expect(first.status).toBe(200);
+
+    const second = await demoFetch(listPath(DEV_TALK), { method: "DELETE" });
+    expect(second.status).toBe(404);
+    expect(await second.json()).toEqual({ error: "List not found" });
+  });
+
+  it("serves the create and delete wrappers through the real api functions in demo mode", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists");
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      const { list } = await createList("Road trip");
+      expect(list).toMatchObject({ name: "Road trip", channelIds: [] });
+
+      const { lists } = await getLists();
+      expect(lists.map((l) => l.name)).toContain("Road trip");
+
+      expect(await deleteList(list.id)).toEqual({ ok: true });
       expect(fetchMock).toHaveBeenCalledTimes(0);
     } finally {
       window.history.pushState({}, "", "/");

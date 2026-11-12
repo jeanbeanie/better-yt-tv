@@ -1,5 +1,5 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { BrowserRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import AppRoot from "../../AppRoot";
@@ -23,6 +23,12 @@ function renderShell() {
       <AppRoot />
     </BrowserRouter>,
   );
+}
+
+// the flag persists in localStorage, so each test sets it explicitly
+async function setEditOnCreate(user: UserEvent, on: boolean) {
+  const toggle = screen.getByRole("checkbox", { name: "Edit List After Creating" });
+  if ((toggle as HTMLInputElement).checked !== on) await user.click(toggle);
 }
 
 describe("demo shell", () => {
@@ -362,6 +368,71 @@ describe("demo shell", () => {
     renderShell();
 
     await screen.findByText("List not found.");
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("creates a list on the settings page with edit-after-create off", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists");
+    const user = userEvent.setup();
+    renderShell();
+    await screen.findByText("Space nerd");
+    await setEditOnCreate(user, false);
+
+    await user.type(screen.getByRole("textbox", { name: "New list name" }), "Road trip");
+    await user.click(screen.getByRole("button", { name: "Create new list" }));
+
+    await screen.findByText("Road trip");
+    expect(screen.getByText("0 channels")).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/demo/settings/lists");
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("shows the duplicate name error and adds no second row", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists");
+    const user = userEvent.setup();
+    renderShell();
+    await screen.findByText("Space nerd");
+    await setEditOnCreate(user, false);
+
+    await user.type(screen.getByRole("textbox", { name: "New list name" }), "Space nerd");
+    await user.click(screen.getByRole("button", { name: "Create new list" }));
+
+    await screen.findByText("You already have a list with this name.");
+    expect(screen.getAllByText("Space nerd")).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("deletes a list after confirm and keeps the other lists", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists");
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    try {
+      renderShell();
+      const devTalk = (await screen.findByRole("link", { name: "Dev talk" })).closest("li") as HTMLElement;
+
+      await user.click(within(devTalk).getByRole("button", { name: "Delete" }));
+
+      await waitFor(() => expect(screen.queryByRole("link", { name: "Dev talk" })).toBeNull());
+    } finally {
+      confirm.mockRestore();
+    }
+    expect(screen.getByRole("link", { name: "Space nerd" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Quick learning" })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("opens the editor for a new list when edit-after-create is on", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists");
+    const user = userEvent.setup();
+    renderShell();
+    await screen.findByText("Space nerd");
+    await setEditOnCreate(user, true);
+
+    await user.type(screen.getByRole("textbox", { name: "New list name" }), "Road trip");
+    await user.click(screen.getByRole("button", { name: "Create new list" }));
+
+    await waitFor(() => expect(window.location.pathname).toBe("/demo/settings/lists/demo-list-1"));
+    expect(await screen.findByRole("textbox", { name: "List name" })).toHaveValue("Road trip");
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 });

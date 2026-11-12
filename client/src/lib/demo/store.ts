@@ -37,6 +37,8 @@ export type DemoStore = {
     listId: string,
     params: { offset: number; limit: number },
   ): { list: { id: string; name: string }; items: FeedItem[]; hasMore: boolean } | null;
+  createList(name: string): Omit<ListDetail, "channels"> | null;
+  deleteList(listId: string): boolean;
 };
 
 // input sorted published_at desc, the channel with the newest video comes out first
@@ -87,6 +89,8 @@ export function createDemoStore(now: Date | number, overrides: DemoStoreOverride
   );
   // value is null after unwatch, the entry is kept like the server row
   const watchedAt = new Map<string, string | null>();
+  // per store, so each reset starts the counter at 1
+  let nextListNumber = 1;
 
   // one builder for the All and list feeds, so their filters cannot drift
   // includeChannel decides membership, shorts and watched state are shared
@@ -220,11 +224,32 @@ export function createDemoStore(now: Date | number, overrides: DemoStoreOverride
     };
   }
 
+  // null when the exact name is taken, the caller trims and validates
+  function createList(name: string): Omit<ListDetail, "channels"> | null {
+    for (const list of lists.values()) {
+      if (list.name === name) return null;
+    }
+    // skips ids a fixture or earlier create already took
+    let listId: string;
+    do {
+      listId = `demo-list-${nextListNumber++}`;
+    } while (lists.has(listId));
+    lists.set(listId, { listId, name, channelIds: [] });
+    return { id: listId, name, createdAt: nowIso, updatedAt: nowIso, channelIds: [] };
+  }
+
+  // false for an unknown id, membership goes with the list
+  function deleteList(listId: string): boolean {
+    return lists.delete(listId);
+  }
+
   return {
     getAllFeed,
     getLists,
     getList,
     getListFeed,
+    createList,
+    deleteList,
     setWatched,
     setUnwatched,
     getChannels,

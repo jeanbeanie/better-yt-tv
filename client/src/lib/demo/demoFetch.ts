@@ -122,6 +122,40 @@ async function getListFeed({ url, params }: RouteContext): Promise<Response> {
   return json(feed);
 }
 
+// list name rules, same messages and order as the server
+const LIST_NAME_MAX_LENGTH = 100;
+
+// trims first, non string counts as empty
+// checked in order: required, then length
+function validateListName(raw: unknown): { name: string } | { error: string } {
+  const name = typeof raw === "string" ? raw.trim() : "";
+  if (!name) return { error: "Name is required" };
+  if (name.length > LIST_NAME_MAX_LENGTH) {
+    return { error: `Name must be ${LIST_NAME_MAX_LENGTH} characters or fewer` };
+  }
+  return { name };
+}
+
+// dynamic import, same chunk split as getFeedAll
+// non-object bodies count as empty, so they get the 400
+async function createList({ body }: RouteContext): Promise<Response> {
+  const { getDemoStore } = await import("./store");
+  const fields = (typeof body === "object" && body !== null ? body : {}) as { name?: unknown };
+  const result = validateListName(fields.name);
+  if ("error" in result) return json({ error: result.error }, 400);
+  const list = getDemoStore().createList(result.name);
+  // duplicate check runs after the name rules
+  if (!list) return json({ error: "You already have a list with this name." }, 409);
+  return json({ list }, 201);
+}
+
+// dynamic import, same chunk split as getFeedAll
+async function deleteList({ params }: RouteContext): Promise<Response> {
+  const { getDemoStore } = await import("./store");
+  if (!getDemoStore().deleteList(params.listId)) return json({ error: "List not found" }, 404);
+  return json({ ok: true });
+}
+
 const routes: Route[] = [
   { method: "GET", pattern: compilePattern("/api/feed/all"), handle: getFeedAll },
   { method: "POST", pattern: compilePattern("/api/feed/videos/:videoId/watch"), handle: markWatched },
@@ -130,6 +164,8 @@ const routes: Route[] = [
   { method: "GET", pattern: compilePattern("/api/lists"), handle: getLists },
   { method: "GET", pattern: compilePattern("/api/lists/:listId"), handle: getList },
   { method: "GET", pattern: compilePattern("/api/feed/lists/:listId"), handle: getListFeed },
+  { method: "POST", pattern: compilePattern("/api/lists"), handle: createList },
+  { method: "DELETE", pattern: compilePattern("/api/lists/:listId"), handle: deleteList },
   { method: "POST", pattern: compilePattern("/api/youtube/sync-subscriptions"), handle: syncSubscriptions },
   { method: "PATCH", pattern: compilePattern("/api/channels/bulk"), handle: patchChannelsBulk },
   // bulk routes must stay above this entry
