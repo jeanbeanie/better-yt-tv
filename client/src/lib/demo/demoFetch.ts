@@ -58,7 +58,7 @@ async function getChannels(): Promise<Response> {
   return json({ channels: getDemoStore().getChannels() });
 }
 
-// no network, the count comes from the store so it cannot drift from the fixtures
+// no network, count comes from the store and matches the fixtures
 async function syncSubscriptions(): Promise<Response> {
   const { getDemoStore } = await import("./store");
   return json({ ok: true, syncedCount: getDemoStore().getChannels().length });

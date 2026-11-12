@@ -117,7 +117,7 @@ export function createDemoStore(now: Date | number, overrides: DemoStoreOverride
     watchedAt.set(videoId, null);
   }
 
-  // copies so callers cannot change store state
+  // copies, callers cannot change store state
   // sorted by title to match GET /api/channels
   function getChannels(): Channel[] {
     return [...channels.values()]
