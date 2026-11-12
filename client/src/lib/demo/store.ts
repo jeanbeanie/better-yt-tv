@@ -93,10 +93,10 @@ export function createDemoStore(now: Date | number, overrides: DemoStoreOverride
   );
   // value is null after unwatch, the entry is kept like the server row
   const watchedAt = new Map<string, string | null>();
-  // per store, so each reset starts the counter at 1
+  // per store, each reset starts the counter at 1
   let nextListNumber = 1;
 
-  // one builder for the All and list feeds, so their filters cannot drift
+  // one builder for the All and list feeds keeps their filters from drifting
   // includeChannel decides membership, shorts and watched state are shared
   function buildFeed(
     includeChannel: (channel: Channel) => boolean,

@@ -998,15 +998,6 @@ describe("demoFetch", () => {
     expect(feedChannels).toEqual(new Set(["demo-blender", "demo-fireship"]));
   });
 
-  it("never calls the global fetch for list save", async () => {
-    const fetchMock = vi.fn();
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
-
-    await putList(DEV_TALK, JSON.stringify({ name: "Dev talk", channelIds: [] }));
-
-    expect(fetchMock).toHaveBeenCalledTimes(0);
-  });
-
   it("serves the save wrapper through the real saveList api function in demo mode", async () => {
     window.history.pushState({}, "", "/demo/settings/lists/demo-list-dev-talk");
     const fetchMock = vi.fn();

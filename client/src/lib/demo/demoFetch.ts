@@ -137,7 +137,7 @@ function validateListName(raw: unknown): { name: string } | { error: string } {
 }
 
 // dynamic import, same chunk split as getFeedAll
-// non-object bodies count as empty, so they get the 400
+// non-object bodies count as empty, they get the 400
 async function createList({ body }: RouteContext): Promise<Response> {
   const { getDemoStore } = await import("./store");
   const fields = (typeof body === "object" && body !== null ? body : {}) as { name?: unknown };
@@ -162,7 +162,7 @@ async function saveList({ params, body }: RouteContext): Promise<Response> {
   const { getDemoStore } = await import("./store");
   const store = getDemoStore();
   if (!store.getList(params.listId)) return json({ error: "List not found" }, 404);
-  // non-object bodies count as empty, so they get the 400
+  // non-object bodies count as empty, they get the 400
   const fields = (typeof body === "object" && body !== null ? body : {}) as {
     name?: unknown;
     channelIds?: unknown;

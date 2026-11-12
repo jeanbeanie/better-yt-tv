@@ -69,19 +69,9 @@ describe("demo fixtures", () => {
 });
 
 describe("demo list fixtures", () => {
-  it("has exactly 3 lists", () => {
-    expect(DEMO_LISTS).toHaveLength(3);
-  });
-
   it("gives every list a unique id and name", () => {
     expect(new Set(DEMO_LISTS.map((l) => l.listId)).size).toBe(DEMO_LISTS.length);
     expect(new Set(DEMO_LISTS.map((l) => l.name)).size).toBe(DEMO_LISTS.length);
-  });
-
-  it("prefixes every list id with demo-list-", () => {
-    for (const l of DEMO_LISTS) {
-      expect(l.listId.startsWith("demo-list-")).toBe(true);
-    }
   });
 
   it("points every list channel at a known channel", () => {

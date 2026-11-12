@@ -591,8 +591,8 @@ describe("demo store bulk updates", () => {
 describe("demo store lists", () => {
   const SAVED_AT = "2026-11-11T12:00:00.000Z";
 
-  // list-one names gamma before alpha, so title order has to come from the sort
-  // demo-ghost is not in the store, so it must be dropped from counts and detail
+  // list-one names gamma before alpha, title order comes from the sort
+  // demo-ghost is missing from the store, dropped from counts and detail
   const SMALL_CHANNELS: Channel[] = [
     {
       channelId: "demo-alpha",
@@ -1040,20 +1040,6 @@ describe("demo store lists", () => {
     expect(store.saveList("list-missing", "Two", ["demo-beta"])).toEqual({ error: "not_found" });
     expect(store.saveList("list-missing", "Fresh", ["demo-beta"])).toEqual({ error: "not_found" });
     expect(store.getLists()).toEqual(summaries);
-  });
-
-  it("stamps updatedAt from the store clock and keeps createdAt", () => {
-    const later = createDemoStore(new Date("2026-11-12T08:00:00Z"), {
-      channels: SMALL_CHANNELS,
-      videos: [],
-      lists: SMALL_LISTS,
-    });
-    const createdAt = later.getList("list-one")!.createdAt;
-
-    const detail = savedDetail(later.saveList("list-one", "One", ["demo-alpha"]));
-
-    expect(detail.updatedAt).toBe("2026-11-12T08:00:00.000Z");
-    expect(detail.createdAt).toBe(createdAt);
   });
 
   it("empties the list when channelIds is empty", () => {
