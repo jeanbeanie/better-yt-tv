@@ -10,6 +10,8 @@ import { resetDemoStore } from "./store";
 const FEED_FIRST_TITLE = "What's New in Blender 5.3! Official Overview";
 // second channel's newest video, shown on /demo/all once Blender is off
 const NASA_FEED_TITLE = "NASA's SpaceX Crew-13 Mission (Official NASA Trailer)";
+// first Dev talk video, newest of the three channels in that list
+const DEV_TALK_FIRST_TITLE = "Did Anthropic just save its $1 trillion IPO?";
 
 const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
   async () => new Response("{}", { status: 200 }),
@@ -178,9 +180,9 @@ describe("demo shell", () => {
 
   it.each([
     ["/demo/all", FEED_FIRST_TITLE],
-    ["/demo/lists", "Not found"],
+    ["/demo/lists", "Space nerd"],
     ["/demo/settings/channels", "NASA"],
-    ["/demo/settings/lists", "Not found"],
+    ["/demo/settings/lists", "Space nerd"],
   ])(
     "writes only the shared theme key and demo keys at %s",
     async (path, expectedText) => {
@@ -213,7 +215,7 @@ describe("demo shell", () => {
     window.history.pushState({}, "", "/demo/settings/lists");
     renderShell();
 
-    await screen.findByText("Not found");
+    await screen.findByText("Space nerd");
     expect(window.localStorage.getItem("betterYtTv.demo.editOnCreate")).not.toBeNull();
   });
 
@@ -299,6 +301,67 @@ describe("demo shell", () => {
 
     await user.click(screen.getByRole("link", { name: "All" }));
     await screen.findAllByText(FEED_FIRST_TITLE);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("shows the Space nerd feed on /demo/lists with no network calls", async () => {
+    window.history.pushState({}, "", "/demo/lists");
+
+    renderShell();
+
+    expect(await screen.findByRole("combobox")).toHaveValue("demo-list-space-nerd");
+    await screen.findByText(NASA_FEED_TITLE);
+    expect(screen.queryByText(FEED_FIRST_TITLE)).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("switches the lists feed when another list is picked", async () => {
+    window.history.pushState({}, "", "/demo/lists");
+    const user = userEvent.setup();
+
+    renderShell();
+
+    await user.selectOptions(await screen.findByRole("combobox"), "demo-list-dev-talk");
+
+    await screen.findAllByText(DEV_TALK_FIRST_TITLE);
+    expect(screen.queryByText(NASA_FEED_TITLE)).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("lists the three demo lists with their channel counts", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists");
+
+    renderShell();
+
+    await screen.findByText("Space nerd");
+    expect(screen.getByText("Dev talk")).toBeInTheDocument();
+    expect(screen.getByText("Quick learning")).toBeInTheDocument();
+    expect(screen.getByText("5 channels")).toBeInTheDocument();
+    expect(screen.getAllByText("3 channels")).toHaveLength(2);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("shows the channels of a list in the editor in title order", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists/demo-list-dev-talk");
+
+    renderShell();
+
+    const heading = await screen.findByRole("heading", { name: "Channels in this list" });
+    const section = heading.parentElement as HTMLElement;
+    await waitFor(() =>
+      expect(within(section).getAllByText(/^(Computerphile|exit node|Fireship)$/)).toHaveLength(3),
+    );
+    const titles = within(section).getAllByText(/^(Computerphile|exit node|Fireship)$/);
+    expect(titles.map((el) => el.textContent)).toEqual(["Computerphile", "exit node", "Fireship"]);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("shows the not found state for an unknown list id in the editor", async () => {
+    window.history.pushState({}, "", "/demo/settings/lists/demo-list-missing");
+
+    renderShell();
+
+    await screen.findByText("List not found.");
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 });

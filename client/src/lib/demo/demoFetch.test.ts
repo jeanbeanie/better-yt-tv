@@ -5,6 +5,9 @@ import {
   bulkUpdateChannels,
   getAllFeed,
   getChannels,
+  getList,
+  getListFeed,
+  getLists,
   syncSubscriptions,
   updateChannel,
   type Channel,
@@ -23,7 +26,8 @@ const FEED_FIELDS = [
 ];
 
 async function feedJson(path: string) {
-  const resp = await demoFetch(`http://localhost:5179${path}`, { method: "GET" });
+  const url = path.startsWith("http") ? path : `http://localhost:5179${path}`;
+  const resp = await demoFetch(url, { method: "GET" });
   expect(resp.status).toBe(200);
   return resp.json() as Promise<{ items: FeedRow[]; hasMore: boolean }>;
 }
@@ -47,6 +51,12 @@ const patchBulk = (body?: string) =>
     headers: { "Content-Type": "application/json" },
     body,
   });
+
+const SPACE_NERD = "demo-list-space-nerd";
+const DEV_TALK = "demo-list-dev-talk";
+const listPath = (id: string) => `http://localhost:5179/api/lists/${id}`;
+const listFeedPath = (id: string, query = "") =>
+  `http://localhost:5179/api/feed/lists/${id}${query}`;
 
 describe("demoFetch", () => {
   beforeEach(() => {
@@ -524,6 +534,177 @@ describe("demoFetch", () => {
       await expect(
         bulkUpdateChannels({ channelIds: ["demo-blender", "demo-nasa"], enabledAll: false }),
       ).resolves.toEqual({ ok: true, updatedCount: 2 });
+      expect(fetchMock).toHaveBeenCalledTimes(0);
+    } finally {
+      window.history.pushState({}, "", "/");
+    }
+  });
+
+  it("serves GET /api/lists with the three fixture lists in fixture order", async () => {
+    const resp = await demoFetch("http://localhost:5179/api/lists", { method: "GET" });
+
+    expect(resp.status).toBe(200);
+    expect(resp.headers.get("Content-Type")).toBe("application/json");
+    const body = (await resp.json()) as { lists: Record<string, unknown>[] };
+    const stamp = NOW.toISOString();
+    expect(body.lists).toEqual([
+      { id: SPACE_NERD, name: "Space nerd", channelCount: 5, createdAt: stamp, updatedAt: stamp },
+      { id: DEV_TALK, name: "Dev talk", channelCount: 3, createdAt: stamp, updatedAt: stamp },
+      {
+        id: "demo-list-quick-learning",
+        name: "Quick learning",
+        channelCount: 3,
+        createdAt: stamp,
+        updatedAt: stamp,
+      },
+    ]);
+  });
+
+  it("serves GET /api/lists/:listId with channels sorted by title", async () => {
+    const resp = await demoFetch(listPath(DEV_TALK), { method: "GET" });
+
+    expect(resp.status).toBe(200);
+    const stamp = NOW.toISOString();
+    expect(await resp.json()).toEqual({
+      list: {
+        id: DEV_TALK,
+        name: "Dev talk",
+        createdAt: stamp,
+        updatedAt: stamp,
+        channelIds: ["demo-computerphile", "demo-exit-node", "demo-fireship"],
+        channels: [
+          { channelId: "demo-computerphile", title: "Computerphile", thumbUrl: null },
+          { channelId: "demo-exit-node", title: "exit node", thumbUrl: null },
+          { channelId: "demo-fireship", title: "Fireship", thumbUrl: null },
+        ],
+      },
+    });
+  });
+
+  it("returns 404 'List not found' for an unknown list on the detail and feed paths", async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    for (const path of [listPath("demo-list-missing"), listFeedPath("demo-list-missing")]) {
+      const resp = await demoFetch(path, { method: "GET" });
+      expect(resp.status).toBe(404);
+      expect(await resp.json()).toEqual({ error: "List not found" });
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("serves GET /api/feed/lists/:listId with the list name and only its channels", async () => {
+    const resp = await demoFetch(listFeedPath(DEV_TALK), { method: "GET" });
+
+    expect(resp.status).toBe(200);
+    const body = (await resp.json()) as {
+      list: unknown;
+      items: Record<string, unknown>[];
+      hasMore: boolean;
+    };
+    expect(body.list).toEqual({ id: DEV_TALK, name: "Dev talk" });
+    expect(body.hasMore).toBe(false);
+    expect(body.items.length).toBeGreaterThan(0);
+    expect(Object.keys(body.items[0]).sort()).toEqual(FEED_FIELDS);
+    for (const item of body.items) {
+      expect(["demo-computerphile", "demo-exit-node", "demo-fireship"]).toContain(item.channel_id);
+    }
+  });
+
+  it("pages the list feed with offset and limit", async () => {
+    const all = await feedJson(listFeedPath(SPACE_NERD, "?limit=200"));
+    expect(all.hasMore).toBe(false);
+    // 28 fixture videos minus 3 shorts (45s, 46s, 46s) hidden by excludedShorts
+    expect(all.items).toHaveLength(25);
+
+    const first = await feedJson(listFeedPath(SPACE_NERD, "?limit=2"));
+    expect(first.items).toEqual(all.items.slice(0, 2));
+    expect(first.hasMore).toBe(true);
+
+    const next = await feedJson(listFeedPath(SPACE_NERD, "?offset=2&limit=2"));
+    expect(next.items).toEqual(all.items.slice(2, 4));
+
+    const tail = await feedJson(listFeedPath(SPACE_NERD, `?offset=${all.items.length - 1}`));
+    expect(tail.items).toEqual(all.items.slice(-1));
+    expect(tail.hasMore).toBe(false);
+  });
+
+  it("caps list feed limit at 200 and falls back to defaults for malformed values", async () => {
+    const all = await feedJson(listFeedPath(SPACE_NERD, "?limit=200"));
+
+    const capped = await feedJson(listFeedPath(SPACE_NERD, "?limit=500"));
+    expect(capped).toEqual(all);
+
+    const malformed = await feedJson(listFeedPath(SPACE_NERD, "?limit=abc&offset=-5"));
+    expect(malformed).toEqual(await feedJson(listFeedPath(SPACE_NERD)));
+    expect(malformed.items).toHaveLength(Math.min(50, all.items.length));
+    expect(malformed.hasMore).toBe(all.items.length > 50);
+  });
+
+  it("keeps a channel switched off in All on its list feed", async () => {
+    await patchChannel("demo-nasa", JSON.stringify({ enabledAll: false }));
+
+    const listFeed = await feedJson(listFeedPath(SPACE_NERD, "?limit=200"));
+    expect(listFeed.items.some((item) => item.channel_id === "demo-nasa")).toBe(true);
+
+    const allFeed = await feedJson("/api/feed/all?limit=200");
+    expect(allFeed.items.some((item) => item.channel_id === "demo-nasa")).toBe(false);
+  });
+
+  it("shows a video watched through the watch route as watched on its list feed", async () => {
+    const videoId = "ErAqN6gXqZQ";
+    const watched = await demoFetch(watchPath(videoId), { method: "POST" });
+    expect(watched.status).toBe(200);
+
+    const feed = await feedJson(listFeedPath(SPACE_NERD, "?limit=200"));
+    expect(feed.items.find((item) => item.video_id === videoId)).toMatchObject({
+      is_watched: true,
+    });
+  });
+
+  it("returns 404 for wrong methods on the list paths without calling fetch", async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const cases: [string, string][] = [
+      ["DELETE", listPath(DEV_TALK)],
+      ["POST", "http://localhost:5179/api/lists"],
+      ["POST", listFeedPath(DEV_TALK)],
+    ];
+    for (const [method, path] of cases) {
+      const resp = await demoFetch(path, { method });
+      expect(resp.status).toBe(404);
+      expect(await resp.json()).toEqual({ error: "Not found" });
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("does not route the list feed path into the watch handlers", async () => {
+    const watched = await demoFetch(watchPath(WATCH_ID), { method: "POST" });
+    expect(watched.status).toBe(200);
+    expect(await watched.json()).toEqual({ ok: true });
+
+    const listWatch = await demoFetch(
+      "http://localhost:5179/api/feed/lists/demo-list-dev-talk/watch",
+      { method: "POST" },
+    );
+    expect(listWatch.status).toBe(404);
+  });
+
+  it("serves the list wrappers through the real api functions in demo mode", async () => {
+    window.history.pushState({}, "", "/demo/lists");
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      const { lists } = await getLists();
+      const { list } = await getList(DEV_TALK);
+      const feed = await getListFeed(SPACE_NERD, { limit: 2 });
+
+      expect(lists).toHaveLength(3);
+      expect(list).toMatchObject({ id: DEV_TALK, name: "Dev talk" });
+      expect(feed.list).toEqual({ id: SPACE_NERD, name: "Space nerd" });
+      expect(feed.items).toHaveLength(2);
       expect(fetchMock).toHaveBeenCalledTimes(0);
     } finally {
       window.history.pushState({}, "", "/");

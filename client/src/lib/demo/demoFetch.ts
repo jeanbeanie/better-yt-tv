@@ -99,11 +99,37 @@ async function patchChannelsBulk({ body }: RouteContext): Promise<Response> {
   return json({ ok: true, updatedCount });
 }
 
+// dynamic import, same chunk split as getFeedAll
+async function getLists(): Promise<Response> {
+  const { getDemoStore } = await import("./store");
+  return json({ lists: getDemoStore().getLists() });
+}
+
+// dynamic import, same chunk split as getFeedAll
+async function getList({ params }: RouteContext): Promise<Response> {
+  const { getDemoStore } = await import("./store");
+  const list = getDemoStore().getList(params.listId);
+  if (!list) return json({ error: "List not found" }, 404);
+  return json({ list });
+}
+
+// dynamic import, same chunk split as getFeedAll
+// same pagination as /all, body shape matches the server
+async function getListFeed({ url, params }: RouteContext): Promise<Response> {
+  const { getDemoStore } = await import("./store");
+  const feed = getDemoStore().getListFeed(params.listId, parsePagination(url.searchParams));
+  if (!feed) return json({ error: "List not found" }, 404);
+  return json(feed);
+}
+
 const routes: Route[] = [
   { method: "GET", pattern: compilePattern("/api/feed/all"), handle: getFeedAll },
   { method: "POST", pattern: compilePattern("/api/feed/videos/:videoId/watch"), handle: markWatched },
   { method: "POST", pattern: compilePattern("/api/feed/videos/:videoId/unwatch"), handle: markUnwatched },
   { method: "GET", pattern: compilePattern("/api/channels"), handle: getChannels },
+  { method: "GET", pattern: compilePattern("/api/lists"), handle: getLists },
+  { method: "GET", pattern: compilePattern("/api/lists/:listId"), handle: getList },
+  { method: "GET", pattern: compilePattern("/api/feed/lists/:listId"), handle: getListFeed },
   { method: "POST", pattern: compilePattern("/api/youtube/sync-subscriptions"), handle: syncSubscriptions },
   { method: "PATCH", pattern: compilePattern("/api/channels/bulk"), handle: patchChannelsBulk },
   // bulk routes must stay above this entry
