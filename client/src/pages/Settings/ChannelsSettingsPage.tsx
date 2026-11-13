@@ -558,7 +558,7 @@ export default function ChannelsSettingsPage() {
 
                   <div>
                     <h3 style={{ margin: 0 }}>{channel.title}</h3>
-                    <MutedText style={{ fontSize: "smaller" }}>
+                    <MutedText style={{ fontSize: "smaller", textAlign: "left" }}>
                       {channel.channelId}
                     </MutedText>
                   </div>

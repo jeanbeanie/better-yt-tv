@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { demoFetch } from "./demoFetch";
 import { resetDemoStore } from "./store";
+import { DEMO_CHANNEL_IDS, DEMO_CHANNELS } from "./fixtures";
 import {
   bulkUpdateChannels,
   createList,
@@ -15,6 +16,8 @@ import {
   updateChannel,
   type Channel,
 } from "../api";
+
+const THUMB_BY_ID = new Map(DEMO_CHANNELS.map((c) => [c.channelId, c.thumbUrl]));
 
 const NOW = new Date("2026-11-11T12:00:00Z");
 const FEED_FIELDS = [
@@ -284,11 +287,11 @@ describe("demoFetch", () => {
         "title",
       ]);
       expect(channel).toMatchObject({
-        thumbUrl: null,
         enabledAll: true,
         enabledLive: true,
         excludedShorts: true,
       });
+      expect(channel.thumbUrl).toBe(THUMB_BY_ID.get(channel.channelId));
     }
   });
 
@@ -339,12 +342,12 @@ describe("demoFetch", () => {
   });
 
   it("PATCHes a channel and reflects it in GET /api/channels and the feed", async () => {
-    const resp = await patchChannel("demo-nasa", JSON.stringify({ enabledAll: false }));
+    const resp = await patchChannel(DEMO_CHANNEL_IDS.nasa, JSON.stringify({ enabledAll: false }));
 
     expect(resp.status).toBe(200);
     expect(await resp.json()).toEqual({
       channel: {
-        channelId: "demo-nasa",
+        channelId: DEMO_CHANNEL_IDS.nasa,
         enabledAll: false,
         enabledLive: true,
         excludedShorts: true,
@@ -354,15 +357,15 @@ describe("demoFetch", () => {
 
     const list = await demoFetch("http://localhost:5179/api/channels", { method: "GET" });
     const { channels } = (await list.json()) as { channels: Channel[] };
-    expect(channels.find((c) => c.channelId === "demo-nasa")?.enabledAll).toBe(false);
+    expect(channels.find((c) => c.channelId === DEMO_CHANNEL_IDS.nasa)?.enabledAll).toBe(false);
 
     const feed = await feedJson("/api/feed/all?limit=200");
-    expect(feed.items.some((item) => item.channel_id === "demo-nasa")).toBe(false);
+    expect(feed.items.some((item) => item.channel_id === DEMO_CHANNEL_IDS.nasa)).toBe(false);
   });
 
   it("leaves the flags a partial patch does not name unchanged", async () => {
-    await patchChannel("demo-nasa", JSON.stringify({ excludedShorts: false }));
-    const resp = await patchChannel("demo-nasa", JSON.stringify({ enabledLive: false }));
+    await patchChannel(DEMO_CHANNEL_IDS.nasa, JSON.stringify({ excludedShorts: false }));
+    const resp = await patchChannel(DEMO_CHANNEL_IDS.nasa, JSON.stringify({ enabledLive: false }));
 
     expect(await resp.json()).toMatchObject({
       channel: { enabledAll: true, enabledLive: false, excludedShorts: false },
@@ -372,7 +375,7 @@ describe("demoFetch", () => {
   it("returns 400 for an empty or non-boolean patch", async () => {
     const bodies = [undefined, "{}", '{"enabledAll":"yes"}', "not json", "null"];
     for (const body of bodies) {
-      const resp = await patchChannel("demo-nasa", body);
+      const resp = await patchChannel(DEMO_CHANNEL_IDS.nasa, body);
       expect(resp.status).toBe(400);
       expect(await resp.json()).toEqual({ error: "No valid fields to update" });
     }
@@ -397,7 +400,7 @@ describe("demoFetch", () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     for (const method of ["GET", "POST"]) {
-      const resp = await demoFetch(channelPath("demo-nasa"), { method });
+      const resp = await demoFetch(channelPath(DEMO_CHANNEL_IDS.nasa), { method });
       expect(resp.status).toBe(404);
       expect(await resp.json()).toEqual({ error: "Not found" });
     }
@@ -408,7 +411,7 @@ describe("demoFetch", () => {
     const fetchMock = vi.fn();
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    await patchChannel("demo-nasa", JSON.stringify({ enabledAll: false }));
+    await patchChannel(DEMO_CHANNEL_IDS.nasa, JSON.stringify({ enabledAll: false }));
 
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
@@ -419,8 +422,8 @@ describe("demoFetch", () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     try {
-      await expect(updateChannel("demo-nasa", { enabledAll: false })).resolves.toMatchObject({
-        channel: { channelId: "demo-nasa", enabledAll: false },
+      await expect(updateChannel(DEMO_CHANNEL_IDS.nasa, { enabledAll: false })).resolves.toMatchObject({
+        channel: { channelId: DEMO_CHANNEL_IDS.nasa, enabledAll: false },
       });
       expect(fetchMock).toHaveBeenCalledTimes(0);
     } finally {
@@ -430,7 +433,7 @@ describe("demoFetch", () => {
 
   it("PATCHes many channels and reflects the count in GET channels and the feed", async () => {
     const resp = await patchBulk(
-      JSON.stringify({ channelIds: ["demo-blender", "demo-nasa"], enabledAll: false }),
+      JSON.stringify({ channelIds: [DEMO_CHANNEL_IDS.blender, DEMO_CHANNEL_IDS.nasa], enabledAll: false }),
     );
 
     expect(resp.status).toBe(200);
@@ -438,19 +441,19 @@ describe("demoFetch", () => {
 
     const list = await demoFetch("http://localhost:5179/api/channels", { method: "GET" });
     const { channels } = (await list.json()) as { channels: Channel[] };
-    for (const id of ["demo-blender", "demo-nasa"]) {
+    for (const id of [DEMO_CHANNEL_IDS.blender, DEMO_CHANNEL_IDS.nasa]) {
       expect(channels.find((c) => c.channelId === id)?.enabledAll).toBe(false);
     }
     expect(channels.filter((c) => c.enabledAll)).toHaveLength(9);
 
     const feed = await feedJson("/api/feed/all?limit=200");
-    expect(feed.items.some((item) => item.channel_id === "demo-blender")).toBe(false);
-    expect(feed.items.some((item) => item.channel_id === "demo-nasa")).toBe(false);
+    expect(feed.items.some((item) => item.channel_id === DEMO_CHANNEL_IDS.blender)).toBe(false);
+    expect(feed.items.some((item) => item.channel_id === DEMO_CHANNEL_IDS.nasa)).toBe(false);
   });
 
   it("counts only known channels when unknown ids are mixed in", async () => {
     const resp = await patchBulk(
-      JSON.stringify({ channelIds: ["demo-nasa", "demo-missing"], enabledAll: false }),
+      JSON.stringify({ channelIds: [DEMO_CHANNEL_IDS.nasa, "demo-missing"], enabledAll: false }),
     );
 
     expect(await resp.json()).toEqual({ ok: true, updatedCount: 1 });
@@ -473,7 +476,7 @@ describe("demoFetch", () => {
       "not json",
       "{}",
       '{"enabledAll":false}',
-      '{"channelIds":"demo-nasa","enabledAll":false}',
+      `{"channelIds":"${DEMO_CHANNEL_IDS.nasa}","enabledAll":false}`,
       '{"channelIds":[],"enabledAll":false}',
       '{"channelIds":[]}',
       '{"channelIds":null,"enabledAll":"yes"}',
@@ -487,8 +490,8 @@ describe("demoFetch", () => {
 
   it("returns 400 'No valid fields to update' when channelIds is valid but no boolean flag is", async () => {
     const bodies = [
-      JSON.stringify({ channelIds: ["demo-nasa"] }),
-      JSON.stringify({ channelIds: ["demo-nasa"], enabledAll: "yes", excludedShorts: 0 }),
+      JSON.stringify({ channelIds: [DEMO_CHANNEL_IDS.nasa] }),
+      JSON.stringify({ channelIds: [DEMO_CHANNEL_IDS.nasa], enabledAll: "yes", excludedShorts: 0 }),
     ];
     for (const body of bodies) {
       const resp = await patchBulk(body);
@@ -499,14 +502,14 @@ describe("demoFetch", () => {
 
   it("routes PATCH /api/channels/bulk to the bulk handler, not the channel handler", async () => {
     const bulk = await patchBulk(
-      JSON.stringify({ channelIds: ["demo-nasa"], enabledAll: false }),
+      JSON.stringify({ channelIds: [DEMO_CHANNEL_IDS.nasa], enabledAll: false }),
     );
     expect(bulk.status).toBe(200);
     expect(await bulk.json()).toEqual({ ok: true, updatedCount: 1 });
 
-    const single = await patchChannel("demo-nasa", JSON.stringify({ enabledLive: false }));
+    const single = await patchChannel(DEMO_CHANNEL_IDS.nasa, JSON.stringify({ enabledLive: false }));
     expect(single.status).toBe(200);
-    expect(await single.json()).toMatchObject({ channel: { channelId: "demo-nasa" } });
+    expect(await single.json()).toMatchObject({ channel: { channelId: DEMO_CHANNEL_IDS.nasa } });
   });
 
   it("returns 404 for GET and POST on the bulk path", async () => {
@@ -525,7 +528,7 @@ describe("demoFetch", () => {
     const fetchMock = vi.fn();
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    await patchBulk(JSON.stringify({ channelIds: ["demo-nasa"], enabledAll: false }));
+    await patchBulk(JSON.stringify({ channelIds: [DEMO_CHANNEL_IDS.nasa], enabledAll: false }));
     await patchBulk("{}");
 
     expect(fetchMock).toHaveBeenCalledTimes(0);
@@ -538,7 +541,7 @@ describe("demoFetch", () => {
 
     try {
       await expect(
-        bulkUpdateChannels({ channelIds: ["demo-blender", "demo-nasa"], enabledAll: false }),
+        bulkUpdateChannels({ channelIds: [DEMO_CHANNEL_IDS.blender, DEMO_CHANNEL_IDS.nasa], enabledAll: false }),
       ).resolves.toEqual({ ok: true, updatedCount: 2 });
       expect(fetchMock).toHaveBeenCalledTimes(0);
     } finally {
@@ -577,11 +580,11 @@ describe("demoFetch", () => {
         name: "Dev talk",
         createdAt: stamp,
         updatedAt: stamp,
-        channelIds: ["demo-computerphile", "demo-exit-node", "demo-fireship"],
+        channelIds: [DEMO_CHANNEL_IDS.computerphile, DEMO_CHANNEL_IDS.exitNode, DEMO_CHANNEL_IDS.fireship],
         channels: [
-          { channelId: "demo-computerphile", title: "Computerphile", thumbUrl: null },
-          { channelId: "demo-exit-node", title: "exit node", thumbUrl: null },
-          { channelId: "demo-fireship", title: "Fireship", thumbUrl: null },
+          { channelId: DEMO_CHANNEL_IDS.computerphile, title: "Computerphile", thumbUrl: THUMB_BY_ID.get(DEMO_CHANNEL_IDS.computerphile) },
+          { channelId: DEMO_CHANNEL_IDS.exitNode, title: "exit node", thumbUrl: THUMB_BY_ID.get(DEMO_CHANNEL_IDS.exitNode) },
+          { channelId: DEMO_CHANNEL_IDS.fireship, title: "Fireship", thumbUrl: THUMB_BY_ID.get(DEMO_CHANNEL_IDS.fireship) },
         ],
       },
     });
@@ -613,7 +616,7 @@ describe("demoFetch", () => {
     expect(body.items.length).toBeGreaterThan(0);
     expect(Object.keys(body.items[0]).sort()).toEqual(FEED_FIELDS);
     for (const item of body.items) {
-      expect(["demo-computerphile", "demo-exit-node", "demo-fireship"]).toContain(item.channel_id);
+      expect([DEMO_CHANNEL_IDS.computerphile, DEMO_CHANNEL_IDS.exitNode, DEMO_CHANNEL_IDS.fireship]).toContain(item.channel_id);
     }
   });
 
@@ -648,13 +651,13 @@ describe("demoFetch", () => {
   });
 
   it("keeps a channel switched off in All on its list feed", async () => {
-    await patchChannel("demo-nasa", JSON.stringify({ enabledAll: false }));
+    await patchChannel(DEMO_CHANNEL_IDS.nasa, JSON.stringify({ enabledAll: false }));
 
     const listFeed = await feedJson(listFeedPath(SPACE_NERD, "?limit=200"));
-    expect(listFeed.items.some((item) => item.channel_id === "demo-nasa")).toBe(true);
+    expect(listFeed.items.some((item) => item.channel_id === DEMO_CHANNEL_IDS.nasa)).toBe(true);
 
     const allFeed = await feedJson("/api/feed/all?limit=200");
-    expect(allFeed.items.some((item) => item.channel_id === "demo-nasa")).toBe(false);
+    expect(allFeed.items.some((item) => item.channel_id === DEMO_CHANNEL_IDS.nasa)).toBe(false);
   });
 
   it("shows a video watched through the watch route as watched on its list feed", async () => {
@@ -849,7 +852,7 @@ describe("demoFetch", () => {
   it("saves a list with 200 and the same shape as GET /api/lists/:listId", async () => {
     const resp = await putList(
       DEV_TALK,
-      JSON.stringify({ name: "Dev talk 2", channelIds: ["demo-blender"] }),
+      JSON.stringify({ name: "Dev talk 2", channelIds: [DEMO_CHANNEL_IDS.blender] }),
     );
     expect(resp.status).toBe(200);
 
@@ -857,7 +860,7 @@ describe("demoFetch", () => {
     expect(Object.keys(body.list).sort()).toEqual(["channelIds", "channels", "createdAt", "id", "name", "updatedAt"]);
     const detail = (await (await demoFetch(listPath(DEV_TALK), { method: "GET" })).json()) as unknown;
     expect(body).toEqual(detail);
-    expect(body.list).toMatchObject({ id: DEV_TALK, name: "Dev talk 2", channelIds: ["demo-blender"] });
+    expect(body.list).toMatchObject({ id: DEV_TALK, name: "Dev talk 2", channelIds: [DEMO_CHANNEL_IDS.blender] });
   });
 
   it("returns 400 Name is required for a missing, blank, non-string, or non-object body", async () => {
@@ -895,7 +898,7 @@ describe("demoFetch", () => {
   it("returns 400 channelIds must be an array for a missing, string, object, or null value", async () => {
     const bodies = [
       JSON.stringify({ name: "Dev talk" }),
-      JSON.stringify({ name: "Dev talk", channelIds: "demo-blender" }),
+      JSON.stringify({ name: "Dev talk", channelIds: DEMO_CHANNEL_IDS.blender }),
       JSON.stringify({ name: "Dev talk", channelIds: {} }),
       JSON.stringify({ name: "Dev talk", channelIds: null }),
     ];
@@ -935,7 +938,7 @@ describe("demoFetch", () => {
 
     const resp = await putList(
       DEV_TALK,
-      JSON.stringify({ name: "  Space nerd  ", channelIds: ["demo-blender"] }),
+      JSON.stringify({ name: "  Space nerd  ", channelIds: [DEMO_CHANNEL_IDS.blender] }),
     );
     expect(resp.status).toBe(409);
     expect(await resp.json()).toEqual({ error: "You already have a list with this name." });
@@ -956,20 +959,20 @@ describe("demoFetch", () => {
       DEV_TALK,
       JSON.stringify({
         name: "Dev talk",
-        channelIds: ["demo-missing", "demo-nasa", "demo-nasa", 7, null, "demo-blender"],
+        channelIds: ["demo-missing", DEMO_CHANNEL_IDS.nasa, DEMO_CHANNEL_IDS.nasa, 7, null, DEMO_CHANNEL_IDS.blender],
       }),
     );
     expect(resp.status).toBe(200);
 
     const body = (await resp.json()) as { list: { channelIds: string[]; channels: { channelId: string }[] } };
-    expect(body.list.channelIds).toEqual(["demo-blender", "demo-nasa"]);
-    expect(body.list.channels.map((c) => c.channelId)).toEqual(["demo-blender", "demo-nasa"]);
+    expect(body.list.channelIds).toEqual([DEMO_CHANNEL_IDS.blender, DEMO_CHANNEL_IDS.nasa]);
+    expect(body.list.channels.map((c) => c.channelId)).toEqual([DEMO_CHANNEL_IDS.blender, DEMO_CHANNEL_IDS.nasa]);
   });
 
   it("shows a saved list in the index, detail, and list feed", async () => {
     await putList(
       DEV_TALK,
-      JSON.stringify({ name: "Renamed talk", channelIds: ["demo-blender", "demo-fireship"] }),
+      JSON.stringify({ name: "Renamed talk", channelIds: [DEMO_CHANNEL_IDS.blender, DEMO_CHANNEL_IDS.fireship] }),
     );
 
     const index = (await (await demoFetch(listsPath, { method: "GET" })).json()) as {
@@ -985,7 +988,7 @@ describe("demoFetch", () => {
     };
     expect(detail.list).toMatchObject({
       name: "Renamed talk",
-      channelIds: ["demo-blender", "demo-fireship"],
+      channelIds: [DEMO_CHANNEL_IDS.blender, DEMO_CHANNEL_IDS.fireship],
     });
 
     const feed = (await feedJson(listFeedPath(DEV_TALK, "?limit=200"))) as {
@@ -995,7 +998,7 @@ describe("demoFetch", () => {
     };
     expect(feed.list).toEqual({ id: DEV_TALK, name: "Renamed talk" });
     const feedChannels = new Set((feed.items as FeedRow[]).map((i) => i.channel_id));
-    expect(feedChannels).toEqual(new Set(["demo-blender", "demo-fireship"]));
+    expect(feedChannels).toEqual(new Set([DEMO_CHANNEL_IDS.blender, DEMO_CHANNEL_IDS.fireship]));
   });
 
   it("serves the save wrapper through the real saveList api function in demo mode", async () => {
@@ -1004,8 +1007,8 @@ describe("demoFetch", () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     try {
-      const { list } = await saveList(DEV_TALK, { name: "Api talk", channelIds: ["demo-nasa"] });
-      expect(list).toMatchObject({ name: "Api talk", channelIds: ["demo-nasa"] });
+      const { list } = await saveList(DEV_TALK, { name: "Api talk", channelIds: [DEMO_CHANNEL_IDS.nasa] });
+      expect(list).toMatchObject({ name: "Api talk", channelIds: [DEMO_CHANNEL_IDS.nasa] });
 
       const { lists } = await getLists();
       expect(lists.map((l) => l.name)).toContain("Api talk");
