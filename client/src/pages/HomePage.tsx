@@ -11,6 +11,39 @@ type homePageProps = {
   loading: boolean;
 }
 
+const buttonRowStyle = {
+  display: "flex",
+  flexWrap: "wrap",
+  justifyContent: "center",
+  gap: "0.75rem",
+} as const;
+
+function TryDemoButton() {
+  // plain anchor, full page load remounts the app under the /demo basename
+  return (
+    <a
+      href="/demo"
+      className="button button-primary"
+      style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}
+    >
+      <svg
+        aria-hidden="true"
+        focusable="false"
+        width="1em"
+        height="1em"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      >
+        <path d="M7 4.5v15l12-7.5z" />
+      </svg>
+      Try the demo
+    </a>
+  );
+}
+
 export default function HomePage(props:homePageProps) {
   const {user, error, loading} = props;
   const canLogin = hasInviteCode();
@@ -37,9 +70,18 @@ export default function HomePage(props:homePageProps) {
         {!loading && !user && canLogin && (
           <div style={{ marginTop: "2rem" }}>
             <p style={{ fontSize: "0.875rem", marginBottom: "1rem" }}>Just hit play.</p>
-            <a href={getLoginUrl()} className="button button-primary">
-              Login
-            </a>
+            <div style={buttonRowStyle}>
+              <TryDemoButton />
+              <a href={getLoginUrl()} className="button button-secondary">
+                Login
+              </a>
+            </div>
+          </div>
+        )}
+
+        {!loading && !user && !canLogin && (
+          <div style={{ ...buttonRowStyle, marginTop: "2rem" }}>
+            <TryDemoButton />
           </div>
         )}
 
