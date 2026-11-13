@@ -2,7 +2,7 @@
  
 A personal YouTube viewing dashboard that lets you watch the most recent uploads from only the channels you're subscribed to. Think of it as a TV queue for your subscriptions.
  
-Live at [ytcatchup.com](https://ytcatchup.com) (invite only, demo GIF and screenshots below).
+Live at [ytcatchup.com](https://ytcatchup.com) (invite only, demo GIF and screenshots below). Try it without an invite at [ytcatchup.com/demo](https://ytcatchup.com/demo).
  
 <p align="center">
   <img src="docs/ytcatchup_demo.gif" alt="YT Catchup demo" />
@@ -15,6 +15,7 @@ Live at [ytcatchup.com](https://ytcatchup.com) (invite only, demo GIF and screen
 - **Settings**: per channel preferences (enable/disable in All, enable/disable Live, exclude Shorts), with bulk edit controls.
 - **Catch-up mode**: autoplay straight through your unwatched videos instead of picking each one manually.
 - **Changelog**: a page summarizing what shipped, grouped by date.
+- **Demo**: a no login demo at `/demo` that runs on sample channels, videos and lists and never calls the real API.
 - 
 ## Engineering highlights
  
