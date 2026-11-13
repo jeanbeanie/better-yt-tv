@@ -1,8 +1,8 @@
 # YT Catchup
  
-A personal YouTube viewing dashboard that lets you watch the most recent uploads from only the channels you're subscribed to. Think of it as a TV queue for your subscriptions.
+A personal YouTube viewing dashboard that lets you watch the most recent uploads from only the channels you're subscribed to. You can also build custom Lists from a hand picked set of channels, like programming your own TV stations. Think of YTCatchup as a TV queue for your subscriptions.
  
-Live at [ytcatchup.com](https://ytcatchup.com) (invite only, demo GIF and screenshots below). Try it without an invite at [ytcatchup.com/demo](https://ytcatchup.com/demo).
+Live at [ytcatchup.com](https://ytcatchup.com) (invite only). No invite? Try the demo at [ytcatchup.com/demo](https://ytcatchup.com/demo). GIF and screenshots of the full app below!
  
 <p align="center">
   <img src="docs/ytcatchup_demo.gif" alt="YT Catchup demo" />
