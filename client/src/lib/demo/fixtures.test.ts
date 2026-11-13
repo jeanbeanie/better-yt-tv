@@ -1,5 +1,11 @@
+/// <reference types="node" />
 import { describe, it, expect } from "vitest";
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { DEMO_CHANNEL_IDS, DEMO_CHANNELS, DEMO_LISTS, DEMO_VIDEOS } from "./fixtures";
+
+const PUBLIC_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../../../public");
 
 describe("demo fixtures", () => {
   it("has 11 unique channels", () => {
@@ -64,13 +70,21 @@ describe("demo fixtures", () => {
     expect(durations.filter((d) => d >= 61 && d <= 90)).toHaveLength(1);
   });
 
-  it("starts channels with all prefs on and no thumbnail", () => {
+  it("starts channels with all prefs on", () => {
     for (const c of DEMO_CHANNELS) {
       expect(c.enabledAll).toBe(true);
       expect(c.enabledLive).toBe(true);
       expect(c.excludedShorts).toBe(true);
-      expect(c.thumbUrl).toBeNull();
     }
+  });
+
+  it("points every channel at a bundled avatar file", () => {
+    const urls = DEMO_CHANNELS.map((c) => c.thumbUrl ?? "");
+    for (const url of urls) {
+      expect(url).toMatch(/^\/demo-avatars\/[a-z0-9-]+\.jpg$/);
+      expect(existsSync(join(PUBLIC_DIR, url))).toBe(true);
+    }
+    expect(new Set(urls).size).toBe(11);
   });
 });
 

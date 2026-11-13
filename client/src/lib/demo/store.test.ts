@@ -301,7 +301,7 @@ describe("demo store channels", () => {
     expect(channels[0]).toEqual({
       channelId: DEMO_CHANNEL_IDS.threeBlueOneBrown,
       title: "3Blue1Brown",
-      thumbUrl: null,
+      thumbUrl: DEMO_CHANNELS.find((c) => c.channelId === DEMO_CHANNEL_IDS.threeBlueOneBrown)?.thumbUrl,
       enabledAll: true,
       enabledLive: true,
       excludedShorts: true,

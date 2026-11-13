@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { demoFetch } from "./demoFetch";
 import { resetDemoStore } from "./store";
-import { DEMO_CHANNEL_IDS } from "./fixtures";
+import { DEMO_CHANNEL_IDS, DEMO_CHANNELS } from "./fixtures";
 import {
   bulkUpdateChannels,
   createList,
@@ -16,6 +16,8 @@ import {
   updateChannel,
   type Channel,
 } from "../api";
+
+const THUMB_BY_ID = new Map(DEMO_CHANNELS.map((c) => [c.channelId, c.thumbUrl]));
 
 const NOW = new Date("2026-11-11T12:00:00Z");
 const FEED_FIELDS = [
@@ -285,11 +287,11 @@ describe("demoFetch", () => {
         "title",
       ]);
       expect(channel).toMatchObject({
-        thumbUrl: null,
         enabledAll: true,
         enabledLive: true,
         excludedShorts: true,
       });
+      expect(channel.thumbUrl).toBe(THUMB_BY_ID.get(channel.channelId));
     }
   });
 
@@ -580,9 +582,9 @@ describe("demoFetch", () => {
         updatedAt: stamp,
         channelIds: [DEMO_CHANNEL_IDS.computerphile, DEMO_CHANNEL_IDS.exitNode, DEMO_CHANNEL_IDS.fireship],
         channels: [
-          { channelId: DEMO_CHANNEL_IDS.computerphile, title: "Computerphile", thumbUrl: null },
-          { channelId: DEMO_CHANNEL_IDS.exitNode, title: "exit node", thumbUrl: null },
-          { channelId: DEMO_CHANNEL_IDS.fireship, title: "Fireship", thumbUrl: null },
+          { channelId: DEMO_CHANNEL_IDS.computerphile, title: "Computerphile", thumbUrl: THUMB_BY_ID.get(DEMO_CHANNEL_IDS.computerphile) },
+          { channelId: DEMO_CHANNEL_IDS.exitNode, title: "exit node", thumbUrl: THUMB_BY_ID.get(DEMO_CHANNEL_IDS.exitNode) },
+          { channelId: DEMO_CHANNEL_IDS.fireship, title: "Fireship", thumbUrl: THUMB_BY_ID.get(DEMO_CHANNEL_IDS.fireship) },
         ],
       },
     });

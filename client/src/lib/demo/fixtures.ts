@@ -17,6 +17,11 @@ function thumb(videoId: string): string {
   return `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
 }
 
+// bundled under client/public/demo-avatars
+function avatar(slug: string): string {
+  return `/demo-avatars/${slug}.jpg`;
+}
+
 const ALL_ON = { enabledAll: true, enabledLive: true, excludedShorts: true };
 
 // random ids in the YouTube channel id shape, not real channels
@@ -35,17 +40,17 @@ export const DEMO_CHANNEL_IDS = {
 } as const;
 
 export const DEMO_CHANNELS: Channel[] = [
-  { channelId: DEMO_CHANNEL_IDS.blender, title: "Blender", thumbUrl: null, ...ALL_ON },
-  { channelId: DEMO_CHANNEL_IDS.nasa, title: "NASA", thumbUrl: null, ...ALL_ON },
-  { channelId: DEMO_CHANNEL_IDS.kurzgesagt, title: "Kurzgesagt – In a Nutshell", thumbUrl: null, ...ALL_ON },
-  { channelId: DEMO_CHANNEL_IDS.veritasium, title: "Veritasium", thumbUrl: null, ...ALL_ON },
-  { channelId: DEMO_CHANNEL_IDS.threeBlueOneBrown, title: "3Blue1Brown", thumbUrl: null, ...ALL_ON },
-  { channelId: DEMO_CHANNEL_IDS.cgpGrey, title: "CGP Grey", thumbUrl: null, ...ALL_ON },
-  { channelId: DEMO_CHANNEL_IDS.fireship, title: "Fireship", thumbUrl: null, ...ALL_ON },
-  { channelId: DEMO_CHANNEL_IDS.computerphile, title: "Computerphile", thumbUrl: null, ...ALL_ON },
-  { channelId: DEMO_CHANNEL_IDS.smarterEveryDay, title: "SmarterEveryDay", thumbUrl: null, ...ALL_ON },
-  { channelId: DEMO_CHANNEL_IDS.tedEd, title: "TED-Ed", thumbUrl: null, ...ALL_ON },
-  { channelId: DEMO_CHANNEL_IDS.exitNode, title: "exit node", thumbUrl: null, ...ALL_ON },
+  { channelId: DEMO_CHANNEL_IDS.blender, title: "Blender", thumbUrl: avatar("blender"), ...ALL_ON },
+  { channelId: DEMO_CHANNEL_IDS.nasa, title: "NASA", thumbUrl: avatar("nasa"), ...ALL_ON },
+  { channelId: DEMO_CHANNEL_IDS.kurzgesagt, title: "Kurzgesagt – In a Nutshell", thumbUrl: avatar("kurzgesagt"), ...ALL_ON },
+  { channelId: DEMO_CHANNEL_IDS.veritasium, title: "Veritasium", thumbUrl: avatar("veritasium"), ...ALL_ON },
+  { channelId: DEMO_CHANNEL_IDS.threeBlueOneBrown, title: "3Blue1Brown", thumbUrl: avatar("3blue1brown"), ...ALL_ON },
+  { channelId: DEMO_CHANNEL_IDS.cgpGrey, title: "CGP Grey", thumbUrl: avatar("cgp-grey"), ...ALL_ON },
+  { channelId: DEMO_CHANNEL_IDS.fireship, title: "Fireship", thumbUrl: avatar("fireship"), ...ALL_ON },
+  { channelId: DEMO_CHANNEL_IDS.computerphile, title: "Computerphile", thumbUrl: avatar("computerphile"), ...ALL_ON },
+  { channelId: DEMO_CHANNEL_IDS.smarterEveryDay, title: "SmarterEveryDay", thumbUrl: avatar("smarter-every-day"), ...ALL_ON },
+  { channelId: DEMO_CHANNEL_IDS.tedEd, title: "TED-Ed", thumbUrl: avatar("ted-ed"), ...ALL_ON },
+  { channelId: DEMO_CHANNEL_IDS.exitNode, title: "exit node", thumbUrl: avatar("exit-node"), ...ALL_ON },
 ];
 
 // Durations are only set where measured from the watch page lengthSeconds
