@@ -246,7 +246,7 @@ describe("demo shell", () => {
     renderShell();
 
     await screen.findByRole("heading", { name: "NASA" });
-    expect(screen.getAllByText(/^demo-/)).toHaveLength(11);
+    expect(screen.getAllByText(/^UC[A-Za-z0-9_-]{22}$/)).toHaveLength(11);
 
     await user.click(screen.getByRole("button", { name: "Sync Subscriptions" }));
     await screen.findByText("Synced 11 channels.");

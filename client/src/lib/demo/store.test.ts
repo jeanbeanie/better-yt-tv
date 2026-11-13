@@ -8,7 +8,7 @@ import {
   type DemoStore,
   type SaveListResult,
 } from "./store";
-import { DEMO_CHANNELS, DEMO_LISTS, DEMO_VIDEOS, type DemoList, type DemoVideo } from "./fixtures";
+import { DEMO_CHANNEL_IDS, DEMO_CHANNELS, DEMO_LISTS, DEMO_VIDEOS, type DemoList, type DemoVideo } from "./fixtures";
 import type { Channel, FeedItem, ListDetail } from "../api";
 
 const NOW = new Date("2026-11-11T12:00:00Z");
@@ -18,7 +18,7 @@ const ALL = { offset: 0, limit: 200 };
 function video(overrides: Partial<DemoVideo> = {}): DemoVideo {
   return {
     videoId: "v1",
-    channelId: "demo-blender",
+    channelId: DEMO_CHANNEL_IDS.blender,
     title: "Video",
     hoursAgo: 1,
     thumbUrl: "https://example.test/v1.jpg",
@@ -115,7 +115,7 @@ describe("demo store feed filter", () => {
 
   it("keeps a 60 second video when the channel's excludedShorts is off", () => {
     const channels = DEMO_CHANNELS.map((c) =>
-      c.channelId === "demo-blender" ? { ...c, excludedShorts: false } : c,
+      c.channelId === DEMO_CHANNEL_IDS.blender ? { ...c, excludedShorts: false } : c,
     );
     const store = createDemoStore(NOW, {
       channels,
@@ -127,11 +127,11 @@ describe("demo store feed filter", () => {
 
   it("hides every video of a channel with enabledAll off", () => {
     const channels = DEMO_CHANNELS.map((c) =>
-      c.channelId === "demo-blender" ? { ...c, enabledAll: false } : c,
+      c.channelId === DEMO_CHANNEL_IDS.blender ? { ...c, enabledAll: false } : c,
     );
     const store = createDemoStore(NOW, {
       channels,
-      videos: [video({ videoId: "v1" }), video({ videoId: "v2", channelId: "demo-nasa" })],
+      videos: [video({ videoId: "v1" }), video({ videoId: "v2", channelId: DEMO_CHANNEL_IDS.nasa })],
     });
 
     expect(feedIds(store)).toEqual(["v2"]);
@@ -154,7 +154,7 @@ describe("demo store feed shape", () => {
     // hoursAgo 2 on the fixture
     expect(item).toEqual<FeedItem>({
       video_id: "pvUy69I_Xuk",
-      channel_id: "demo-blender",
+      channel_id: DEMO_CHANNEL_IDS.blender,
       channel_title: "Blender",
       title: "What's New in Blender 5.3! Official Overview",
       published_at: "2026-11-11T10:00:00.000Z",
@@ -169,7 +169,7 @@ describe("demo store feed shape", () => {
 
     expect(items).toHaveLength(11);
     expect(new Set(items.map((i) => i.channel_id)).size).toBe(11);
-    expect(items[0].channel_id).toBe("demo-blender");
+    expect(items[0].channel_id).toBe(DEMO_CHANNEL_IDS.blender);
   });
 });
 
@@ -299,7 +299,7 @@ describe("demo store channels", () => {
     expect(channels).toHaveLength(11);
     expect(channels.map((c) => c.title)).toEqual(SERVER_ORDER);
     expect(channels[0]).toEqual({
-      channelId: "demo-3blue1brown",
+      channelId: DEMO_CHANNEL_IDS.threeBlueOneBrown,
       title: "3Blue1Brown",
       thumbUrl: null,
       enabledAll: true,
@@ -357,9 +357,9 @@ describe("demo store channel updates", () => {
   ] as const)("applies %s alone and leaves the other flags", (field, patch) => {
     const store = createDemoStore(NOW);
 
-    const row = store.updateChannel("demo-blender", patch);
+    const row = store.updateChannel(DEMO_CHANNEL_IDS.blender, patch);
 
-    expect(row).toMatchObject({ channelId: "demo-blender", [field]: false });
+    expect(row).toMatchObject({ channelId: DEMO_CHANNEL_IDS.blender, [field]: false });
     const others = (["enabledAll", "enabledLive", "excludedShorts"] as const).filter(
       (key) => key !== field,
     );
@@ -369,7 +369,7 @@ describe("demo store channel updates", () => {
   it("applies several boolean fields together", () => {
     const store = createDemoStore(NOW);
 
-    const row = store.updateChannel("demo-blender", {
+    const row = store.updateChannel(DEMO_CHANNEL_IDS.blender, {
       enabledAll: false,
       enabledLive: false,
       excludedShorts: false,
@@ -380,7 +380,7 @@ describe("demo store channel updates", () => {
       enabledLive: false,
       excludedShorts: false,
     });
-    expect(store.getChannels().find((c) => c.channelId === "demo-blender")).toMatchObject({
+    expect(store.getChannels().find((c) => c.channelId === DEMO_CHANNEL_IDS.blender)).toMatchObject({
       enabledAll: false,
       enabledLive: false,
       excludedShorts: false,
@@ -391,14 +391,14 @@ describe("demo store channel updates", () => {
     const store = createDemoStore(NOW);
     const junk = { enabledAll: "no", enabledLive: 0, excludedShorts: null } as unknown as ChannelPatch;
 
-    expect(store.updateChannel("demo-blender", junk)).toMatchObject({
+    expect(store.updateChannel(DEMO_CHANNEL_IDS.blender, junk)).toMatchObject({
       enabledAll: true,
       enabledLive: true,
       excludedShorts: true,
     });
 
     const mixed = { enabledLive: false, excludedShorts: "no" } as unknown as ChannelPatch;
-    expect(store.updateChannel("demo-blender", mixed)).toMatchObject({
+    expect(store.updateChannel(DEMO_CHANNEL_IDS.blender, mixed)).toMatchObject({
       enabledLive: false,
       excludedShorts: true,
     });
@@ -413,19 +413,19 @@ describe("demo store channel updates", () => {
   it("stamps updatedAt from the store clock", () => {
     const store = createDemoStore(NOW);
 
-    expect(store.updateChannel("demo-blender", { enabledAll: false })?.updatedAt).toBe(
+    expect(store.updateChannel(DEMO_CHANNEL_IDS.blender, { enabledAll: false })?.updatedAt).toBe(
       NOW.toISOString(),
     );
   });
 
   it("returns a copy, so mutating it leaves the store unchanged", () => {
     const store = createDemoStore(NOW);
-    const row = store.updateChannel("demo-blender", { enabledAll: false });
+    const row = store.updateChannel(DEMO_CHANNEL_IDS.blender, { enabledAll: false });
     if (!row) throw new Error("expected a row");
     row.enabledAll = true;
     row.excludedShorts = false;
 
-    const blender = store.getChannels().find((c) => c.channelId === "demo-blender");
+    const blender = store.getChannels().find((c) => c.channelId === DEMO_CHANNEL_IDS.blender);
     expect(blender).toMatchObject({ title: "Blender", enabledAll: false, excludedShorts: true });
   });
 
@@ -433,7 +433,7 @@ describe("demo store channel updates", () => {
     const first = createDemoStore(NOW);
     const second = createDemoStore(NOW);
 
-    first.updateChannel("demo-blender", { enabledAll: false });
+    first.updateChannel(DEMO_CHANNEL_IDS.blender, { enabledAll: false });
 
     expect(second.getChannels().every((c) => c.enabledAll)).toBe(true);
     expect(feedIds(second)).toContain("pvUy69I_Xuk");
@@ -442,24 +442,24 @@ describe("demo store channel updates", () => {
   it("leaves DEMO_CHANNELS unchanged after updates", () => {
     const snapshot = structuredClone(DEMO_CHANNELS);
     const store = createDemoStore(NOW);
-    store.updateChannel("demo-blender", { enabledAll: false, excludedShorts: false });
-    store.updateChannel("demo-nasa", { enabledLive: false });
+    store.updateChannel(DEMO_CHANNEL_IDS.blender, { enabledAll: false, excludedShorts: false });
+    store.updateChannel(DEMO_CHANNEL_IDS.nasa, { enabledLive: false });
 
     expect(DEMO_CHANNELS).toEqual(snapshot);
   });
 
   it("hides a channel's videos with enabledAll off and restores them when it is flipped back", () => {
     const store = createDemoStore(NOW);
-    const blenderIds = DEMO_VIDEOS.filter((v) => v.channelId === "demo-blender").map((v) => v.videoId);
+    const blenderIds = DEMO_VIDEOS.filter((v) => v.channelId === DEMO_CHANNEL_IDS.blender).map((v) => v.videoId);
     const before = feedIds(store);
     expect(blenderIds.every((id) => before.includes(id))).toBe(true);
 
-    store.updateChannel("demo-blender", { enabledAll: false });
+    store.updateChannel(DEMO_CHANNEL_IDS.blender, { enabledAll: false });
     const hidden = feedIds(store);
     expect(hidden).toHaveLength(before.length - blenderIds.length);
     expect(blenderIds.some((id) => hidden.includes(id))).toBe(false);
 
-    store.updateChannel("demo-blender", { enabledAll: true });
+    store.updateChannel(DEMO_CHANNEL_IDS.blender, { enabledAll: true });
     expect(feedIds(store)).toEqual(before);
   });
 
@@ -468,7 +468,7 @@ describe("demo store channel updates", () => {
     expect(feedIds(store)).toHaveLength(57);
     expect(NASA_SHORTS.some((id) => feedIds(store).includes(id))).toBe(false);
 
-    store.updateChannel("demo-nasa", { excludedShorts: false });
+    store.updateChannel(DEMO_CHANNEL_IDS.nasa, { excludedShorts: false });
 
     const ids = feedIds(store);
     expect(ids).toHaveLength(60);
@@ -478,9 +478,9 @@ describe("demo store channel updates", () => {
   it("reflects updates in getChannels", () => {
     const store = createDemoStore(NOW);
 
-    store.updateChannel("demo-nasa", { enabledAll: false, excludedShorts: false });
+    store.updateChannel(DEMO_CHANNEL_IDS.nasa, { enabledAll: false, excludedShorts: false });
 
-    expect(store.getChannels().find((c) => c.channelId === "demo-nasa")).toMatchObject({
+    expect(store.getChannels().find((c) => c.channelId === DEMO_CHANNEL_IDS.nasa)).toMatchObject({
       enabledAll: false,
       enabledLive: true,
       excludedShorts: false,
@@ -493,7 +493,7 @@ describe("demo store bulk updates", () => {
 
   it("applies each flag to every listed channel and leaves the others alone", () => {
     const store = createDemoStore(NOW);
-    const listed = ["demo-blender", "demo-nasa"];
+    const listed: string[] = [DEMO_CHANNEL_IDS.blender, DEMO_CHANNEL_IDS.nasa];
 
     const count = store.updateChannels(listed, {
       enabledAll: false,
@@ -514,10 +514,10 @@ describe("demo store bulk updates", () => {
   it("returns the matched count and ignores unknown ids", () => {
     const store = createDemoStore(NOW);
 
-    expect(store.updateChannels(["demo-blender", "demo-missing"], { enabledAll: false })).toBe(1);
+    expect(store.updateChannels([DEMO_CHANNEL_IDS.blender, "demo-missing"], { enabledAll: false })).toBe(1);
 
     expect(store.getChannels()).toHaveLength(11);
-    expect(store.getChannels().find((c) => c.channelId === "demo-blender")?.enabledAll).toBe(false);
+    expect(store.getChannels().find((c) => c.channelId === DEMO_CHANNEL_IDS.blender)?.enabledAll).toBe(false);
   });
 
   it("returns 0 and changes nothing when every id is unknown", () => {
@@ -533,18 +533,18 @@ describe("demo store bulk updates", () => {
   it("counts a duplicated id once", () => {
     const store = createDemoStore(NOW);
 
-    expect(store.updateChannels(["demo-blender", "demo-blender"], { enabledAll: false })).toBe(1);
+    expect(store.updateChannels([DEMO_CHANNEL_IDS.blender, DEMO_CHANNEL_IDS.blender], { enabledAll: false })).toBe(1);
   });
 
   it("ignores non-string ids and non-boolean values", () => {
     const store = createDemoStore(NOW);
-    const badIds = [5, null, { id: "demo-blender" }] as unknown as string[];
+    const badIds = [5, null, { id: DEMO_CHANNEL_IDS.blender }] as unknown as string[];
 
     expect(store.updateChannels(badIds, { enabledAll: false })).toBe(0);
 
     const junk = { enabledAll: "no", enabledLive: 0, excludedShorts: null } as unknown as ChannelPatch;
-    expect(store.updateChannels(["demo-blender"], junk)).toBe(1);
-    expect(store.getChannels().find((c) => c.channelId === "demo-blender")).toMatchObject({
+    expect(store.updateChannels([DEMO_CHANNEL_IDS.blender], junk)).toBe(1);
+    expect(store.getChannels().find((c) => c.channelId === DEMO_CHANNEL_IDS.blender)).toMatchObject({
       enabledAll: true,
       enabledLive: true,
       excludedShorts: true,
@@ -564,7 +564,7 @@ describe("demo store bulk updates", () => {
 
   it("removes the videos of every disabled channel from getAllFeed", () => {
     const store = createDemoStore(NOW);
-    const targets = ["demo-blender", "demo-nasa"];
+    const targets: string[] = [DEMO_CHANNEL_IDS.blender, DEMO_CHANNEL_IDS.nasa];
     const before = feedIds(store);
     const removed = DEMO_VIDEOS.filter((v) => targets.includes(v.channelId))
       .map((v) => v.videoId)
@@ -1077,7 +1077,7 @@ describe("demo store lists", () => {
     const other = store.getList("demo-list-space-nerd");
     const channelsBefore = store.getChannels();
 
-    store.saveList("demo-list-dev-talk", "Renamed", ["demo-blender"]);
+    store.saveList("demo-list-dev-talk", "Renamed", [DEMO_CHANNEL_IDS.blender]);
 
     expect(DEMO_LISTS).toEqual(listsSnapshot);
     expect(store.getList("demo-list-space-nerd")).toEqual(other);

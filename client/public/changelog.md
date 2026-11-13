@@ -3,6 +3,7 @@
 - Added a demo at /demo that runs on sample channels, videos and lists, with no login and no requests to the YT Catchup API, videos still stream from YouTube
 - Added a Try the demo button next to Login on the home page for logged out visitors
 - Fixed channel names and ids being centered instead of left aligned on the Settings channels page
+- Changed demo channels to use realistic channel ids
 
 ## 2026-09-01
 

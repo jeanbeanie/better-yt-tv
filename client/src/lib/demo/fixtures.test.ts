@@ -1,11 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { DEMO_CHANNELS, DEMO_LISTS, DEMO_VIDEOS } from "./fixtures";
+import { DEMO_CHANNEL_IDS, DEMO_CHANNELS, DEMO_LISTS, DEMO_VIDEOS } from "./fixtures";
 
 describe("demo fixtures", () => {
   it("has 11 unique channels", () => {
     expect(DEMO_CHANNELS).toHaveLength(11);
     const ids = new Set(DEMO_CHANNELS.map((c) => c.channelId));
     expect(ids.size).toBe(DEMO_CHANNELS.length);
+  });
+
+  it("gives every channel a production shaped id", () => {
+    for (const c of DEMO_CHANNELS) {
+      expect(c.channelId).toMatch(/^UC[A-Za-z0-9_-]{22}$/);
+    }
   });
 
   it("has more than 50 unique videos", () => {
@@ -105,9 +111,9 @@ describe("demo list fixtures", () => {
     expect([...counts.values()].some((n) => n >= 2)).toBe(true);
   });
 
-  it("leaves demo-blender out of every list", () => {
+  it("leaves Blender out of every list", () => {
     for (const l of DEMO_LISTS) {
-      expect(l.channelIds).not.toContain("demo-blender");
+      expect(l.channelIds).not.toContain(DEMO_CHANNEL_IDS.blender);
     }
   });
 });
