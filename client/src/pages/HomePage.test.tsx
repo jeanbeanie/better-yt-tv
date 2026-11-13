@@ -132,11 +132,19 @@ describe("HomePage", () => {
     expect(screen.queryByRole("link", { name: "Try the demo" })).not.toBeInTheDocument();
   });
 
-  it("hides Try the demo while loading", () => {
+  it("hides Try the demo while loading with or without an invite code", () => {
     vi.mocked(hasInviteCode).mockReturnValue(true);
 
+    const { unmount } = renderHomePage({ loading: true });
+
+    expect(screen.getByText(/loading user/i)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Try the demo" })).not.toBeInTheDocument();
+    unmount();
+
+    vi.mocked(hasInviteCode).mockReturnValue(false);
     renderHomePage({ loading: true });
 
+    expect(screen.getByText(/loading user/i)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Try the demo" })).not.toBeInTheDocument();
   });
 
