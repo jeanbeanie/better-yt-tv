@@ -1,4 +1,5 @@
 import type { ChannelPatch } from "./store";
+import { DEMO_SYNC_DELAY_MS, demoLatency } from "./latency";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -59,7 +60,9 @@ async function getChannels(): Promise<Response> {
 }
 
 // no network, count comes from the store and matches the fixtures
+// waits first so the busy state shows
 async function syncSubscriptions(): Promise<Response> {
+  await demoLatency(DEMO_SYNC_DELAY_MS);
   const { getDemoStore } = await import("./store");
   return json({ ok: true, syncedCount: getDemoStore().getChannels().length });
 }

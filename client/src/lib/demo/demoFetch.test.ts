@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { demoFetch } from "./demoFetch";
 import { resetDemoStore } from "./store";
 import { DEMO_CHANNEL_IDS, DEMO_CHANNELS } from "./fixtures";
+import { DEMO_SYNC_DELAY_MS } from "./latency";
 import {
   bulkUpdateChannels,
   createList,
@@ -67,11 +68,17 @@ const listsPath = "http://localhost:5179/api/lists";
 const postList = (body?: string) => demoFetch(listsPath, { method: "POST", body });
 const putList = (id: string, body?: string) => demoFetch(listPath(id), { method: "PUT", body });
 
+// settles a latency delayed demo call without waiting real time
+async function afterLatency<T>(pending: Promise<T>, ms: number): Promise<T> {
+  await vi.advanceTimersByTimeAsync(ms);
+  return pending;
+}
+
 describe("demoFetch", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     resetDemoStore();
-    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout"] });
     vi.setSystemTime(NOW);
   });
 
@@ -296,12 +303,36 @@ describe("demoFetch", () => {
   });
 
   it("serves POST /api/youtube/sync-subscriptions with the fixture channel count", async () => {
-    const resp = await demoFetch("http://localhost:5179/api/youtube/sync-subscriptions", {
-      method: "POST",
-    });
+    const resp = await afterLatency(
+      demoFetch("http://localhost:5179/api/youtube/sync-subscriptions", {
+        method: "POST",
+      }),
+      DEMO_SYNC_DELAY_MS,
+    );
 
     expect(resp.status).toBe(200);
     expect(await resp.json()).toEqual({ ok: true, syncedCount: 11 });
+  });
+
+  it("holds POST /api/youtube/sync-subscriptions for DEMO_SYNC_DELAY_MS", async () => {
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    let settled = false;
+    const pending = demoFetch("http://localhost:5179/api/youtube/sync-subscriptions", {
+      method: "POST",
+    }).then((resp) => {
+      settled = true;
+      return resp;
+    });
+
+    await vi.advanceTimersByTimeAsync(DEMO_SYNC_DELAY_MS - 1);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+
+    const resp = await pending;
+    expect(resp.status).toBe(200);
+    expect(await resp.json()).toEqual({ ok: true, syncedCount: 11 });
+    expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 
   it("returns 404 for POST /api/channels and GET /api/youtube/sync-subscriptions", async () => {
@@ -319,7 +350,7 @@ describe("demoFetch", () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     await demoFetch("http://localhost:5179/api/channels", { method: "GET" });
-    await demoFetch("http://localhost:5179/api/youtube/sync-subscriptions", { method: "POST" });
+    await afterLatency(demoFetch("http://localhost:5179/api/youtube/sync-subscriptions", { method: "POST" }), DEMO_SYNC_DELAY_MS);
 
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
@@ -331,7 +362,7 @@ describe("demoFetch", () => {
 
     try {
       const { channels } = await getChannels();
-      const sync = await syncSubscriptions();
+      const sync = await afterLatency(syncSubscriptions(), DEMO_SYNC_DELAY_MS);
 
       expect(channels).toHaveLength(11);
       expect(sync).toEqual({ ok: true, syncedCount: 11 });
@@ -339,6 +370,19 @@ describe("demoFetch", () => {
     } finally {
       window.history.pushState({}, "", "/");
     }
+  });
+
+  it("does not delay routes other than sync", async () => {
+    const channels = await demoFetch("http://localhost:5179/api/channels", { method: "GET" });
+    const feed = await demoFetch("http://localhost:5179/api/feed/all", { method: "GET" });
+    const watch = await demoFetch(watchPath(WATCH_ID), { method: "POST" });
+    const patch = await patchChannel(DEMO_CHANNEL_IDS.nasa, JSON.stringify({ enabledAll: false }));
+    const lists = await demoFetch(listsPath, { method: "GET" });
+
+    expect([channels.status, feed.status, watch.status, patch.status, lists.status]).toEqual([
+      200, 200, 200, 200, 200,
+    ]);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("PATCHes a channel and reflects it in GET /api/channels and the feed", async () => {

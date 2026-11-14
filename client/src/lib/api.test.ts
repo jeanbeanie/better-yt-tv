@@ -13,6 +13,7 @@ import {
   saveInviteCode,
 } from "./api";
 import { DEMO_REFRESHED_CHANNELS, DEMO_CACHED_VIDEOS } from "./demo/demoRefresh";
+import { DEMO_SYNC_DELAY_MS, DEMO_REFRESH_DELAY_MS } from "./demo/latency";
 
 function mockFetchOnce(body: string, status: number) {
   globalThis.fetch = vi.fn().mockResolvedValue(new Response(body, { status })) as unknown as typeof fetch;
@@ -350,10 +351,12 @@ describe("getLoginUrl", () => {
 describe("demo mode", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
   });
 
   afterEach(() => {
     window.history.pushState({}, "", "/");
+    vi.useRealTimers();
   });
 
   function installLeakMock() {
@@ -368,7 +371,15 @@ describe("demo mode", () => {
 
     const watched = await markVideoWatched("v1");
     const unwatched = await markVideoUnwatched("v1");
-    const sync = await syncSubscriptions();
+    let settled = false;
+    const pending = syncSubscriptions();
+    void pending.then(() => {
+      settled = true;
+    });
+    await vi.advanceTimersByTimeAsync(DEMO_SYNC_DELAY_MS - 1);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    const sync = await pending;
     const appSettingsErr = await getAppSettings().catch((err) => err);
 
     expect(watched).toEqual({ ok: true });
@@ -383,7 +394,15 @@ describe("demo mode", () => {
     window.history.pushState({}, "", "/demo/all");
     const fetchMock = installLeakMock();
 
-    const result = await refreshAllCache({ manual: true });
+    let settled = false;
+    const pending = refreshAllCache({ manual: true });
+    void pending.then(() => {
+      settled = true;
+    });
+    await vi.advanceTimersByTimeAsync(DEMO_REFRESH_DELAY_MS - 1);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    const result = await pending;
 
     expect(result).toEqual({
       ok: true,
@@ -413,6 +432,7 @@ describe("demo mode", () => {
     });
     expect(fetchMock).toHaveBeenCalledTimes(0);
     expect(window.localStorage.getItem("betterYtTv.lastAutoRefreshAt")).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("a demo refresh leaves no cooldown behind for the real app", async () => {

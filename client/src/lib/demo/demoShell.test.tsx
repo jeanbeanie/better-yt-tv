@@ -6,6 +6,12 @@ import AppRoot from "../../AppRoot";
 import { getRouterBasename, isDemoMode } from "./mode";
 import { resetDemoStore } from "./store";
 
+// the delays themselves are covered in demoFetch and demoRefresh tests
+vi.mock("./latency", async () => {
+  const actual = await vi.importActual<typeof import("./latency")>("./latency");
+  return { ...actual, demoLatency: () => Promise.resolve() };
+});
+
 // first visible fixture title, shown in the player and the queue on /demo/all
 const FEED_FIRST_TITLE = "What's New in Blender 5.3! Official Overview";
 // second channel's newest video, shown on /demo/all once Blender is off
