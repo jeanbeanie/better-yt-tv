@@ -1,11 +1,14 @@
 import type { RefreshAllCacheResult } from "../api";
+import { DEMO_REFRESH_DELAY_MS, demoLatency } from "./latency";
 
 // canned counts for the demo refresh result
 export const DEMO_REFRESHED_CHANNELS = 11;
 export const DEMO_CACHED_VIDEOS = 60;
 
-export function demoRefreshResult(manual: boolean): RefreshAllCacheResult {
+export async function demoRefreshResult(manual: boolean): Promise<RefreshAllCacheResult> {
   if (manual) {
+    // manual only, background refresh stays instant
+    await demoLatency(DEMO_REFRESH_DELAY_MS);
     return {
       ok: true,
       refreshPaused: false,
