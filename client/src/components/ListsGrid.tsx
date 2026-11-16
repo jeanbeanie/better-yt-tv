@@ -109,8 +109,11 @@ function ListCard({ list }: ListCardProps) {
       <div className="list-card-channels">
         {channels.length > 0 && (
           <span className="list-card-avatars" aria-hidden="true">
-            {channels.slice(0, MAX_AVATARS).map((channel) => (
-              <span key={channel.channelId} className="list-card-avatar">
+            {channels.slice(0, MAX_AVATARS).map((channel, index) => (
+              <span
+                key={channel.channelId}
+                className={`list-card-avatar list-card-avatar-color-${(index % 3) + 1}`}
+              >
                 <Thumbnail
                   src={channel.thumbUrl}
                   alt=""
@@ -139,7 +142,7 @@ function ListCard({ list }: ListCardProps) {
           <FeaturedThumb video={featuredVideo} />
         </Link>
       ) : (
-        <div className="list-card-thumb" />
+        <div className="list-card-thumb list-card-thumb-empty" />
       )}
 
       <p className="list-card-caption">

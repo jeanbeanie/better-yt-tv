@@ -311,6 +311,27 @@ describe("ListsGrid", () => {
       expect(within(card).getByText("1 channel")).toBeInTheDocument();
     });
 
+    it("colors fallback avatars by position in the card", async () => {
+      const channels = ["Alpha", "Beta", "Gamma", "Delta"].map((title, i) => ({
+        channelId: `c${i}`,
+        title,
+        thumbUrl: null,
+      }));
+      await renderWithLists([{ ...UNWATCHED_NEXT, channels }]);
+
+      const card = screen.getByRole("listitem");
+      const avatars = card.querySelectorAll(".list-card-avatar");
+      expect(avatars).toHaveLength(4);
+      expect(avatars[0]).toHaveClass("list-card-avatar-color-1");
+      expect(avatars[1]).toHaveClass("list-card-avatar-color-2");
+      expect(avatars[2]).toHaveClass("list-card-avatar-color-3");
+      expect(avatars[3]).toHaveClass("list-card-avatar-color-1");
+      expect(avatars[0]).toHaveTextContent("A");
+      expect(avatars[1]).toHaveTextContent("B");
+      expect(avatars[2]).toHaveTextContent("G");
+      expect(avatars[3]).toHaveTextContent("D");
+    });
+
     it("shows the placeholder with the play overlay when the video has no thumbnail", async () => {
       await renderWithLists([
         { ...UNWATCHED_NEXT, featuredVideo: { ...NEXT_VIDEO, thumbUrl: null } },
