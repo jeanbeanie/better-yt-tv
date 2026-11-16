@@ -126,6 +126,38 @@ async function getListFeed({ url, params }: RouteContext): Promise<Response> {
   return json(feed);
 }
 
+// mirrors parseResumeHints in server/src/routes/lists.ts
+// demo list ids are slugs, so the id check only needs a non empty slug
+const DEMO_LIST_ID_RE = /^[A-Za-z0-9-]+$/;
+const RESUME_VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+const SUMMARY_RESUME_LIMIT = 100;
+
+function parseResumeHints(raw: string | undefined): Map<string, string> {
+  const hints = new Map<string, string>();
+  if (raw === undefined) return hints;
+
+  for (const entry of raw.split(",").slice(0, SUMMARY_RESUME_LIMIT)) {
+    const parts = entry.split(":");
+    if (parts.length !== 2) continue;
+
+    const [listId, videoId] = parts;
+    if (!DEMO_LIST_ID_RE.test(listId) || !RESUME_VIDEO_ID_RE.test(videoId)) continue;
+
+    hints.set(listId.toLowerCase(), videoId);
+  }
+
+  return hints;
+}
+
+// dynamic import, same chunk split as getFeedAll
+// a repeated resume key becomes an array on the server, so it is ignored
+async function getListsSummary({ url }: RouteContext): Promise<Response> {
+  const { getDemoStore } = await import("./store");
+  const values = url.searchParams.getAll("resume");
+  const hints = parseResumeHints(values.length === 1 ? values[0] : undefined);
+  return json({ lists: getDemoStore().getListsSummary(hints) });
+}
+
 // list name rules, same messages and order as the server
 const LIST_NAME_MAX_LENGTH = 100;
 
@@ -192,6 +224,8 @@ const routes: Route[] = [
   { method: "POST", pattern: compilePattern("/api/feed/videos/:videoId/unwatch"), handle: markUnwatched },
   { method: "GET", pattern: compilePattern("/api/channels"), handle: getChannels },
   { method: "GET", pattern: compilePattern("/api/lists"), handle: getLists },
+  // must stay above /api/lists/:listId, first match wins
+  { method: "GET", pattern: compilePattern("/api/lists/summary"), handle: getListsSummary },
   { method: "GET", pattern: compilePattern("/api/lists/:listId"), handle: getList },
   { method: "GET", pattern: compilePattern("/api/feed/lists/:listId"), handle: getListFeed },
   { method: "POST", pattern: compilePattern("/api/lists"), handle: createList },

@@ -1091,3 +1091,186 @@ describe("demo store lists", () => {
     return result.list;
   }
 });
+
+describe("demo store list summaries", () => {
+  const SPACE_NERD = "demo-list-space-nerd";
+  const DEV_TALK = "demo-list-dev-talk";
+  const ALL_CHANNEL_IDS = DEMO_CHANNELS.map((c) => c.channelId);
+
+  // a list holding every fixture channel, so its queue runs past one page
+  function allChannelsListId(store: DemoStore): string {
+    const { id } = store.createList("Everything")!;
+    store.saveList(id, "Everything", ALL_CHANNEL_IDS);
+    return id;
+  }
+
+  function cardFor(store: DemoStore, listId: string, saved = new Map<string, string>()) {
+    const card = store.getListsSummary(saved).find((list) => list.id === listId);
+    if (!card) throw new Error(`no summary card for ${listId}`);
+    return card;
+  }
+
+  it("counts the non watched items of the full feed for every demo list", () => {
+    const store = createDemoStore(NOW);
+    store.setWatched(store.getListFeed(SPACE_NERD, ALL)!.items[0].video_id);
+
+    const cards = store.getListsSummary(new Map());
+    expect(cards).toHaveLength(store.getLists().length);
+    for (const card of cards) {
+      const items = store.getListFeed(card.id, ALL)!.items;
+      expect(card.videoCount).toBe(items.length);
+      expect(card.unwatchedCount).toBe(items.filter((item) => !item.is_watched).length);
+    }
+  });
+
+  it("counts every video in a list whose queue runs past one page", () => {
+    const store = createDemoStore(NOW);
+    const listId = allChannelsListId(store);
+    const items = store.getListFeed(listId, ALL)!.items;
+    expect(items.length).toBeGreaterThan(FEED_PAGE_SIZE);
+    store.setWatched(items[0].video_id);
+
+    const card = cardFor(store, listId);
+    expect(card.videoCount).toBe(items.length);
+    expect(card.unwatchedCount).toBe(items.length - 1);
+  });
+
+  it("lowers the unwatched count when a queue video is watched", () => {
+    const store = createDemoStore(NOW);
+    const before = cardFor(store, SPACE_NERD);
+
+    store.setWatched(store.getListFeed(SPACE_NERD, ALL)!.items[0].video_id);
+
+    const after = cardFor(store, SPACE_NERD);
+    expect(after.unwatchedCount).toBe(before.unwatchedCount - 1);
+    expect(after.videoCount).toBe(before.videoCount);
+  });
+
+  it("features the first queue item when nothing is saved", () => {
+    const store = createDemoStore(NOW);
+    const first = store.getListFeed(SPACE_NERD, ALL)!.items[0];
+
+    expect(cardFor(store, SPACE_NERD).featuredVideo).toEqual({
+      videoId: first.video_id,
+      title: first.title,
+      thumbUrl: first.thumb_url,
+      kind: "next",
+    });
+  });
+
+  it("features the saved video when it sits inside the first page", () => {
+    const store = createDemoStore(NOW);
+    const listId = allChannelsListId(store);
+    const saved = store.getListFeed(listId, ALL)!.items[FEED_PAGE_SIZE - 1];
+
+    expect(cardFor(store, listId, new Map([[listId, saved.video_id]])).featuredVideo).toEqual({
+      videoId: saved.video_id,
+      title: saved.title,
+      thumbUrl: saved.thumb_url,
+      kind: "resume",
+    });
+  });
+
+  it("ignores a saved video past the first page and features the first item", () => {
+    const store = createDemoStore(NOW);
+    const listId = allChannelsListId(store);
+    const items = store.getListFeed(listId, ALL)!.items;
+
+    const card = cardFor(store, listId, new Map([[listId, items[FEED_PAGE_SIZE].video_id]]));
+    expect(card.featuredVideo?.videoId).toBe(items[0].video_id);
+    expect(card.featuredVideo?.kind).toBe("next");
+  });
+
+  it("skips watched items on the first page when featuring the next video", () => {
+    const store = createDemoStore(NOW);
+    const listId = allChannelsListId(store);
+    const items = store.getListFeed(listId, ALL)!.items;
+    store.setWatched(items[0].video_id);
+
+    const card = cardFor(store, listId);
+    expect(card.featuredVideo?.videoId).toBe(items[1].video_id);
+    expect(card.featuredVideo?.kind).toBe("next");
+  });
+
+  it("gives next when the saved video is not in the list", () => {
+    const store = createDemoStore(NOW);
+    const devFirst = store.getListFeed(DEV_TALK, ALL)!.items[0];
+    const spaceFirst = store.getListFeed(SPACE_NERD, ALL)!.items[0];
+
+    const card = cardFor(store, DEV_TALK, new Map([[DEV_TALK, spaceFirst.video_id]]));
+    expect(card.featuredVideo?.videoId).toBe(devFirst.video_id);
+    expect(card.featuredVideo?.kind).toBe("next");
+  });
+
+  it("ignores saved hints for ids that are not in the store", () => {
+    const store = createDemoStore(NOW);
+    const spaceFirst = store.getListFeed(SPACE_NERD, ALL)!.items[0];
+
+    expect(store.getListsSummary(new Map([["demo-list-nope", spaceFirst.video_id]]))).toEqual(
+      store.getListsSummary(new Map()),
+    );
+  });
+
+  it("gives no videos shape with null featured for a created empty list", () => {
+    const store = createDemoStore(NOW);
+    const { id } = store.createList("Fresh")!;
+
+    const someVideo = store.getListFeed(SPACE_NERD, ALL)!.items[0].video_id;
+    expect(cardFor(store, id, new Map([[id, someVideo]]))).toEqual({
+      id,
+      name: "Fresh",
+      channels: [],
+      videoCount: 0,
+      unwatchedCount: 0,
+      featuredVideo: null,
+    });
+  });
+
+  // empty list first in store order, then caught up, then unwatched
+  function tierStore(): DemoStore {
+    return createDemoStore(NOW, {
+      lists: [
+        { listId: "tier-empty", name: "Empty", channelIds: [] },
+        { listId: "tier-caught", name: "Caught", channelIds: [DEMO_CHANNEL_IDS.nasa] },
+        { listId: "tier-unwatched", name: "Unwatched", channelIds: [DEMO_CHANNEL_IDS.blender] },
+      ],
+    });
+  }
+
+  it("orders unwatched lists first, caught up lists next and empty lists last", () => {
+    const store = tierStore();
+    const caughtItems = store.getListFeed("tier-caught", ALL)!.items;
+    expect(caughtItems.length).toBeGreaterThan(0);
+    caughtItems.forEach((item) => store.setWatched(item.video_id));
+
+    expect(store.getListsSummary(new Map()).map((list) => list.id)).toEqual([
+      "tier-unwatched",
+      "tier-caught",
+      "tier-empty",
+    ]);
+  });
+
+  it("keeps store order for lists in the same tier", () => {
+    const store = createDemoStore(NOW, {
+      lists: [
+        { listId: "tie-first", name: "First", channelIds: [] },
+        { listId: "tie-second", name: "Second", channelIds: [] },
+      ],
+    });
+
+    expect(store.getListsSummary(new Map()).map((list) => list.id)).toEqual(["tie-first", "tie-second"]);
+  });
+
+  it("returns at most six lists, dropping the last ones in store order", () => {
+    const store = createDemoStore(NOW);
+    const extras = ["Extra one", "Extra two", "Extra three", "Extra four"].map(
+      (name) => store.createList(name)!.id,
+    );
+
+    expect(store.getLists()).toHaveLength(7);
+    const ids = store.getListsSummary(new Map()).map((list) => list.id);
+    expect(ids).toHaveLength(6);
+    expect(ids).toEqual(expect.arrayContaining(extras.slice(0, 3)));
+    expect(ids).not.toContain(extras[3]);
+  });
+});

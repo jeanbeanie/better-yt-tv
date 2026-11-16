@@ -382,10 +382,12 @@ describe("demo mode", () => {
     await vi.advanceTimersByTimeAsync(1);
     const sync = await pending;
     const appSettingsErr = await getAppSettings().catch((err) => err);
+    const summary = await getListsSummary();
 
     expect(watched).toEqual({ ok: true });
     expect(unwatched).toEqual({ ok: true });
     expect(sync).toEqual({ ok: true, syncedCount: 11 });
+    expect(summary.lists).toHaveLength(3);
     expect(appSettingsErr).toBeInstanceOf(ApiError);
     expect(appSettingsErr).toMatchObject({ message: "Not found", status: 404 });
     expect(fetchMock).toHaveBeenCalledTimes(0);

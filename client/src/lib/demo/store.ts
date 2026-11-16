@@ -1,8 +1,11 @@
-import type { Channel, FeedItem, ListChannel, ListDetail, ListSummary } from "../api";
+import type { Channel, FeedItem, ListCardSummary, ListCardVideo, ListChannel, ListDetail, ListSummary } from "../api";
 import { DEMO_CHANNELS, DEMO_LISTS, DEMO_VIDEOS, type DemoList, type DemoVideo } from "./fixtures";
+import { FEED_PAGE_SIZE } from "../feedPageSize";
 
 const HOUR_MS = 60 * 60 * 1000;
 const SHORTS_MAX_SECONDS = 60;
+// home page cards, same cap as SUMMARY_LIST_LIMIT in server/src/routes/lists.ts
+const SUMMARY_LIST_LIMIT = 6;
 
 // title order like the server's order by channel_title, en-US collation
 const titleCollator = new Intl.Collator("en-US");
@@ -43,6 +46,7 @@ export type DemoStore = {
   createList(name: string): Omit<ListDetail, "channels"> | null;
   deleteList(listId: string): boolean;
   saveList(listId: string, name: string, channelIds: string[]): SaveListResult;
+  getListsSummary(saved: Map<string, string>): ListCardSummary[];
 };
 
 // input sorted published_at desc, the channel with the newest video comes out first
@@ -70,6 +74,45 @@ function applyBooleanFields(channel: Channel, patch: ChannelPatch): void {
   if (typeof patch.enabledAll === "boolean") channel.enabledAll = patch.enabledAll;
   if (typeof patch.enabledLive === "boolean") channel.enabledLive = patch.enabledLive;
   if (typeof patch.excludedShorts === "boolean") channel.excludedShorts = patch.excludedShorts;
+}
+
+type SummaryCandidate = {
+  listId: string;
+  queue: FeedItem[];
+  videoCount: number;
+  unwatchedCount: number;
+};
+
+// unwatched first, then caught up, then no videos
+function summaryTier(list: SummaryCandidate): number {
+  if (list.unwatchedCount > 0) return 0;
+  if (list.videoCount > 0) return 1;
+  return 2;
+}
+
+// returns a sorted copy, equal entries keep the store order
+// source of the rule is orderSummaryLists in server/src/routes/lists.ts
+// demo lists share one timestamp, so the server's updated and created ties fall to store order
+function orderSummaryLists(lists: SummaryCandidate[]): SummaryCandidate[] {
+  return [...lists].sort(
+    (a, b) => summaryTier(a) - summaryTier(b) || b.unwatchedCount - a.unwatchedCount,
+  );
+}
+
+function toCardVideo(item: FeedItem, kind: ListCardVideo["kind"]): ListCardVideo {
+  return { videoId: item.video_id, title: item.title, thumbUrl: item.thumb_url, kind };
+}
+
+// first page of the queue, mirrors pickFeaturedVideo in server/src/routes/lists.ts
+function pickFeaturedVideo(queue: FeedItem[], savedVideoId: string | undefined): ListCardVideo | null {
+  const firstPage = queue.slice(0, FEED_PAGE_SIZE);
+  const saved = savedVideoId ? firstPage.find((item) => item.video_id === savedVideoId) : undefined;
+  if (saved) return toCardVideo(saved, "resume");
+
+  if (queue.length === 0) return null;
+
+  // first unwatched on that page, else the first item, same fallback as FeedView
+  return toCardVideo(firstPage.find((item) => !item.is_watched) ?? queue[0], "next");
 }
 
 // now is a Date or epoch ms
@@ -228,6 +271,34 @@ export function createDemoStore(now: Date | number, overrides: DemoStoreOverride
     };
   }
 
+  // mirrors GET /api/lists/summary, the rules live in server/src/routes/lists.ts
+  function getListsSummary(saved: Map<string, string>): ListCardSummary[] {
+    const candidates = [...lists.keys()].map((listId): SummaryCandidate => {
+      // every video, not one page
+      const queue = getListFeed(listId, { offset: 0, limit: Number.MAX_SAFE_INTEGER })!.items;
+      return {
+        listId,
+        queue,
+        videoCount: queue.length,
+        unwatchedCount: queue.filter((item) => !item.is_watched).length,
+      };
+    });
+
+    return orderSummaryLists(candidates)
+      .slice(0, SUMMARY_LIST_LIMIT)
+      .map((list) => {
+        const detail = getList(list.listId)!;
+        return {
+          id: list.listId,
+          name: detail.name,
+          channels: detail.channels,
+          videoCount: list.videoCount,
+          unwatchedCount: list.unwatchedCount,
+          featuredVideo: pickFeaturedVideo(list.queue, saved.get(list.listId)),
+        };
+      });
+  }
+
   // null when the exact name is taken, the caller trims and validates
   function createList(name: string): Omit<ListDetail, "channels"> | null {
     for (const list of lists.values()) {
@@ -266,6 +337,7 @@ export function createDemoStore(now: Date | number, overrides: DemoStoreOverride
     getLists,
     getList,
     getListFeed,
+    getListsSummary,
     createList,
     deleteList,
     saveList,
