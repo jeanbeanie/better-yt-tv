@@ -48,11 +48,13 @@ function TryDemoButton() {
 export default function HomePage(props:homePageProps) {
   const {user, error, loading} = props;
   const canLogin = hasInviteCode();
+  const showLists = !loading && Boolean(user);
 
   return (
     <main>
       <h1>YT Catchup</h1>
-      <div style={{ margin: "3rem 0 4rem" }}>
+      {/* 1rem bottom margin when the lists section follows, 4rem otherwise sets the footer gap */}
+      <div style={{ margin: showLists ? "3rem 0 1rem" : "3rem 0 4rem" }}>
         <p style={{ fontSize: "1.5rem", fontWeight: 600, color: "var(--text-h)" }}>
           The subscriptions feed, fixed.
         </p>
@@ -121,7 +123,7 @@ export default function HomePage(props:homePageProps) {
         )}
       </div>
 
-      {!loading && user && <ListsGrid />}
+      {showLists && <ListsGrid />}
     </main>
   );
 }
