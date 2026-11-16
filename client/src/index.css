@@ -571,7 +571,8 @@ p {
   padding: 0.125rem 0.5rem;
   border-radius: 999px;
   background: var(--accent-bg);
-  color: var(--accent);
+  /* darker purple in light theme for 4.5:1 on the tinted fill over the card */
+  color: light-dark(#7a1fd1, var(--accent));
   font-size: 0.75rem;
   white-space: nowrap;
 }
