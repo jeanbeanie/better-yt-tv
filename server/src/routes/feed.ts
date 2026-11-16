@@ -42,6 +42,88 @@ function parsePagination(query: express.Request["query"]) {
   return { offset, limit: Math.min(limit, 200) };
 }
 
+export type ListFeedRow = {
+  video_id: string;
+  channel_id: string;
+  channel_title: string;
+  title: string;
+  published_at: Date | string;
+  thumb_url: string | null;
+  watched_at: Date | string | null;
+  is_watched: boolean;
+};
+
+// list feed rows for one or more lists, shared with GET /api/lists/summary
+export async function fetchListFeedRowsByList(
+  userId: string,
+  listIds: string[],
+): Promise<Map<string, ListFeedRow[]>> {
+  // Join list_channels -> user_subscriptions (not straight to videos_cache)
+  // so a channel the user has since unsubscribed from silently drops out,
+  // same mechanism as fetchListDetail() in lists.ts
+  const result = await pool.query<ListFeedRow & { list_id: string }>(
+    `
+    select
+      lc.list_id,
+      v.video_id,
+      v.channel_id,
+      us.channel_title,
+      v.title,
+      v.published_at,
+      v.thumb_url,
+      uvs.watched_at,
+      (uvs.watched_at is not null) as is_watched
+    from list_channels lc
+    join lists l
+      on l.id = lc.list_id
+     and l.user_id = $1
+    join user_subscriptions us
+      on us.user_id = l.user_id
+     and us.channel_id = lc.channel_id
+    left join channel_preferences cp
+      on cp.user_id = us.user_id
+     and cp.channel_id = us.channel_id
+    join videos_cache v
+      on v.channel_id = lc.channel_id
+    left join user_video_state uvs
+      on uvs.user_id = l.user_id
+     and uvs.video_id = v.video_id
+    where lc.list_id = any($2::uuid[])
+      -- same upcoming stream exclusion as GET /all
+      and coalesce(v.live_broadcast_content, 'none') <> 'upcoming'
+      and (
+        -- If Shorts are allowed for this channel (or preferences are
+        -- missing entirely, fail open rather than silently excluding),
+        -- include all videos, enabled_all is deliberately never
+        -- referenced here, list feeds ignore it by design
+        coalesce(cp.excluded_shorts, false) = false
+
+        -- If duration is unknown, keep the video for now rather than
+        -- risk hiding a normal upload before metadata hydration completes
+        or v.duration_seconds is null
+
+        -- If duration is known and greater than 60 seconds,
+        -- treat it as NOT a short, and include it
+        or v.duration_seconds > 60
+      )
+    order by v.published_at desc
+    `,
+    [userId, listIds],
+  );
+
+  const rowsByList = new Map<string, ListFeedRow[]>();
+  for (const row of result.rows) {
+    const { list_id: listId, ...item } = row;
+    const bucket = rowsByList.get(listId);
+    if (bucket) {
+      bucket.push(item);
+    } else {
+      rowsByList.set(listId, [item]);
+    }
+  }
+  return rowsByList;
+}
+
 // Used by GET /all, filtered by the enabled_all preference plus excluded_shorts.
 // preferenceColumn is interpolated directly (not a $N placeholder) since
 // it's a code controlled literal, never user input
@@ -229,59 +311,9 @@ feedRouter.get("/lists/:listId", requireAuth, async (req, res, next) => {
       return res.status(404).json({ error: "List not found" });
     }
 
-    // Join list_channels -> user_subscriptions (not straight to videos_cache)
-    // so a channel the user has since unsubscribed from silently drops out,
-    // same mechanism as fetchListDetail() in lists.ts
-    const result = await pool.query(
-      `
-      select
-        v.video_id,
-        v.channel_id,
-        us.channel_title,
-        v.title,
-        v.published_at,
-        v.thumb_url,
-        uvs.watched_at,
-        (uvs.watched_at is not null) as is_watched
-      from list_channels lc
-      join lists l
-        on l.id = lc.list_id
-       and l.user_id = $1
-      join user_subscriptions us
-        on us.user_id = l.user_id
-       and us.channel_id = lc.channel_id
-      left join channel_preferences cp
-        on cp.user_id = us.user_id
-       and cp.channel_id = us.channel_id
-      join videos_cache v
-        on v.channel_id = lc.channel_id
-      left join user_video_state uvs
-        on uvs.user_id = l.user_id
-       and uvs.video_id = v.video_id
-      where lc.list_id = $2
-        -- same upcoming stream exclusion as GET /all
-        and coalesce(v.live_broadcast_content, 'none') <> 'upcoming'
-        and (
-          -- If Shorts are allowed for this channel (or preferences are
-          -- missing entirely, fail open rather than silently excluding),
-          -- include all videos, enabled_all is deliberately never
-          -- referenced here, list feeds ignore it by design
-          coalesce(cp.excluded_shorts, false) = false
-
-          -- If duration is unknown, keep the video for now rather than
-          -- risk hiding a normal upload before metadata hydration completes
-          or v.duration_seconds is null
-
-          -- If duration is known and greater than 60 seconds,
-          -- treat it as NOT a short, and include it
-          or v.duration_seconds > 60
-        )
-      order by v.published_at desc
-      `,
-      [userId, listId],
-    );
-
-    const ordered = applyRoundRobin(result.rows);
+    const list = listResult.rows[0];
+    const rowsByList = await fetchListFeedRowsByList(userId, [list.id]);
+    const ordered = applyRoundRobin(rowsByList.get(list.id) ?? []);
     const items = ordered.slice(offset, offset + limit);
     const hasMore = offset + limit < ordered.length;
 
