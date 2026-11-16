@@ -639,11 +639,6 @@ p {
   background: var(--code-bg);
 }
 
-.list-card-thumb-empty {
-  box-sizing: border-box;
-  border: 1px solid var(--border);
-}
-
 .list-card-thumb img {
   display: block;
   width: 100%;
@@ -655,7 +650,8 @@ p {
   display: block;
   width: 100%;
   height: 100%;
-  background: var(--bg);
+  /* fixed dark fill, the play circle needs a dark backdrop in both themes */
+  background: #16171d;
 }
 
 .list-card-thumb-play::after {

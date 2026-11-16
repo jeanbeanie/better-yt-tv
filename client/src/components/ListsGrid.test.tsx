@@ -213,8 +213,11 @@ describe("ListsGrid", () => {
         within(card).getByText("No videos in list, add more channels to start watching!"),
       ).toBeInTheDocument();
       expect(card.querySelector(".list-card-thumb img")).toBeNull();
-      expect(card.querySelector(".list-card-thumb")?.tagName).toBe("DIV");
-      expect(card.querySelector("a.list-card-thumb")).toBeNull();
+      const thumb = card.querySelector("a.list-card-thumb-play");
+      expect(thumb).toHaveAttribute("href", "/settings/lists/l5");
+      expect(thumb).toHaveAttribute("aria-hidden", "true");
+      expect(thumb).toHaveAttribute("tabindex", "-1");
+      expect(thumb?.querySelector(".list-card-thumb-placeholder")).not.toBeNull();
       expect(within(card).getByRole("link", { name: "Edit list Empty" })).toHaveAttribute(
         "href",
         "/settings/lists/l5",
@@ -256,15 +259,17 @@ describe("ListsGrid", () => {
     });
 
     it("writes nothing for a no videos card", async () => {
+      window.localStorage.setItem("betterYtTv.selectedVideoId.list.l5", "vidOther001");
       await renderWithLists([NO_VIDEOS]);
       const user = userEvent.setup();
       const card = screen.getByRole("listitem");
 
+      await user.click(card.querySelector("a.list-card-thumb-play") as HTMLElement);
       await user.click(within(card).getByRole("link", { name: "Empty" }));
       await user.click(within(card).getByRole("link", { name: "Edit list Empty" }));
 
-      expect(window.localStorage.getItem("betterYtTv.selectedVideoId.list.l5")).toBeNull();
-      expect(window.localStorage.length).toBe(0);
+      expect(window.localStorage.getItem("betterYtTv.selectedVideoId.list.l5")).toBe("vidOther001");
+      expect(window.localStorage.length).toBe(1);
     });
 
     it("sends the saved video from storage on mount", async () => {
@@ -374,7 +379,7 @@ describe("ListsGrid", () => {
       expect(new Set(labels).size).toBe(labels.length);
 
       const thumbLinks = container.querySelectorAll("a.list-card-thumb");
-      expect(thumbLinks).toHaveLength(2);
+      expect(thumbLinks).toHaveLength(3);
       thumbLinks.forEach((link) => {
         expect(link).toHaveAttribute("aria-hidden", "true");
         expect(link).toHaveAttribute("tabindex", "-1");

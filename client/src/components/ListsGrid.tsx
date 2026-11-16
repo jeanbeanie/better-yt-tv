@@ -142,7 +142,14 @@ function ListCard({ list }: ListCardProps) {
           <FeaturedThumb video={featuredVideo} />
         </Link>
       ) : (
-        <div className="list-card-thumb list-card-thumb-empty" />
+        <Link
+          to={`/settings/lists/${id}`}
+          className="list-card-thumb list-card-thumb-play"
+          tabIndex={-1}
+          aria-hidden="true"
+        >
+          <span className="list-card-thumb-placeholder" />
+        </Link>
       )}
 
       <p className="list-card-caption">
