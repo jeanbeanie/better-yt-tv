@@ -9,6 +9,7 @@ import { useAuthRedirect } from "../lib/useAuthRedirect";
 import { readSavedListVideos, saveListVideo } from "../lib/listResume";
 import ErrorText from "./ErrorText";
 import MutedText from "./MutedText";
+import PlayIcon from "./PlayIcon";
 import Spinner from "./Spinner";
 import Thumbnail from "./Thumbnail";
 
@@ -165,19 +166,7 @@ function ListCard({ list }: ListCardProps) {
           className="button button-primary list-card-button"
           aria-label={`Watch ${name}`}
         >
-          <svg
-            aria-hidden="true"
-            focusable="false"
-            width="1em"
-            height="1em"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinejoin="round"
-          >
-            <path d="M7 4.5v15l12-7.5z" />
-          </svg>
+          <PlayIcon />
           Watch
         </Link>
       ) : (
