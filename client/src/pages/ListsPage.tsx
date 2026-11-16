@@ -16,9 +16,10 @@ import MutedText from "../components/MutedText";
 import Spinner from "../components/Spinner";
 import RefreshPausedNotice from "../components/RefreshPausedNotice";
 import { prefStorageKey } from "../lib/demo/prefStorageKey";
+import { FEED_PAGE_SIZE } from "../lib/feedPageSize";
 
 const SELECTED_LIST_STORAGE_KEY = "betterYtTv.selectedListId";
-const DEFAULT_LIMIT = 50;
+const DEFAULT_LIMIT = FEED_PAGE_SIZE;
 
 export default function ListsPage() {
   const [searchParams] = useSearchParams();

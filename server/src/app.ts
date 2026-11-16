@@ -66,6 +66,7 @@ export function createApp(clientDistPath: string = defaultClientDistPath) {
   app.use("/api/channels", channelsRouter);
 
   // - GET /api/lists
+  // - GET /api/lists/summary
   // - POST /api/lists
   // - GET /api/lists/:listId
   // - PUT /api/lists/:listId

@@ -12,8 +12,9 @@ import FeedView from "../components/FeedView";
 import ErrorText from "../components/ErrorText";
 import Spinner from "../components/Spinner";
 import RefreshPausedNotice from "../components/RefreshPausedNotice";
+import { FEED_PAGE_SIZE } from "../lib/feedPageSize";
 
-const DEFAULT_LIMIT = 50;
+const DEFAULT_LIMIT = FEED_PAGE_SIZE;
 
 export default function AllPage() {
   const [items, setItems] = useState<FeedItem[]>([]);

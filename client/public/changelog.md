@@ -1,3 +1,7 @@
+## 2026-11-16
+
+- Added a Your lists section to the home page when signed in: one card per list with its unwatched count, its channels and the video it will play, built from cached videos, with a Watch button that opens the list there
+
 ## 2026-11-13
 
 - Fixed channel ids being centered instead of left aligned on the Settings channels page

@@ -504,3 +504,190 @@ p {
   text-align: right;
 }
 
+/* home page Your lists cards */
+.lists-grid {
+  text-align: left;
+  margin: 0 auto 3rem;
+}
+
+.lists-grid-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.lists-grid-header h2 {
+  margin: 0;
+}
+
+.lists-grid-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: 1rem;
+}
+
+.list-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+  border-radius: 8px;
+}
+
+.list-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.list-card-name {
+  min-width: 0;
+  margin: 0;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.list-card-name a,
+.list-card-name a:visited,
+.list-card-name a:hover,
+.list-card-name a:focus,
+.list-card-name a:active {
+  color: var(--text-h);
+  text-decoration: none;
+}
+
+.list-card-badge {
+  flex-shrink: 0;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  /* darker purple in light theme for 4.5:1 on the tinted fill over the card */
+  color: light-dark(#7a1fd1, var(--accent));
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.list-card-channels {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.list-card-avatars {
+  display: flex;
+}
+
+.list-card-avatar {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 2px solid var(--code-bg);
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.list-card-avatar:not(:first-child) {
+  margin-left: -0.5rem;
+}
+
+/* fixed mid tones, same in both themes */
+.list-card-avatar-color-1 {
+  background: #6d46c1;
+}
+
+.list-card-avatar-color-2 {
+  background: #0f766e;
+}
+
+.list-card-avatar-color-3 {
+  background: #b45f06;
+}
+
+.list-card-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.list-card-avatar-letter {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.list-card-thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--code-bg);
+}
+
+.list-card-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.list-card-thumb-placeholder {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* fixed dark fill, the play circle needs a dark backdrop in both themes */
+  background: #16171d;
+}
+
+.list-card-thumb-play::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3rem;
+  height: 3rem;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background:
+    rgba(0, 0, 0, 0.6)
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white' width='28' height='28'%3E%3Cpath d='M8 5v14l11-7z'/%3E%3C/svg%3E")
+      no-repeat center / 1.25rem 1.25rem;
+}
+
+.list-card-caption {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.list-card-button {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding: 0.5rem 1rem;
+}
+

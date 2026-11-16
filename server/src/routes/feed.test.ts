@@ -22,7 +22,7 @@ vi.mock("../auth/requireAuth.js", () => ({
 }));
 
 const { pool } = await import("../db/pool.js");
-const { feedRouter, applyRoundRobin } = await import("./feed.js");
+const { feedRouter, applyRoundRobin, FEED_PAGE_SIZE } = await import("./feed.js");
 
 type Row = { channel_id: string; video_id: string };
 
@@ -79,6 +79,31 @@ describe("GET /api/feed/all", () => {
     expect(lastPage.body.hasMore).toBe(false);
   });
 
+  it("defaults to FEED_PAGE_SIZE items when no limit is given", async () => {
+    const rows = Array.from({ length: FEED_PAGE_SIZE + 10 }, (_, i) => ({
+      video_id: `v${i}`,
+      channel_id: "A",
+      channel_title: "A",
+      title: `v${i}`,
+      published_at: String(1000 - i),
+      thumb_url: null,
+      watched_at: null,
+      is_watched: false,
+    }));
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rows }));
+
+    const res = await request(buildApp()).get("/api/feed/all");
+
+    expect(res.status).toBe(200);
+    expect(res.body.items).toHaveLength(FEED_PAGE_SIZE);
+    expect(res.body.hasMore).toBe(true);
+  });
+
+  // literal pin, must match client/src/lib/feedPageSize.ts
+  it("pins FEED_PAGE_SIZE to 50", () => {
+    expect(FEED_PAGE_SIZE).toBe(50);
+  });
+
   // pool is mocked, so this guards the query text only, not the filtering result
   it("excludes upcoming streams in the feed query", async () => {
     mockedQuery(vi.mocked(pool.query)).mockResolvedValue(
@@ -105,7 +130,7 @@ function mockListLookup(rows: Row[]) {
         rowCount: 1,
       });
     }
-    return mockQueryResult({ rows });
+    return mockQueryResult({ rows: rows.map((r) => ({ ...r, list_id: LIST_ID })) });
   });
 }
 
@@ -137,6 +162,17 @@ describe("GET /api/feed/lists/:listId", () => {
     expect(secondPage.body.hasMore).toBe(true);
   });
 
+  it("defaults to FEED_PAGE_SIZE items when no limit is given", async () => {
+    const rows = Array.from({ length: FEED_PAGE_SIZE + 10 }, (_, i) => ({ channel_id: "A", video_id: `v${i}` }));
+    mockListLookup(rows);
+
+    const res = await request(buildApp()).get(`/api/feed/lists/${LIST_ID}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.items).toHaveLength(FEED_PAGE_SIZE);
+    expect(res.body.hasMore).toBe(true);
+  });
+
   // pool is mocked, so this guards the query text only, not the filtering result
   it("excludes upcoming streams in the feed query", async () => {
     mockListLookup(makeRows());
@@ -148,6 +184,47 @@ describe("GET /api/feed/lists/:listId", () => {
       .mocked(pool.query)
       .mock.calls.find(([sql]) => String(sql).includes("join videos_cache"));
     expect(String(feedCall?.[0])).toContain("coalesce(v.live_broadcast_content, 'none') <> 'upcoming'");
+  });
+
+  it("keeps the list feed item keys unchanged", async () => {
+    mockListLookup(makeRows());
+
+    const res = await request(buildApp()).get(`/api/feed/lists/${LIST_ID}`);
+
+    expect(res.status).toBe(200);
+    expect(Object.keys(res.body.items[0])).toEqual([
+      "video_id",
+      "channel_id",
+      "channel_title",
+      "title",
+      "published_at",
+      "thumb_url",
+      "watched_at",
+      "is_watched",
+    ]);
+  });
+
+  it("passes the list ids as one uuid array", async () => {
+    mockListLookup(makeRows());
+
+    const res = await request(buildApp()).get(`/api/feed/lists/${LIST_ID}`);
+
+    expect(res.status).toBe(200);
+    const feedCall = vi
+      .mocked(pool.query)
+      .mock.calls.find(([sql]) => String(sql).includes("join videos_cache"));
+    expect(feedCall?.[1]).toEqual(["test-user-id", [LIST_ID]]);
+    expect(String(feedCall?.[0])).toContain("any($2::uuid[])");
+  });
+
+  it("finds the list when the URL id is uppercase", async () => {
+    mockListLookup(makeRows());
+
+    const res = await request(buildApp()).get(`/api/feed/lists/${LIST_ID.toUpperCase()}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.list.id).toBe(LIST_ID);
+    expect(res.body.items.map((r: Row) => r.video_id)).toEqual(["a3", "b1", "c1", "a2", "a1"]);
   });
 
   // listId format must be checked after requireAuth, not via

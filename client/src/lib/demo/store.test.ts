@@ -10,6 +10,7 @@ import {
 } from "./store";
 import { DEMO_CHANNEL_IDS, DEMO_CHANNELS, DEMO_LISTS, DEMO_VIDEOS, type DemoList, type DemoVideo } from "./fixtures";
 import type { Channel, FeedItem, ListDetail } from "../api";
+import { FEED_PAGE_SIZE } from "../feedPageSize";
 
 const NOW = new Date("2026-11-11T12:00:00Z");
 const ALL = { offset: 0, limit: 200 };
@@ -177,10 +178,10 @@ describe("demo store pagination", () => {
   it("pages the default fixtures at 50 with hasMore set", () => {
     const store = createDemoStore(NOW);
 
-    const first = store.getAllFeed({ offset: 0, limit: 50 });
-    const second = store.getAllFeed({ offset: 50, limit: 50 });
+    const first = store.getAllFeed({ offset: 0, limit: FEED_PAGE_SIZE });
+    const second = store.getAllFeed({ offset: FEED_PAGE_SIZE, limit: FEED_PAGE_SIZE });
 
-    expect(first.items).toHaveLength(50);
+    expect(first.items).toHaveLength(FEED_PAGE_SIZE);
     expect(first.hasMore).toBe(true);
     // 3 of the 60 fixture videos are 45 or 46 seconds and hidden by the Shorts setting
     expect(second.items).toHaveLength(7);

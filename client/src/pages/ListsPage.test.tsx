@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import ListsPage from "./ListsPage";
 import { getLists, getListFeed, markVideoWatched, markVideoUnwatched, refreshAllCache } from "../lib/api";
+import { FEED_PAGE_SIZE } from "../lib/feedPageSize";
 
 vi.mock("../lib/api", () => ({
   getLists: vi.fn(),
@@ -96,7 +97,7 @@ describe("ListsPage", () => {
     renderPage();
 
     expect((await screen.findAllByText("First Video")).length).toBeGreaterThanOrEqual(1);
-    expect(getListFeed).toHaveBeenCalledWith("l1", { limit: 50 });
+    expect(getListFeed).toHaveBeenCalledWith("l1", { limit: FEED_PAGE_SIZE });
     expect(await screen.findByLabelText("Select list:")).toHaveValue("l1");
   });
 
@@ -134,7 +135,7 @@ describe("ListsPage", () => {
     // text can transiently match before getListFeed has even been called --
     // wait for the actual fetch first, which is the only unambiguous signal
     // that the right list was restored, before trusting what's on screen
-    await waitFor(() => expect(getListFeed).toHaveBeenCalledWith("l2", { limit: 50 }));
+    await waitFor(() => expect(getListFeed).toHaveBeenCalledWith("l2", { limit: FEED_PAGE_SIZE }));
     expect(
       await screen.findByText("No videos available for this list right now."),
     ).toBeInTheDocument();
@@ -154,7 +155,7 @@ describe("ListsPage", () => {
 
     // Same reasoning as the "restores from localStorage" test above: wait
     // for the real fetch before trusting the empty-state text on screen
-    await waitFor(() => expect(getListFeed).toHaveBeenCalledWith("l1", { limit: 50 }));
+    await waitFor(() => expect(getListFeed).toHaveBeenCalledWith("l1", { limit: FEED_PAGE_SIZE }));
     expect(
       await screen.findByText("No videos available for this list right now."),
     ).toBeInTheDocument();
@@ -172,7 +173,7 @@ describe("ListsPage", () => {
 
     renderPage("/lists?listId=l2");
 
-    await waitFor(() => expect(getListFeed).toHaveBeenCalledWith("l2", { limit: 50 }));
+    await waitFor(() => expect(getListFeed).toHaveBeenCalledWith("l2", { limit: FEED_PAGE_SIZE }));
     expect(screen.getByLabelText("Select list:")).toHaveValue("l2");
     // picking it up also persists it, the same as a manual dropdown selection
     expect(window.localStorage.getItem("betterYtTv.selectedListId")).toBe("l2");
@@ -188,7 +189,7 @@ describe("ListsPage", () => {
 
     renderPage("/lists?listId=nonexistent");
 
-    await waitFor(() => expect(getListFeed).toHaveBeenCalledWith("l1", { limit: 50 }));
+    await waitFor(() => expect(getListFeed).toHaveBeenCalledWith("l1", { limit: FEED_PAGE_SIZE }));
     expect(screen.getByLabelText("Select list:")).toHaveValue("l1");
   });
 
@@ -212,7 +213,7 @@ describe("ListsPage", () => {
     expect(
       await screen.findByText("No videos available for this list right now."),
     ).toBeInTheDocument();
-    expect(getListFeed).toHaveBeenCalledWith("l2", { limit: 50 });
+    expect(getListFeed).toHaveBeenCalledWith("l2", { limit: FEED_PAGE_SIZE });
     expect(window.localStorage.getItem("betterYtTv.selectedListId")).toBe("l2");
   });
 
@@ -286,7 +287,7 @@ describe("ListsPage demo storage keys", () => {
 
     renderPage();
 
-    await waitFor(() => expect(getListFeed).toHaveBeenCalledWith("l2", { limit: 50 }));
+    await waitFor(() => expect(getListFeed).toHaveBeenCalledWith("l2", { limit: FEED_PAGE_SIZE }));
     expect(screen.getByLabelText("Select list:")).toHaveValue("l2");
     expect(window.localStorage.getItem("betterYtTv.selectedListId")).toBe("l1");
   });

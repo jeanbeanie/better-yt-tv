@@ -1,4 +1,5 @@
 import type { ChannelPatch } from "./store";
+import { FEED_PAGE_SIZE } from "../feedPageSize";
 import { DEMO_SYNC_DELAY_MS, demoLatency } from "./latency";
 
 function json(body: unknown, status = 200): Response {
@@ -28,7 +29,7 @@ function parsePagination(params: URLSearchParams) {
   const rawLimit = Number(params.get("limit"));
 
   const offset = Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
-  const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.floor(rawLimit) : 50;
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.floor(rawLimit) : FEED_PAGE_SIZE;
 
   return { offset, limit: Math.min(limit, 200) };
 }
