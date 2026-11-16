@@ -352,6 +352,33 @@ describe("GET /api/lists/summary", () => {
     ]);
   });
 
+  it("scopes every summary query to the user", async () => {
+    mockSummaryDb({
+      lists: [listRow(LIST_A, "A"), listRow(LIST_B, "B")],
+      feedRows: [
+        feedRow({ listId: LIST_A, channelId: "UCa", n: 1 }),
+        feedRow({ listId: LIST_B, channelId: "UCb", n: 2 }),
+      ],
+      channelRows: [{ list_id: LIST_A, channel_id: "UCa", channel_title: "Alpha", channel_thumb_url: null }],
+    });
+
+    const res = await request(buildApp()).get("/api/lists/summary");
+
+    expect(res.status).toBe(200);
+    const calls = vi.mocked(pool.query).mock.calls.map(([sql, params]) => ({ sql: String(sql), params }));
+    const listsCall = calls.find(({ sql }) => /from lists\s+where user_id/.test(sql));
+    const feedCall = calls.find(({ sql }) => sql.includes("join videos_cache"));
+    const channelsCall = calls.find(({ sql }) => sql.includes("channel_thumb_url"));
+
+    expect(listsCall?.sql).toContain("where user_id = $1");
+    expect(listsCall?.params).toEqual([USER_ID]);
+    expect(feedCall?.sql).toContain("any($2::uuid[])");
+    expect(feedCall?.params).toEqual([USER_ID, [LIST_A, LIST_B]]);
+    expect(channelsCall?.sql).toContain("join user_subscriptions");
+    expect(channelsCall?.sql).toContain("and l.user_id = $1");
+    expect(channelsCall?.params).toEqual([USER_ID, [LIST_A, LIST_B]]);
+  });
+
   describe("featured video", () => {
     // one channel, so the queue order is the row order
     function seedOneList(rows: Record<string, unknown>[]) {
@@ -397,17 +424,8 @@ describe("GET /api/lists/summary", () => {
       expect(res.body.lists[0].featuredVideo).toMatchObject({ videoId: videoId(0), kind: "next" });
     });
 
-    it("resume for a video of a channel with no subscription row gives kind next", async () => {
-      // the channel has no subscription row, so its videos never reach the rows
-      seedOneList(unwatchedRows(60));
-
-      const res = await request(buildApp()).get(summaryResumeUrl(`${LIST_A}:${videoId(900)}`));
-
-      expect(res.status).toBe(200);
-      expect(res.body.lists[0].featuredVideo).toMatchObject({ videoId: videoId(0), kind: "next" });
-    });
-
-    it("resume for another user's list id is ignored", async () => {
+    it("a hint for a list id not in the user's lists is ignored", async () => {
+      // lookup only, user scoping is pinned by "scopes every summary query to the user"
       seedOneList(unwatchedRows(60));
 
       const res = await request(buildApp()).get(summaryResumeUrl(`${OTHER_USER_LIST}:${videoId(10)}`));
@@ -464,6 +482,34 @@ describe("GET /api/lists/summary", () => {
 
       expect(res.status).toBe(200);
       expect(res.body.lists[0].featuredVideo).toMatchObject({ videoId: videoId(0), kind: "next" });
+    });
+
+    it("first unwatched inside the first 50 gives that video, kind next", async () => {
+      seedOneList(
+        Array.from({ length: 60 }, (_, i) => feedRow({ listId: LIST_A, channelId: "UC1", n: i, watched: i < 3 })),
+      );
+
+      const res = await request(buildApp()).get("/api/lists/summary");
+
+      expect(res.status).toBe(200);
+      expect(res.body.lists[0]).toMatchObject({ videoCount: 60, unwatchedCount: 57 });
+      expect(res.body.lists[0].featuredVideo).toMatchObject({ videoId: videoId(3), kind: "next" });
+    });
+
+    it("featured follows round robin order across channels", async () => {
+      mockSummaryDb({
+        lists: [listRow(LIST_A, "A")],
+        feedRows: [
+          feedRow({ listId: LIST_A, channelId: "UCa", n: 1, watched: true }),
+          feedRow({ listId: LIST_A, channelId: "UCa", n: 2 }),
+          feedRow({ listId: LIST_A, channelId: "UCb", n: 3 }),
+        ],
+      });
+
+      const res = await request(buildApp()).get("/api/lists/summary");
+
+      expect(res.status).toBe(200);
+      expect(res.body.lists[0].featuredVideo).toMatchObject({ videoId: videoId(3), kind: "next" });
     });
 
     it("caught up gives the first item, kind next", async () => {

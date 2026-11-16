@@ -162,6 +162,17 @@ describe("GET /api/feed/lists/:listId", () => {
     expect(secondPage.body.hasMore).toBe(true);
   });
 
+  it("defaults to FEED_PAGE_SIZE items when no limit is given", async () => {
+    const rows = Array.from({ length: FEED_PAGE_SIZE + 10 }, (_, i) => ({ channel_id: "A", video_id: `v${i}` }));
+    mockListLookup(rows);
+
+    const res = await request(buildApp()).get(`/api/feed/lists/${LIST_ID}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.items).toHaveLength(FEED_PAGE_SIZE);
+    expect(res.body.hasMore).toBe(true);
+  });
+
   // pool is mocked, so this guards the query text only, not the filtering result
   it("excludes upcoming streams in the feed query", async () => {
     mockListLookup(makeRows());
