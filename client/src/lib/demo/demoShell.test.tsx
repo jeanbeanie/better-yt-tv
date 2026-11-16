@@ -4,7 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import AppRoot from "../../AppRoot";
 import { getRouterBasename, isDemoMode } from "./mode";
-import { getDemoStore, resetDemoStore } from "./store";
+import { createDemoStore, getDemoStore, resetDemoStore } from "./store";
 import { DEMO_CHANNELS } from "./fixtures";
 import { FEED_PAGE_SIZE } from "../feedPageSize";
 
@@ -194,7 +194,9 @@ describe("demo shell", () => {
   it("shows Up next on a new list when a leftover saved key names its old id", async () => {
     const store = getDemoStore();
     const saved = store.getListFeed(SPACE_NERD, { offset: 0, limit: FEED_PAGE_SIZE })!.items[1];
-    window.localStorage.setItem("betterYtTv.demo.selectedVideoId.list.demo-list-1", saved.video_id);
+    // id from a store built an hour earlier, the key outlives that store
+    const { id: staleId } = createDemoStore(Date.now() - 60 * 60 * 1000).createList("Old")!;
+    window.localStorage.setItem(`betterYtTv.demo.selectedVideoId.list.${staleId}`, saved.video_id);
     const { id } = store.createList("Road trip")!;
     store.saveList(id, "Road trip", store.getList(SPACE_NERD)!.channelIds);
     window.history.pushState({}, "", "/demo");

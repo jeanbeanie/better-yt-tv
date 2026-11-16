@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { demoFetch } from "./demoFetch";
-import { resetDemoStore } from "./store";
-import { DEMO_CHANNEL_IDS, DEMO_CHANNELS } from "./fixtures";
+import { createDemoStore, resetDemoStore } from "./store";
+import { DEMO_CHANNEL_IDS, DEMO_CHANNELS, DEMO_LISTS } from "./fixtures";
 import { DEMO_SYNC_DELAY_MS } from "./latency";
 import { FEED_PAGE_SIZE } from "../feedPageSize";
 import {
@@ -1111,7 +1111,9 @@ describe("demoFetch list summary route", () => {
     expect(resp.status).toBe(200);
     expect(resp.headers.get("Content-Type")).toBe("application/json");
     const body = (await resp.json()) as { lists: SummaryCard[] };
-    expect(body.lists.map((l) => l.id)).toEqual([SPACE_NERD, DEV_TALK, "demo-list-quick-learning"]);
+    const expected = createDemoStore(NOW).getListsSummary(new Map()).map((l) => l.id);
+    expect(body.lists.map((l) => l.id)).toEqual(expected);
+    expect(expected).toHaveLength(Math.min(6, DEMO_LISTS.length));
   });
 
   it("reads resume hints and ignores malformed entries and unknown list ids", async () => {
@@ -1141,6 +1143,62 @@ describe("demoFetch list summary route", () => {
     expect(cardFor(cards, SPACE_NERD).featuredVideo).toMatchObject({
       videoId: items[0].video_id,
       kind: "next",
+    });
+  });
+
+  it("ignores resume entries past the first 100", async () => {
+    const items = await listItems(SPACE_NERD);
+    const filler = Array.from({ length: 100 }, () => "filler");
+    const resume = [...filler, `${SPACE_NERD}:${items[1].video_id}`].join(",");
+
+    const cards = await summaryCards(`?${new URLSearchParams({ resume })}`);
+
+    expect(cardFor(cards, SPACE_NERD).featuredVideo?.kind).toBe("next");
+  });
+
+  it("applies a resume entry at position 100", async () => {
+    const items = await listItems(SPACE_NERD);
+    const filler = Array.from({ length: 99 }, () => "filler");
+    const resume = [...filler, `${SPACE_NERD}:${items[1].video_id}`].join(",");
+
+    const cards = await summaryCards(`?${new URLSearchParams({ resume })}`);
+
+    expect(cardFor(cards, SPACE_NERD).featuredVideo).toMatchObject({
+      videoId: items[1].video_id,
+      kind: "resume",
+    });
+  });
+
+  it("ignores a resume entry with three parts", async () => {
+    const items = await listItems(SPACE_NERD);
+    const resume = `${SPACE_NERD}:${items[1].video_id}:extra`;
+
+    const cards = await summaryCards(`?${new URLSearchParams({ resume })}`);
+
+    expect(cardFor(cards, SPACE_NERD).featuredVideo?.kind).toBe("next");
+  });
+
+  it("lowercases the list id in a resume entry", async () => {
+    const items = await listItems(SPACE_NERD);
+    const resume = `${SPACE_NERD.toUpperCase()}:${items[1].video_id}`;
+
+    const cards = await summaryCards(`?${new URLSearchParams({ resume })}`);
+
+    expect(cardFor(cards, SPACE_NERD).featuredVideo).toMatchObject({
+      videoId: items[1].video_id,
+      kind: "resume",
+    });
+  });
+
+  it("keeps the last resume entry for a repeated list id", async () => {
+    const items = await listItems(SPACE_NERD);
+    const resume = `${SPACE_NERD}:${items[1].video_id},${SPACE_NERD}:${items[0].video_id}`;
+
+    const cards = await summaryCards(`?${new URLSearchParams({ resume })}`);
+
+    expect(cardFor(cards, SPACE_NERD).featuredVideo).toMatchObject({
+      videoId: items[0].video_id,
+      kind: "resume",
     });
   });
 

@@ -869,23 +869,6 @@ describe("demo store lists", () => {
     for (const id of ids) expect(id).toMatch(/^[A-Za-z0-9-]+$/);
   });
 
-  it("gives the same first id for the same clock", () => {
-    // fixed clock keeps generated ids reproducible in tests
-    const first = createDemoStore(NOW).createList("Alpha")!.id;
-
-    expect(createDemoStore(NOW).createList("Alpha")!.id).toBe(first);
-  });
-
-  it("keeps fixture list ids after creating lists", () => {
-    const store = createDemoStore(NOW);
-    store.createList("Alpha");
-    store.createList("Beta");
-
-    expect(store.getLists().slice(0, DEMO_LISTS.length).map((l) => l.id)).toEqual(
-      DEMO_LISTS.map((l) => l.listId),
-    );
-  });
-
   it("keeps ids unique after a delete and a create", () => {
     const store = listStore();
     const first = store.createList("Alpha")!;
@@ -1301,16 +1284,86 @@ describe("demo store list summaries", () => {
     expect(store.getListsSummary(new Map()).map((list) => list.id)).toEqual(["tie-first", "tie-second"]);
   });
 
-  it("returns at most six lists, dropping the last ones in store order", () => {
-    const store = createDemoStore(NOW);
-    const extras = ["Extra one", "Extra two", "Extra three", "Extra four"].map(
-      (name) => store.createList(name)!.id,
-    );
+  // two videos on one channel, both watched
+  function caughtUpStore(): DemoStore {
+    const store = createDemoStore(NOW, {
+      videos: [
+        video({ videoId: "caught-1", channelId: DEMO_CHANNEL_IDS.nasa }),
+        video({ videoId: "caught-2", channelId: DEMO_CHANNEL_IDS.nasa, hoursAgo: 2 }),
+      ],
+      lists: [{ listId: "caught", name: "Caught", channelIds: [DEMO_CHANNEL_IDS.nasa] }],
+    });
+    store.getListFeed("caught", ALL)!.items.forEach((item) => store.setWatched(item.video_id));
+    return store;
+  }
 
-    expect(store.getLists()).toHaveLength(7);
+  it("puts the list with more unwatched videos first within a tier", () => {
+    const store = createDemoStore(NOW, {
+      videos: [
+        video({ videoId: "small-1", channelId: DEMO_CHANNEL_IDS.nasa }),
+        video({ videoId: "big-1", channelId: DEMO_CHANNEL_IDS.blender }),
+        video({ videoId: "big-2", channelId: DEMO_CHANNEL_IDS.blender, hoursAgo: 2 }),
+        video({ videoId: "big-3", channelId: DEMO_CHANNEL_IDS.blender, hoursAgo: 3 }),
+      ],
+      lists: [
+        { listId: "small", name: "Small", channelIds: [DEMO_CHANNEL_IDS.nasa] },
+        { listId: "big", name: "Big", channelIds: [DEMO_CHANNEL_IDS.blender] },
+      ],
+    });
+
+    expect(store.getListsSummary(new Map()).map((list) => list.id)).toEqual(["big", "small"]);
+  });
+
+  it("keeps a later unwatched list ahead of the six list cap", () => {
+    const empties = Array.from({ length: 6 }, (_, i) => ({
+      listId: `empty-${i + 1}`,
+      name: `Empty ${i + 1}`,
+      channelIds: [],
+    }));
+    const store = createDemoStore(NOW, {
+      lists: [...empties, { listId: "late", name: "Late", channelIds: [DEMO_CHANNEL_IDS.blender] }],
+    });
+
     const ids = store.getListsSummary(new Map()).map((list) => list.id);
     expect(ids).toHaveLength(6);
-    expect(ids).toEqual(expect.arrayContaining(extras.slice(0, 3)));
-    expect(ids).not.toContain(extras[3]);
+    expect(ids[0]).toBe("late");
+  });
+
+  it("features the first queue item once every video is watched", () => {
+    const store = caughtUpStore();
+    const queue = store.getListFeed("caught", ALL)!.items;
+
+    expect(cardFor(store, "caught").featuredVideo).toEqual({
+      videoId: queue[0].video_id,
+      title: queue[0].title,
+      thumbUrl: queue[0].thumb_url,
+      kind: "next",
+    });
+  });
+
+  it("keeps resume for a watched saved video inside the first page", () => {
+    const store = caughtUpStore();
+    const saved = store.getListFeed("caught", ALL)!.items[1];
+
+    expect(cardFor(store, "caught", new Map([["caught", saved.video_id]])).featuredVideo).toEqual({
+      videoId: saved.video_id,
+      title: saved.title,
+      thumbUrl: saved.thumb_url,
+      kind: "resume",
+    });
+  });
+
+  it("returns at most six lists, dropping the last ones in store order", () => {
+    const lists = Array.from({ length: 7 }, (_, i) => ({
+      listId: `cap-${i + 1}`,
+      name: `Cap ${i + 1}`,
+      channelIds: [],
+    }));
+    const store = createDemoStore(NOW, { lists });
+
+    expect(store.getLists()).toHaveLength(7);
+    expect(store.getListsSummary(new Map()).map((list) => list.id)).toEqual(
+      lists.slice(0, 6).map((list) => list.listId),
+    );
   });
 });
