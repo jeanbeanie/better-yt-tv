@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import PlayIcon from "../components/PlayIcon";
 import ListsGrid from "../components/ListsGrid";
 
 export default function DemoHomePage() {
@@ -18,8 +19,13 @@ export default function DemoHomePage() {
         </p>
 
         <div style={{ marginTop: "2rem" }}>
-          <Link to="/all" className="button button-primary">
-            Go to /all videos
+          <Link
+            to="/all"
+            className="button button-primary"
+            style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}
+          >
+            <PlayIcon />
+            Watch all videos
           </Link>
         </div>
       </div>

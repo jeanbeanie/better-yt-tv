@@ -3,6 +3,7 @@ import { getLoginUrl, hasInviteCode, type User } from "../lib/api";
 import ErrorText from "../components/ErrorText";
 import Spinner from "../components/Spinner";
 import ListsGrid from "../components/ListsGrid";
+import PlayIcon from "../components/PlayIcon";
 import { GITHUB_URL, LINKEDIN_URL } from "../lib/contactLinks";
 
 
@@ -111,13 +112,18 @@ export default function HomePage(props:homePageProps) {
         )}
 
         {!loading && user && (
-          <div style={{ marginTop: "2rem" }}>
+          <div style={{ marginTop: "1.5rem" }}>
             <p style={{ fontSize: "0.875rem", marginBottom: "1rem" }}>
               Logged in as <strong>{user.email ?? "No email found"}</strong>
             </p>
 
-            <Link to="/all" className="button button-primary">
-              Go to /all videos
+            <Link
+              to="/all"
+              className="button button-primary"
+              style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}
+            >
+              <PlayIcon />
+              Watch all videos
             </Link>
           </div>
         )}

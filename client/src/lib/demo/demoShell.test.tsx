@@ -104,7 +104,7 @@ describe("demo shell", () => {
 
     renderShell();
 
-    const demoLink = await screen.findByRole("link", { name: "Go to /all videos" });
+    const demoLink = await screen.findByRole("link", { name: "Watch all videos" });
     expect(demoLink).toHaveAttribute("href", "/demo/all");
     expect(screen.queryByRole("link", { name: "Login" })).not.toBeInTheDocument();
     expect(screen.queryByText(/requires an invite/i)).not.toBeInTheDocument();

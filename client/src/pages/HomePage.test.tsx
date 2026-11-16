@@ -59,7 +59,7 @@ describe("HomePage", () => {
     renderHomePage({ user: { id: "1", email: "user@example.com", google_sub: "sub-1", is_admin: false } });
 
     expect(screen.getByText(/logged in as/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Go to /all videos" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Watch all videos" })).toBeInTheDocument();
     expect(screen.queryByText(/requires an invite/i)).not.toBeInTheDocument();
   });
 
