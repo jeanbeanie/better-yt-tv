@@ -103,4 +103,5 @@ Live at [ytcatchup.com](https://ytcatchup.com) (invite only). No invite? Try the
 - Prune channels whose uploads playlist 404s from `channel_recent_cache_state` and `user_subscriptions`, since they currently just fail and retry indefinitely every ttl cycle
 - Export/import for Lists, with the option to subscribe to any channels in an imported list you're not already subscribed to
 - Remove saved video keys (`betterYtTv.selectedVideoId.list.<id>` and the demo `betterYtTv.demo.selectedVideoId.list.<id>`) of deleted lists from localStorage, the home page still sends them in its resume hint
+- Reduce the load of `GET /api/lists/summary`, it reads every cached video of every list on each home visit and builds the queues in JS, so it grows with cached videos, try counting in SQL and selecting title and thumbnail only for the featured rows
  
