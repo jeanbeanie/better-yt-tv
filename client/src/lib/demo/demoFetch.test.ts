@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { demoFetch } from "./demoFetch";
-import { resetDemoStore } from "./store";
-import { DEMO_CHANNEL_IDS, DEMO_CHANNELS } from "./fixtures";
+import { createDemoStore, resetDemoStore } from "./store";
+import { DEMO_CHANNEL_IDS, DEMO_CHANNELS, DEMO_LISTS } from "./fixtures";
 import { DEMO_SYNC_DELAY_MS } from "./latency";
 import { FEED_PAGE_SIZE } from "../feedPageSize";
 import {
@@ -775,7 +775,8 @@ describe("demoFetch", () => {
 
     const body = (await resp.json()) as { list: Record<string, unknown> };
     expect(Object.keys(body.list).sort()).toEqual(["channelIds", "createdAt", "id", "name", "updatedAt"]);
-    expect(body.list).toMatchObject({ id: "demo-list-1", name: "Road trip", channelIds: [] });
+    expect(body.list).toMatchObject({ name: "Road trip", channelIds: [] });
+    expect(body.list.id).toMatch(/^[A-Za-z0-9-]+$/);
   });
 
   it("trims the name before saving it", async () => {
@@ -1070,5 +1071,158 @@ describe("demoFetch", () => {
     } finally {
       window.history.pushState({}, "", "/");
     }
+  });
+});
+
+describe("demoFetch list summary route", () => {
+  const SUMMARY_URL = "http://localhost:5179/api/lists/summary";
+
+  type SummaryCard = {
+    id: string;
+    videoCount: number;
+    unwatchedCount: number;
+    featuredVideo: { videoId: string; title: string; thumbUrl: string | null; kind: string } | null;
+  };
+  type CardItem = FeedRow & { title: string; thumb_url: string | null };
+
+  beforeEach(() => {
+    resetDemoStore();
+  });
+
+  async function summaryCards(query = ""): Promise<SummaryCard[]> {
+    const resp = await demoFetch(`${SUMMARY_URL}${query}`, { method: "GET" });
+    expect(resp.status).toBe(200);
+    return ((await resp.json()) as { lists: SummaryCard[] }).lists;
+  }
+
+  function cardFor(cards: SummaryCard[], listId: string): SummaryCard {
+    const card = cards.find((c) => c.id === listId);
+    if (!card) throw new Error(`no summary card for ${listId}`);
+    return card;
+  }
+
+  async function listItems(listId: string): Promise<CardItem[]> {
+    return (await feedJson(listFeedPath(listId, "?limit=200"))).items as CardItem[];
+  }
+
+  it("answers GET /api/lists/summary with the cards instead of the list detail 404", async () => {
+    const resp = await demoFetch(SUMMARY_URL, { method: "GET" });
+
+    expect(resp.status).toBe(200);
+    expect(resp.headers.get("Content-Type")).toBe("application/json");
+    const body = (await resp.json()) as { lists: SummaryCard[] };
+    const expected = createDemoStore(NOW).getListsSummary(new Map()).map((l) => l.id);
+    expect(body.lists.map((l) => l.id)).toEqual(expected);
+    expect(expected).toHaveLength(Math.min(6, DEMO_LISTS.length));
+  });
+
+  it("reads resume hints and ignores malformed entries and unknown list ids", async () => {
+    const items = await listItems(SPACE_NERD);
+    const resume = [
+      `${SPACE_NERD}:${items[1].video_id}`,
+      "no-colon-here",
+      `${DEV_TALK}:too-short`,
+      `demo-list-nope:${items[0].video_id}`,
+    ].join(",");
+
+    const cards = await summaryCards(`?${new URLSearchParams({ resume })}`);
+
+    expect(cardFor(cards, SPACE_NERD).featuredVideo).toMatchObject({
+      videoId: items[1].video_id,
+      kind: "resume",
+    });
+    expect(cardFor(cards, DEV_TALK).featuredVideo?.kind).toBe("next");
+  });
+
+  it("ignores a repeated resume key the way the server does", async () => {
+    const items = await listItems(SPACE_NERD);
+    const query = `?resume=${SPACE_NERD}:${items[1].video_id}&resume=${DEV_TALK}:${items[0].video_id}`;
+
+    const cards = await summaryCards(query);
+
+    expect(cardFor(cards, SPACE_NERD).featuredVideo).toMatchObject({
+      videoId: items[0].video_id,
+      kind: "next",
+    });
+  });
+
+  it("ignores resume entries past the first 100", async () => {
+    const items = await listItems(SPACE_NERD);
+    const filler = Array.from({ length: 100 }, () => "filler");
+    const resume = [...filler, `${SPACE_NERD}:${items[1].video_id}`].join(",");
+
+    const cards = await summaryCards(`?${new URLSearchParams({ resume })}`);
+
+    expect(cardFor(cards, SPACE_NERD).featuredVideo?.kind).toBe("next");
+  });
+
+  it("applies a resume entry at position 100", async () => {
+    const items = await listItems(SPACE_NERD);
+    const filler = Array.from({ length: 99 }, () => "filler");
+    const resume = [...filler, `${SPACE_NERD}:${items[1].video_id}`].join(",");
+
+    const cards = await summaryCards(`?${new URLSearchParams({ resume })}`);
+
+    expect(cardFor(cards, SPACE_NERD).featuredVideo).toMatchObject({
+      videoId: items[1].video_id,
+      kind: "resume",
+    });
+  });
+
+  it("ignores a resume entry with three parts", async () => {
+    const items = await listItems(SPACE_NERD);
+    const resume = `${SPACE_NERD}:${items[1].video_id}:extra`;
+
+    const cards = await summaryCards(`?${new URLSearchParams({ resume })}`);
+
+    expect(cardFor(cards, SPACE_NERD).featuredVideo?.kind).toBe("next");
+  });
+
+  it("lowercases the list id in a resume entry", async () => {
+    const items = await listItems(SPACE_NERD);
+    const resume = `${SPACE_NERD.toUpperCase()}:${items[1].video_id}`;
+
+    const cards = await summaryCards(`?${new URLSearchParams({ resume })}`);
+
+    expect(cardFor(cards, SPACE_NERD).featuredVideo).toMatchObject({
+      videoId: items[1].video_id,
+      kind: "resume",
+    });
+  });
+
+  it("keeps the last resume entry for a repeated list id", async () => {
+    const items = await listItems(SPACE_NERD);
+    const resume = `${SPACE_NERD}:${items[1].video_id},${SPACE_NERD}:${items[0].video_id}`;
+
+    const cards = await summaryCards(`?${new URLSearchParams({ resume })}`);
+
+    expect(cardFor(cards, SPACE_NERD).featuredVideo).toMatchObject({
+      videoId: items[0].video_id,
+      kind: "resume",
+    });
+  });
+
+  it("matches the counts and featured video of the list feed after a watch", async () => {
+    const before = await listItems(SPACE_NERD);
+    const watched = await demoFetch(watchPath(before[0].video_id), { method: "POST" });
+    expect(watched.status).toBe(200);
+
+    const items = await listItems(SPACE_NERD);
+    const card = cardFor(await summaryCards(), SPACE_NERD);
+
+    expect(card.videoCount).toBe(items.length);
+    expect(card.unwatchedCount).toBe(items.filter((item) => !item.is_watched).length);
+    expect(card.featuredVideo).toEqual({
+      videoId: items[1].video_id,
+      title: items[1].title,
+      thumbUrl: items[1].thumb_url,
+      kind: "next",
+    });
+  });
+
+  it("returns 404 for POST on the summary path", async () => {
+    const resp = await demoFetch(SUMMARY_URL, { method: "POST" });
+
+    expect(resp.status).toBe(404);
   });
 });

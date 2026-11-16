@@ -11,7 +11,7 @@ export default function DemoBanner() {
         marginBottom: "1rem",
       }}
     >
-      You&apos;re viewing a demo with sample data. Want an invite?{" "}
+      You&apos;re viewing a demo with sample data. Changes you make reset when you refresh. Want an invite?{" "}
       <a href={GITHUB_URL} target="_blank" rel="noreferrer">
         GitHub
       </a>

@@ -1,10 +1,11 @@
 import { Link } from "react-router-dom";
+import ListsGrid from "../components/ListsGrid";
 
 export default function DemoHomePage() {
   return (
     <main>
       <h1>YT Catchup</h1>
-      <div style={{ margin: "3rem 0 4rem" }}>
+      <div style={{ margin: "3rem 0 1rem" }}>
         <p style={{ fontSize: "1.5rem", fontWeight: 600, color: "var(--text-h)" }}>
           The subscriptions feed, fixed.
         </p>
@@ -22,6 +23,7 @@ export default function DemoHomePage() {
           </Link>
         </div>
       </div>
+      <ListsGrid />
     </main>
   );
 }

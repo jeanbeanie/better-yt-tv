@@ -4,7 +4,11 @@ import { BrowserRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import AppRoot from "../../AppRoot";
 import { getRouterBasename, isDemoMode } from "./mode";
-import { resetDemoStore } from "./store";
+import { createDemoStore, getDemoStore, resetDemoStore } from "./store";
+import { DEMO_CHANNELS } from "./fixtures";
+import { FEED_PAGE_SIZE } from "../feedPageSize";
+
+const SPACE_NERD = "demo-list-space-nerd";
 
 // the delays themselves are covered in demoFetch and demoRefresh tests
 vi.mock("./latency", async () => {
@@ -35,6 +39,13 @@ function renderShell() {
 async function setEditOnCreate(user: UserEvent, on: boolean) {
   const toggle = screen.getByRole("checkbox", { name: "Edit List After Creating" });
   if ((toggle as HTMLInputElement).checked !== on) await user.click(toggle);
+}
+
+// id of a list created through the UI, read from the store
+function createdListId(name: string): string {
+  const list = getDemoStore().getLists().find((l) => l.name === name);
+  if (!list) throw new Error(`no list named ${name}`);
+  return list.id;
 }
 
 describe("demo shell", () => {
@@ -98,6 +109,123 @@ describe("demo shell", () => {
     expect(screen.queryByRole("link", { name: "Login" })).not.toBeInTheDocument();
     expect(screen.queryByText(/requires an invite/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/logged in as/i)).not.toBeInTheDocument();
+    await screen.findByRole("link", { name: "Watch Space nerd" });
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  function spaceNerdCard(): HTMLElement {
+    const card = screen.getByRole("link", { name: "Watch Space nerd" }).closest("li");
+    if (!card) throw new Error("Space nerd card not found");
+    return card;
+  }
+
+  function spaceNerdBadge(): number {
+    const badge = within(spaceNerdCard()).getByText(/^\d+ unwatched$/);
+    return Number.parseInt(badge.textContent ?? "", 10);
+  }
+
+  function selectedQueueRow(): HTMLElement {
+    const row = document.querySelector<HTMLElement>('[aria-current="true"]');
+    if (!row) throw new Error("no selected queue row");
+    return row;
+  }
+
+  it("opens the featured video of a Your lists card on the demo lists page", async () => {
+    window.history.pushState({}, "", "/demo");
+    const user = userEvent.setup();
+    renderShell();
+
+    await screen.findByRole("link", { name: "Watch Space nerd" });
+    const caption = within(spaceNerdCard()).getByText(/^(Up next|Continue watching): /);
+    const title = caption.textContent?.replace(/^[^:]+: /, "") ?? "";
+    const expectedId = getDemoStore().getListFeed(SPACE_NERD, { offset: 0, limit: FEED_PAGE_SIZE })!.items[0].video_id;
+
+    await user.click(screen.getByRole("link", { name: "Watch Space nerd" }));
+
+    await waitFor(() => expect(window.location.pathname).toBe("/demo/lists"));
+    await waitFor(() => expect(selectedQueueRow()).toHaveTextContent(title));
+    expect(window.localStorage.getItem(`betterYtTv.demo.selectedVideoId.list.${SPACE_NERD}`)).toBe(expectedId);
+    const keys = Array.from({ length: window.localStorage.length }, (_, i) => window.localStorage.key(i) ?? "");
+    expect(keys.filter((key) => key.startsWith("betterYtTv.selectedVideoId."))).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("keeps a saved Space nerd video from the first page on the card and the lists page", async () => {
+    const saved = getDemoStore().getListFeed(SPACE_NERD, { offset: 0, limit: FEED_PAGE_SIZE })!.items[1];
+    const key = `betterYtTv.demo.selectedVideoId.list.${SPACE_NERD}`;
+    window.localStorage.setItem(key, saved.video_id);
+    window.history.pushState({}, "", "/demo");
+    const user = userEvent.setup();
+    renderShell();
+
+    await screen.findByRole("link", { name: "Watch Space nerd" });
+    expect(within(spaceNerdCard()).getByText(`Continue watching: ${saved.title}`)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("link", { name: "Watch Space nerd" }));
+
+    await waitFor(() => expect(window.location.pathname).toBe("/demo/lists"));
+    await waitFor(() => expect(selectedQueueRow()).toHaveTextContent(saved.title));
+    expect(window.localStorage.getItem(key)).toBe(saved.video_id);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("opens a full list at its next video when the saved one is past the first page", async () => {
+    const store = getDemoStore();
+    const { id } = store.createList("Everything")!;
+    store.saveList(id, "Everything", DEMO_CHANNELS.map((c) => c.channelId));
+    const queue = store.getListFeed(id, { offset: 0, limit: 200 })!.items;
+    expect(queue.length).toBeGreaterThan(FEED_PAGE_SIZE);
+    window.localStorage.setItem(`betterYtTv.demo.selectedVideoId.list.${id}`, queue[FEED_PAGE_SIZE].video_id);
+    window.history.pushState({}, "", "/demo");
+    const user = userEvent.setup();
+    renderShell();
+
+    const card = await screen.findByRole("link", { name: "Watch Everything" });
+    expect(within(card.closest("li") as HTMLElement).getByText(`Up next: ${queue[0].title}`)).toBeInTheDocument();
+
+    await user.click(card);
+
+    await waitFor(() => expect(window.location.pathname).toBe("/demo/lists"));
+    await waitFor(() => expect(selectedQueueRow()).toHaveTextContent(queue[0].title));
+    expect(window.localStorage.getItem(`betterYtTv.demo.selectedVideoId.list.${id}`)).toBe(queue[0].video_id);
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("shows Up next on a new list when a leftover saved key names its old id", async () => {
+    const store = getDemoStore();
+    const saved = store.getListFeed(SPACE_NERD, { offset: 0, limit: FEED_PAGE_SIZE })!.items[1];
+    // id from a store built an hour earlier, the key outlives that store
+    const { id: staleId } = createDemoStore(Date.now() - 60 * 60 * 1000).createList("Old")!;
+    window.localStorage.setItem(`betterYtTv.demo.selectedVideoId.list.${staleId}`, saved.video_id);
+    const { id } = store.createList("Road trip")!;
+    store.saveList(id, "Road trip", store.getList(SPACE_NERD)!.channelIds);
+    window.history.pushState({}, "", "/demo");
+    renderShell();
+
+    const card = await screen.findByRole("link", { name: "Watch Road trip" });
+    expect(within(card.closest("li") as HTMLElement).getByText(/^Up next: /)).toBeInTheDocument();
+    expect(screen.queryByText(/^Continue watching: /)).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("drops the Space nerd unwatched count on the home card after a watch on the lists page", async () => {
+    window.history.pushState({}, "", "/demo");
+    const user = userEvent.setup();
+    renderShell();
+
+    await screen.findByRole("link", { name: "Watch Space nerd" });
+    const before = spaceNerdBadge();
+
+    await user.click(screen.getByRole("link", { name: "Lists" }));
+    const watchButton = await waitFor(() =>
+      within(selectedQueueRow().closest("li") as HTMLElement).getByRole("button", { name: /^Mark ".*" as watched$/ }),
+    );
+    await user.click(watchButton);
+    await screen.findByRole("button", { name: /^Mark ".*" as unwatched$/ });
+
+    await user.click(screen.getByRole("link", { name: "Home" }));
+    await waitFor(() => expect(window.location.pathname).toBe("/demo"));
+    await waitFor(() => expect(spaceNerdBadge()).toBe(before - 1));
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 
@@ -152,7 +280,6 @@ describe("demo shell", () => {
       renderShell();
 
       await screen.findByRole("link", { name: "Exit demo" });
-      expect(screen.getByText(/You're viewing a demo with sample data\. Want an invite\?/)).toBeInTheDocument();
       expect(screen.getByRole("link", { name: "GitHub" })).toHaveAttribute(
         "href",
         "https://github.com/jeanbeanie",
@@ -437,7 +564,7 @@ describe("demo shell", () => {
     await user.type(screen.getByRole("textbox", { name: "New list name" }), "Road trip");
     await user.click(screen.getByRole("button", { name: "Create new list" }));
 
-    await waitFor(() => expect(window.location.pathname).toBe("/demo/settings/lists/demo-list-1"));
+    await waitFor(() => expect(window.location.pathname).toBe(`/demo/settings/lists/${createdListId("Road trip")}`));
     expect(await screen.findByRole("textbox", { name: "List name" })).toHaveValue("Road trip");
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
@@ -520,7 +647,7 @@ describe("demo shell", () => {
 
     await user.type(screen.getByRole("textbox", { name: "New list name" }), "Road trip");
     await user.click(screen.getByRole("button", { name: "Create new list" }));
-    await waitFor(() => expect(window.location.pathname).toBe("/demo/settings/lists/demo-list-1"));
+    await waitFor(() => expect(window.location.pathname).toBe(`/demo/settings/lists/${createdListId("Road trip")}`));
     await screen.findByRole("textbox", { name: "List name" });
 
     await user.type(
@@ -534,7 +661,7 @@ describe("demo shell", () => {
 
     window.history.pushState({}, "", "/demo/lists");
     renderShell();
-    await user.selectOptions(await screen.findByRole("combobox"), "demo-list-1");
+    await user.selectOptions(await screen.findByRole("combobox"), createdListId("Road trip"));
     await screen.findAllByText(NASA_FEED_TITLE);
     expect(screen.queryByText(FEED_FIRST_TITLE)).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(0);

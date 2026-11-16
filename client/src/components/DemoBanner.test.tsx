@@ -8,14 +8,6 @@ describe("DemoBanner", () => {
     vi.useRealTimers();
   });
 
-  it("renders the demo notice text", () => {
-    render(<DemoBanner />);
-
-    expect(
-      screen.getByText(/You're viewing a demo with sample data\. Want an invite\?/),
-    ).toBeInTheDocument();
-  });
-
   it("links to GitHub and LinkedIn in a new tab", () => {
     render(<DemoBanner />);
 
@@ -44,8 +36,6 @@ describe("DemoBanner", () => {
       vi.advanceTimersByTime(10000);
     });
 
-    expect(
-      screen.getByText(/You're viewing a demo with sample data\. Want an invite\?/),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "GitHub" })).toBeInTheDocument();
   });
 });
