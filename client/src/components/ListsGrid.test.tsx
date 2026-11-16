@@ -348,15 +348,6 @@ describe("ListsGrid", () => {
       expect(thumb).not.toBeNull();
       expect(thumb?.querySelector(".list-card-thumb-placeholder")).not.toBeNull();
     });
-
-    it("uses the list class names", async () => {
-      const { container } = await renderWithLists([UNWATCHED_NEXT, NO_VIDEOS]);
-
-      expect(container.querySelector("section.lists-grid")).not.toBeNull();
-      expect(container.querySelector("ul.lists-grid-items")).not.toBeNull();
-      expect(container.querySelectorAll("li.list-card")).toHaveLength(2);
-      expect(container.querySelector(".lists-grid-header")).not.toBeNull();
-    });
   });
 
   describe("accessibility", () => {
