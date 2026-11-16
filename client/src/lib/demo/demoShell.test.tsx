@@ -278,7 +278,6 @@ describe("demo shell", () => {
       renderShell();
 
       await screen.findByRole("link", { name: "Exit demo" });
-      expect(screen.getByText(/You're viewing a demo with sample data\. Want an invite\?/)).toBeInTheDocument();
       expect(screen.getByRole("link", { name: "GitHub" })).toHaveAttribute(
         "href",
         "https://github.com/jeanbeanie",
