@@ -383,6 +383,38 @@ export type ListChannel = {
   thumbUrl: string | null;
 };
 
+export type ListCardVideo = {
+  videoId: string;
+  title: string;
+  thumbUrl: string | null;
+  // resume: the saved video the list page will reopen
+  kind: "resume" | "next";
+};
+
+// final order and cap come from the server
+export type ListCardSummary = {
+  id: string;
+  name: string;
+  channels: ListChannel[];
+  videoCount: number;
+  unwatchedCount: number;
+  featuredVideo: ListCardVideo | null;
+};
+
+export type SavedListVideo = { listId: string; videoId: string };
+
+// Summary cards for the home page, saved video hints are sent as ?resume=
+export async function getListsSummary(saved: SavedListVideo[] = []) {
+  const query = saved.length
+    ? `?${new URLSearchParams({ resume: saved.map((s) => `${s.listId}:${s.videoId}`).join(",") })}`
+    : "";
+  return apiFetch<{ lists: ListCardSummary[] }>(
+    `/api/lists/summary${query}`,
+    { method: "GET" },
+    "get lists summary failed",
+  );
+}
+
 export type ListDetail = {
   id: string;
   name: string;

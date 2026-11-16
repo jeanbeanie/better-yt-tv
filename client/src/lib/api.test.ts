@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   ApiError,
   getAllFeed,
+  getListsSummary,
   markVideoWatched,
   markVideoUnwatched,
   shouldRedirectToLogin,
@@ -482,6 +483,40 @@ describe("non-demo fetch", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:5179/api/feed/all",
+      expect.objectContaining({ credentials: "include" }),
+    );
+  });
+
+  it("getListsSummary without saved videos has no query", async () => {
+    window.history.pushState({}, "", "/");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ lists: [] }), { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await getListsSummary();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:5179/api/lists/summary",
+      expect.objectContaining({ credentials: "include" }),
+    );
+  });
+
+  it("getListsSummary encodes saved videos as the resume param", async () => {
+    window.history.pushState({}, "", "/");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ lists: [] }), { status: 200 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await getListsSummary([
+      { listId: "l1", videoId: "dQw4w9WgXcQ" },
+      { listId: "l2", videoId: "abcDEF12345" },
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:5179/api/lists/summary?resume=l1%3AdQw4w9WgXcQ%2Cl2%3AabcDEF12345",
       expect.objectContaining({ credentials: "include" }),
     );
   });

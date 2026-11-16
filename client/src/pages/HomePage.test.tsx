@@ -1,15 +1,22 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { axe } from "vitest-axe";
 import HomePage from "./HomePage";
-import { hasInviteCode } from "../lib/api";
+import { hasInviteCode, getListsSummary } from "../lib/api";
 
 vi.mock("../lib/api", () => ({
   getLoginUrl: vi.fn(() => "http://localhost:5179/api/auth/login?invite=code-1"),
   hasInviteCode: vi.fn(),
+  getListsSummary: vi.fn(),
+  shouldRedirectToLogin: vi.fn(() => false),
+  redirectToLoginOrHome: vi.fn(),
 }));
+
+beforeEach(() => {
+  vi.mocked(getListsSummary).mockResolvedValue({ lists: [] });
+});
 
 function renderHomePage(props: Partial<Parameters<typeof HomePage>[0]> = {}) {
   return render(
@@ -183,5 +190,41 @@ describe("HomePage", () => {
     }
 
     expect(defaultPrevented).toBe(false);
+  });
+});
+
+describe("HomePage Your lists section", () => {
+  const SIGNED_IN = { id: "1", email: "user@example.com", google_sub: "sub-1", is_admin: false };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("does not fetch lists or show the section when logged out", () => {
+    vi.mocked(hasInviteCode).mockReturnValue(true);
+
+    renderHomePage();
+
+    expect(screen.queryByRole("heading", { name: "Your lists" })).not.toBeInTheDocument();
+    expect(getListsSummary).not.toHaveBeenCalled();
+  });
+
+  it("does not fetch lists while the user is still loading", () => {
+    vi.mocked(hasInviteCode).mockReturnValue(true);
+
+    renderHomePage({ user: SIGNED_IN, loading: true });
+
+    expect(screen.queryByRole("heading", { name: "Your lists" })).not.toBeInTheDocument();
+    expect(getListsSummary).not.toHaveBeenCalled();
+  });
+
+  it("fetches lists once and shows the heading when signed in", async () => {
+    vi.mocked(hasInviteCode).mockReturnValue(true);
+
+    renderHomePage({ user: SIGNED_IN });
+
+    expect(screen.getByRole("heading", { name: "Your lists" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("Loading lists...")).not.toBeInTheDocument());
+    expect(getListsSummary).toHaveBeenCalledTimes(1);
   });
 });

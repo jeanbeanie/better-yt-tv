@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { getLoginUrl, hasInviteCode, type User } from "../lib/api";
 import ErrorText from "../components/ErrorText";
 import Spinner from "../components/Spinner";
+import ListsGrid from "../components/ListsGrid";
 import { GITHUB_URL, LINKEDIN_URL } from "../lib/contactLinks";
 
 
@@ -119,6 +120,8 @@ export default function HomePage(props:homePageProps) {
           </div>
         )}
       </div>
+
+      {!loading && user && <ListsGrid />}
     </main>
   );
 }
