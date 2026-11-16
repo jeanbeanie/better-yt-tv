@@ -775,7 +775,8 @@ describe("demoFetch", () => {
 
     const body = (await resp.json()) as { list: Record<string, unknown> };
     expect(Object.keys(body.list).sort()).toEqual(["channelIds", "createdAt", "id", "name", "updatedAt"]);
-    expect(body.list).toMatchObject({ id: "demo-list-1", name: "Road trip", channelIds: [] });
+    expect(body.list).toMatchObject({ name: "Road trip", channelIds: [] });
+    expect(body.list.id).toMatch(/^[A-Za-z0-9-]+$/);
   });
 
   it("trims the name before saving it", async () => {

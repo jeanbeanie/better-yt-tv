@@ -136,6 +136,8 @@ export function createDemoStore(now: Date | number, overrides: DemoStoreOverride
   );
   // value is null after unwatch, the entry is kept like the server row
   const watchedAt = new Map<string, string | null>();
+  // time token keeps ids from repeating across page loads, saved keys outlive the store
+  const listIdToken = nowMs.toString(36);
   // per store, each reset starts the counter at 1
   let nextListNumber = 1;
 
@@ -307,7 +309,7 @@ export function createDemoStore(now: Date | number, overrides: DemoStoreOverride
     // skips ids a fixture or earlier create already took
     let listId: string;
     do {
-      listId = `demo-list-${nextListNumber++}`;
+      listId = `demo-list-${listIdToken}-${nextListNumber++}`;
     } while (lists.has(listId));
     lists.set(listId, { listId, name, channelIds: [] });
     return { id: listId, name, createdAt: nowIso, updatedAt: nowIso, channelIds: [] };

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   applyRoundRobin,
   createDemoStore,
@@ -841,15 +841,49 @@ describe("demo store lists", () => {
     expect(store.getList("list-one")).toEqual(LIST_ONE_DETAIL);
   });
 
-  it("counts ids up from demo-list-1 and skips an id already in use", () => {
+  it("counts ids up and skips an id already in use", () => {
+    const probe = createDemoStore(NOW);
+    const [taken, second, third] = [probe.createList("A")!.id, probe.createList("B")!.id, probe.createList("C")!.id];
     const store = createDemoStore(NOW, {
       channels: SMALL_CHANNELS,
       videos: [],
-      lists: [{ listId: "demo-list-1", name: "Taken", channelIds: [] }],
+      lists: [{ listId: taken, name: "Taken", channelIds: [] }],
     });
 
-    expect(store.createList("Alpha")!.id).toBe("demo-list-2");
-    expect(store.createList("Beta")!.id).toBe("demo-list-3");
+    expect(store.createList("Alpha")!.id).toBe(second);
+    expect(store.createList("Beta")!.id).toBe(third);
+  });
+
+  it("gives different first ids to stores built at different times", () => {
+    const first = createDemoStore(NOW).createList("Alpha")!.id;
+    const later = createDemoStore(new Date(NOW.getTime() + 1)).createList("Alpha")!.id;
+
+    expect(later).not.toBe(first);
+  });
+
+  it("keeps ids distinct and matching the allowed pattern within one store", () => {
+    const store = createDemoStore(NOW);
+    const ids = ["Alpha", "Beta", "Gamma"].map((name) => store.createList(name)!.id);
+
+    expect(new Set(ids).size).toBe(3);
+    for (const id of ids) expect(id).toMatch(/^[A-Za-z0-9-]+$/);
+  });
+
+  it("gives the same first id for the same clock", () => {
+    // fixed clock keeps generated ids reproducible in tests
+    const first = createDemoStore(NOW).createList("Alpha")!.id;
+
+    expect(createDemoStore(NOW).createList("Alpha")!.id).toBe(first);
+  });
+
+  it("keeps fixture list ids after creating lists", () => {
+    const store = createDemoStore(NOW);
+    store.createList("Alpha");
+    store.createList("Beta");
+
+    expect(store.getLists().slice(0, DEMO_LISTS.length).map((l) => l.id)).toEqual(
+      DEMO_LISTS.map((l) => l.listId),
+    );
   });
 
   it("keeps ids unique after a delete and a create", () => {
@@ -859,7 +893,7 @@ describe("demo store lists", () => {
     store.deleteList(first.id);
     const third = store.createList("Gamma")!;
 
-    expect([first.id, second.id, third.id]).toEqual(["demo-list-1", "demo-list-2", "demo-list-3"]);
+    expect(new Set([first.id, second.id, third.id]).size).toBe(3);
   });
 
   it("appends a new list last in the summaries with 0 channels", () => {
@@ -898,7 +932,7 @@ describe("demo store lists", () => {
 
     expect(Object.keys(created).sort()).toEqual(["channelIds", "createdAt", "id", "name", "updatedAt"]);
     expect(created).toEqual({
-      id: "demo-list-1",
+      id: expect.stringMatching(/^[A-Za-z0-9-]+$/),
       name: "Fresh",
       createdAt: SAVED_AT,
       updatedAt: SAVED_AT,
@@ -955,15 +989,21 @@ describe("demo store lists", () => {
   });
 
   it("resetDemoStore brings the fixture lists and the id counter back", () => {
-    const first = getDemoStore();
-    first.deleteList(DEMO_LISTS[0].listId);
-    first.createList("Fresh");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+    try {
+      const first = getDemoStore();
+      first.deleteList(DEMO_LISTS[0].listId);
+      const fresh = first.createList("Fresh")!.id;
 
-    resetDemoStore();
-    const second = getDemoStore();
+      resetDemoStore();
+      const second = getDemoStore();
 
-    expect(second.getLists().map((l) => l.id)).toEqual(DEMO_LISTS.map((l) => l.listId));
-    expect(second.createList("Again")!.id).toBe("demo-list-1");
+      expect(second.getLists().map((l) => l.id)).toEqual(DEMO_LISTS.map((l) => l.listId));
+      expect(second.createList("Again")!.id).toBe(fresh);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("renames a list and replaces its membership", () => {
