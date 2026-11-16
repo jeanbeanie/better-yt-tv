@@ -22,7 +22,7 @@ vi.mock("../auth/requireAuth.js", () => ({
 }));
 
 const { pool } = await import("../db/pool.js");
-const { feedRouter, applyRoundRobin } = await import("./feed.js");
+const { feedRouter, applyRoundRobin, FEED_PAGE_SIZE } = await import("./feed.js");
 
 type Row = { channel_id: string; video_id: string };
 
@@ -77,6 +77,31 @@ describe("GET /api/feed/all", () => {
     const lastPage = await request(buildApp()).get("/api/feed/all?offset=4&limit=2");
     expect(lastPage.body.items.map((r: Row) => r.video_id)).toEqual(["a1"]);
     expect(lastPage.body.hasMore).toBe(false);
+  });
+
+  it("defaults to FEED_PAGE_SIZE items when no limit is given", async () => {
+    const rows = Array.from({ length: FEED_PAGE_SIZE + 10 }, (_, i) => ({
+      video_id: `v${i}`,
+      channel_id: "A",
+      channel_title: "A",
+      title: `v${i}`,
+      published_at: String(1000 - i),
+      thumb_url: null,
+      watched_at: null,
+      is_watched: false,
+    }));
+    mockedQuery(vi.mocked(pool.query)).mockResolvedValue(mockQueryResult({ rows }));
+
+    const res = await request(buildApp()).get("/api/feed/all");
+
+    expect(res.status).toBe(200);
+    expect(res.body.items).toHaveLength(FEED_PAGE_SIZE);
+    expect(res.body.hasMore).toBe(true);
+  });
+
+  // literal pin, must match client/src/lib/feedPageSize.ts
+  it("pins FEED_PAGE_SIZE to 50", () => {
+    expect(FEED_PAGE_SIZE).toBe(50);
   });
 
   // pool is mocked, so this guards the query text only, not the filtering result

@@ -27,6 +27,9 @@ export function applyRoundRobin<T extends { channel_id: string }>(rows: T[]): T[
   return result;
 }
 
+// queue page size, keep in sync with client/src/lib/feedPageSize.ts
+export const FEED_PAGE_SIZE = 50;
+
 // reads offset/limit from the query string, malformed or out of range
 // values fall back to safe defaults instead of reaching the query
 function parsePagination(query: express.Request["query"]) {
@@ -34,7 +37,7 @@ function parsePagination(query: express.Request["query"]) {
   const rawLimit = Number(query.limit);
 
   const offset = Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
-  const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.floor(rawLimit) : 50;
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.floor(rawLimit) : FEED_PAGE_SIZE;
 
   return { offset, limit: Math.min(limit, 200) };
 }

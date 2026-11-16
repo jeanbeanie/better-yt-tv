@@ -3,6 +3,7 @@ import { demoFetch } from "./demoFetch";
 import { resetDemoStore } from "./store";
 import { DEMO_CHANNEL_IDS, DEMO_CHANNELS } from "./fixtures";
 import { DEMO_SYNC_DELAY_MS } from "./latency";
+import { FEED_PAGE_SIZE } from "../feedPageSize";
 import {
   bulkUpdateChannels,
   createList,
@@ -130,13 +131,18 @@ describe("demoFetch", () => {
     expect(resp.status).toBe(200);
     expect(resp.headers.get("Content-Type")).toBe("application/json");
     const body = (await resp.json()) as { items: Record<string, unknown>[]; hasMore: boolean };
-    expect(body.items).toHaveLength(50);
+    expect(body.items).toHaveLength(FEED_PAGE_SIZE);
     expect(body.hasMore).toBe(true);
     expect(Object.keys(body.items[0]).sort()).toEqual(FEED_FIELDS);
   });
 
+  // literal pin, must match server/src/routes/feed.ts
+  it("pins FEED_PAGE_SIZE to 50", () => {
+    expect(FEED_PAGE_SIZE).toBe(50);
+  });
+
   it("pages with offset and limit", async () => {
-    const second = await feedJson("/api/feed/all?offset=50&limit=50");
+    const second = await feedJson(`/api/feed/all?offset=${FEED_PAGE_SIZE}&limit=${FEED_PAGE_SIZE}`);
     expect(second.items).toHaveLength(7);
     expect(second.hasMore).toBe(false);
   });
@@ -151,7 +157,7 @@ describe("demoFetch", () => {
     const defaults = await feedJson("/api/feed/all");
 
     const badLimit = await feedJson("/api/feed/all?limit=abc");
-    expect(badLimit.items).toHaveLength(50);
+    expect(badLimit.items).toHaveLength(FEED_PAGE_SIZE);
     expect(badLimit.hasMore).toBe(true);
 
     const negativeOffset = await feedJson("/api/feed/all?offset=-5");
@@ -182,7 +188,7 @@ describe("demoFetch", () => {
     try {
       const result = await getAllFeed();
 
-      expect(result.items).toHaveLength(50);
+      expect(result.items).toHaveLength(FEED_PAGE_SIZE);
       expect(result.hasMore).toBe(true);
       expect(fetchMock).toHaveBeenCalledTimes(0);
     } finally {
@@ -690,8 +696,8 @@ describe("demoFetch", () => {
 
     const malformed = await feedJson(listFeedPath(SPACE_NERD, "?limit=abc&offset=-5"));
     expect(malformed).toEqual(await feedJson(listFeedPath(SPACE_NERD)));
-    expect(malformed.items).toHaveLength(Math.min(50, all.items.length));
-    expect(malformed.hasMore).toBe(all.items.length > 50);
+    expect(malformed.items).toHaveLength(Math.min(FEED_PAGE_SIZE, all.items.length));
+    expect(malformed.hasMore).toBe(all.items.length > FEED_PAGE_SIZE);
   });
 
   it("keeps a channel switched off in All on its list feed", async () => {

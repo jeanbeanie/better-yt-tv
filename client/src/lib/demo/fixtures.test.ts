@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DEMO_CHANNEL_IDS, DEMO_CHANNELS, DEMO_LISTS, DEMO_VIDEOS } from "./fixtures";
+import { FEED_PAGE_SIZE } from "../feedPageSize";
 
 const PUBLIC_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../../../public");
 
@@ -21,7 +22,7 @@ describe("demo fixtures", () => {
   });
 
   it("has more than 50 unique videos", () => {
-    expect(DEMO_VIDEOS.length).toBeGreaterThan(50);
+    expect(DEMO_VIDEOS.length).toBeGreaterThan(FEED_PAGE_SIZE);
     const ids = new Set(DEMO_VIDEOS.map((v) => v.videoId));
     expect(ids.size).toBe(DEMO_VIDEOS.length);
   });
