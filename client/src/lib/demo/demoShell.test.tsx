@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import AppRoot from "../../AppRoot";
 import { getRouterBasename, isDemoMode } from "./mode";
 import { createDemoStore, getDemoStore, resetDemoStore } from "./store";
-import { DEMO_CHANNELS } from "./fixtures";
+import { DEMO_CHANNELS, DEMO_LISTS, DEMO_VIDEOS } from "./fixtures";
 import { FEED_PAGE_SIZE } from "../feedPageSize";
 
 const SPACE_NERD = "demo-list-space-nerd";
@@ -20,8 +20,10 @@ vi.mock("./latency", async () => {
 const FEED_FIRST_TITLE = "What's New in Blender 5.3! Official Overview";
 // second channel's newest video, shown on /demo/all once Blender is off
 const NASA_FEED_TITLE = "NASA's SpaceX Crew-13 Mission (Official NASA Trailer)";
-// first Dev talk video, newest of the three channels in that list
-const DEV_TALK_FIRST_TITLE = "Did Anthropic just save its $1 trillion IPO?";
+// first Dev talk video, newest across the channels in that list
+const DEV_TALK_FIRST_TITLE = DEMO_VIDEOS.filter((v) =>
+  DEMO_LISTS.find((l) => l.listId === "demo-list-dev-talk")!.channelIds.includes(v.channelId),
+).reduce((newest, v) => (v.hoursAgo < newest.hoursAgo ? v : newest)).title;
 
 const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
   async () => new Response("{}", { status: 200 }),
@@ -379,13 +381,13 @@ describe("demo shell", () => {
     renderShell();
 
     await screen.findByRole("heading", { name: "NASA" });
-    expect(screen.getAllByText(/^UC[A-Za-z0-9_-]{22}$/)).toHaveLength(11);
+    expect(screen.getAllByText(/^UC[A-Za-z0-9_-]{22}$/)).toHaveLength(DEMO_CHANNELS.length);
 
     await user.click(screen.getByRole("button", { name: "Sync Subscriptions" }));
-    await screen.findByText("Synced 11 channels.");
+    await screen.findByText(`Synced ${DEMO_CHANNELS.length} channels.`);
 
     await user.click(screen.getByRole("button", { name: "Manually Refresh Feed" }));
-    await screen.findByText("Refreshed 11 channels, skipped 0, cached 60 videos.");
+    await screen.findByText(`Refreshed ${DEMO_CHANNELS.length} channels, skipped 0, cached ${DEMO_VIDEOS.length} videos.`);
 
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
@@ -424,7 +426,7 @@ describe("demo shell", () => {
     await waitFor(() => expect(bulkAll).toBeEnabled());
 
     const rowAll = screen.getAllByRole("checkbox", { name: "Enable in All" });
-    expect(rowAll).toHaveLength(11);
+    expect(rowAll).toHaveLength(DEMO_CHANNELS.length);
     for (const box of rowAll) expect(box).not.toBeChecked();
 
     await user.click(screen.getByRole("link", { name: "All" }));
@@ -467,16 +469,15 @@ describe("demo shell", () => {
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 
-  it("lists the three demo lists with their channel counts", async () => {
+  it("lists every demo list with its channel count", async () => {
     window.history.pushState({}, "", "/demo/settings/lists");
 
     renderShell();
 
-    await screen.findByText("Space nerd");
-    expect(screen.getByText("Dev talk")).toBeInTheDocument();
-    expect(screen.getByText("Quick learning")).toBeInTheDocument();
-    expect(screen.getByText("5 channels")).toBeInTheDocument();
-    expect(screen.getAllByText("3 channels")).toHaveLength(2);
+    for (const list of DEMO_LISTS) expect(await screen.findByText(list.name)).toBeInTheDocument();
+    const sizes = new Map<number, number>();
+    for (const list of DEMO_LISTS) sizes.set(list.channelIds.length, (sizes.get(list.channelIds.length) ?? 0) + 1);
+    for (const [size, lists] of sizes) expect(screen.getAllByText(`${size} channels`)).toHaveLength(lists);
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 
@@ -487,11 +488,12 @@ describe("demo shell", () => {
 
     const heading = await screen.findByRole("heading", { name: "Channels in this list" });
     const section = heading.parentElement as HTMLElement;
-    await waitFor(() =>
-      expect(within(section).getAllByText(/^(Computerphile|exit node|Fireship)$/)).toHaveLength(3),
-    );
-    const titles = within(section).getAllByText(/^(Computerphile|exit node|Fireship)$/);
-    expect(titles.map((el) => el.textContent)).toEqual(["Computerphile", "exit node", "Fireship"]);
+    const devIds = DEMO_LISTS.find((l) => l.listId === "demo-list-dev-talk")!.channelIds;
+    const devTitles = DEMO_CHANNELS.filter((c) => devIds.includes(c.channelId)).map((c) => c.title).sort(new Intl.Collator("en-US").compare);
+    const titlePattern = new RegExp(`^(${devTitles.join("|")})$`);
+    await waitFor(() => expect(within(section).getAllByText(titlePattern)).toHaveLength(devTitles.length));
+    const titles = within(section).getAllByText(titlePattern);
+    expect(titles.map((el) => el.textContent)).toEqual(devTitles);
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 
@@ -588,7 +590,7 @@ describe("demo shell", () => {
     window.history.pushState({}, "", "/demo/settings/lists");
     renderShell();
     const link = await screen.findByRole("link", { name: "Dev talk plus" });
-    expect(within(link.closest("li") as HTMLElement).getByText("4 channels")).toBeInTheDocument();
+    expect(within(link.closest("li") as HTMLElement).getByText(`${DEMO_LISTS.find((l) => l.listId === "demo-list-dev-talk")!.channelIds.length + 1} channels`)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Dev talk" })).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
@@ -633,7 +635,7 @@ describe("demo shell", () => {
     window.history.pushState({}, "", "/demo/settings/lists");
     renderShell();
     const devTalk = (await screen.findByRole("link", { name: "Dev talk" })).closest("li") as HTMLElement;
-    expect(within(devTalk).getByText("3 channels")).toBeInTheDocument();
+    expect(within(devTalk).getByText(`${DEMO_LISTS.find((l) => l.listId === "demo-list-dev-talk")!.channelIds.length} channels`)).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Space nerd" })).toHaveLength(1);
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });

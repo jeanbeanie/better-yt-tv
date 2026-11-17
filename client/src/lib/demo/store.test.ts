@@ -32,6 +32,9 @@ function feedIds(store: DemoStore): string[] {
   return store.getAllFeed(ALL).items.map((i) => i.video_id);
 }
 
+// shorts are measured at 60 seconds or less, unknown durations stay visible
+const VISIBLE_VIDEO_COUNT = DEMO_VIDEOS.filter((v) => v.durationSeconds === null || v.durationSeconds > 60).length;
+
 beforeEach(() => {
   resetDemoStore();
 });
@@ -183,11 +186,11 @@ describe("demo store pagination", () => {
 
     expect(first.items).toHaveLength(FEED_PAGE_SIZE);
     expect(first.hasMore).toBe(true);
-    // 3 of the 60 fixture videos are 45 or 46 seconds and hidden by the Shorts setting
-    expect(second.items).toHaveLength(7);
+    // 3 fixture videos are 45 or 46 seconds and hidden by the Shorts setting
+    expect(second.items).toHaveLength(VISIBLE_VIDEO_COUNT - FEED_PAGE_SIZE);
     expect(second.hasMore).toBe(false);
     const ids = [...first.items, ...second.items].map((i) => i.video_id);
-    expect(new Set(ids).size).toBe(57);
+    expect(new Set(ids).size).toBe(VISIBLE_VIDEO_COUNT);
   });
 
   it("returns an empty page with hasMore false past the end", () => {
@@ -280,24 +283,13 @@ describe("demo store isolation", () => {
 });
 
 describe("demo store channels", () => {
-  const SERVER_ORDER = [
-    "3Blue1Brown",
-    "Blender",
-    "CGP Grey",
-    "Computerphile",
-    "exit node",
-    "Fireship",
-    "Kurzgesagt – In a Nutshell",
-    "NASA",
-    "SmarterEveryDay",
-    "TED-Ed",
-    "Veritasium",
-  ];
+  // same en-US collation as the store
+  const SERVER_ORDER = DEMO_CHANNELS.map((c) => c.title).sort(new Intl.Collator("en-US").compare);
 
-  it("returns the 11 fixture channels in the server's title order", () => {
+  it("returns the fixture channels in the server's title order", () => {
     const channels = createDemoStore(NOW).getChannels();
 
-    expect(channels).toHaveLength(11);
+    expect(channels).toHaveLength(DEMO_CHANNELS.length);
     expect(channels.map((c) => c.title)).toEqual(SERVER_ORDER);
     expect(channels[0]).toEqual({
       channelId: DEMO_CHANNEL_IDS.threeBlueOneBrown,
@@ -317,7 +309,7 @@ describe("demo store channels", () => {
     returned[0].enabledAll = false;
 
     const again = store.getChannels();
-    expect(again).toHaveLength(11);
+    expect(again).toHaveLength(DEMO_CHANNELS.length);
     expect(again[0].title).toBe("3Blue1Brown");
     expect(again[0].enabledAll).toBe(true);
     expect(feedIds(store)).toContain("pvUy69I_Xuk");
@@ -466,13 +458,13 @@ describe("demo store channel updates", () => {
 
   it("shows NASA's short clips in the feed once excludedShorts is off", () => {
     const store = createDemoStore(NOW);
-    expect(feedIds(store)).toHaveLength(57);
+    expect(feedIds(store)).toHaveLength(VISIBLE_VIDEO_COUNT);
     expect(NASA_SHORTS.some((id) => feedIds(store).includes(id))).toBe(false);
 
     store.updateChannel(DEMO_CHANNEL_IDS.nasa, { excludedShorts: false });
 
     const ids = feedIds(store);
-    expect(ids).toHaveLength(60);
+    expect(ids).toHaveLength(DEMO_VIDEOS.length);
     for (const id of NASA_SHORTS) expect(ids).toContain(id);
   });
 
@@ -517,7 +509,7 @@ describe("demo store bulk updates", () => {
 
     expect(store.updateChannels([DEMO_CHANNEL_IDS.blender, "demo-missing"], { enabledAll: false })).toBe(1);
 
-    expect(store.getChannels()).toHaveLength(11);
+    expect(store.getChannels()).toHaveLength(DEMO_CHANNELS.length);
     expect(store.getChannels().find((c) => c.channelId === DEMO_CHANNEL_IDS.blender)?.enabledAll).toBe(false);
   });
 
@@ -528,7 +520,7 @@ describe("demo store bulk updates", () => {
     expect(store.updateChannels(["demo-missing", "demo-also-missing"], { enabledAll: false })).toBe(0);
 
     expect(store.getChannels()).toEqual(before);
-    expect(feedIds(store)).toHaveLength(57);
+    expect(feedIds(store)).toHaveLength(VISIBLE_VIDEO_COUNT);
   });
 
   it("counts a duplicated id once", () => {
@@ -579,13 +571,13 @@ describe("demo store bulk updates", () => {
     expect(removed.some((id) => after.includes(id))).toBe(false);
   });
 
-  it("shows all 60 fixture videos once excludedShorts is off on every channel", () => {
+  it("shows every fixture video once excludedShorts is off on every channel", () => {
     const store = createDemoStore(NOW);
-    expect(feedIds(store)).toHaveLength(57);
+    expect(feedIds(store)).toHaveLength(VISIBLE_VIDEO_COUNT);
 
-    expect(store.updateChannels(ALL_IDS, { excludedShorts: false })).toBe(11);
+    expect(store.updateChannels(ALL_IDS, { excludedShorts: false })).toBe(ALL_IDS.length);
 
-    expect(feedIds(store)).toHaveLength(60);
+    expect(feedIds(store)).toHaveLength(DEMO_VIDEOS.length);
   });
 });
 
@@ -1235,7 +1227,8 @@ describe("demo store list summaries", () => {
   });
 
   it("gives no videos shape with null featured for a created empty list", () => {
-    const store = createDemoStore(NOW);
+    // one slot free under the six list summary cap
+    const store = createDemoStore(NOW, { lists: DEMO_LISTS.slice(0, 5) });
     const { id } = store.createList("Fresh")!;
 
     const someVideo = store.getListFeed(SPACE_NERD, ALL)!.items[0].video_id;

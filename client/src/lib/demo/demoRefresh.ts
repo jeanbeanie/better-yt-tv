@@ -1,9 +1,10 @@
 import type { RefreshAllCacheResult } from "../api";
 import { DEMO_REFRESH_DELAY_MS, demoLatency } from "./latency";
+import { DEMO_CHANNELS, DEMO_VIDEOS } from "./fixtures";
 
 // canned counts for the demo refresh result
-export const DEMO_REFRESHED_CHANNELS = 11;
-export const DEMO_CACHED_VIDEOS = 60;
+export const DEMO_REFRESHED_CHANNELS = DEMO_CHANNELS.length;
+export const DEMO_CACHED_VIDEOS = DEMO_VIDEOS.length;
 
 export async function demoRefreshResult(manual: boolean): Promise<RefreshAllCacheResult> {
   if (manual) {
