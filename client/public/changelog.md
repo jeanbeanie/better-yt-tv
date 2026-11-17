@@ -5,6 +5,7 @@
 - Added a note to the demo banner that changes you make reset when you refresh
 - Changed the home page button to a play icon with the text Watch all videos
 - Added seven channels and three lists to the demo
+- Added a note with a link to the Channels settings page on the list editor when you have no synced channels
 
 ## 2026-11-13
 

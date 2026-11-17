@@ -729,4 +729,67 @@ describe("ListEditorPage", () => {
 
     confirmSpy.mockRestore();
   });
+
+  it("points to the channels settings page and hides the search box when no channels are synced", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+    vi.mocked(getChannels).mockResolvedValue({ channels: [] });
+
+    renderPage("l1");
+
+    expect(await screen.findByRole("link", { name: /channels settings/i })).toHaveAttribute(
+      "href",
+      "/settings/channels",
+    );
+    expect(screen.queryByPlaceholderText("Search your subscribed channels")).not.toBeInTheDocument();
+  });
+
+  it("keeps the search box and shows no sync prompt when channels are synced", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+    vi.mocked(getChannels).mockResolvedValue({ channels: [makeChannel(1, "Alpha Channel")] });
+
+    renderPage("l1");
+
+    await screen.findByText("Alpha Channel");
+    expect(screen.getByPlaceholderText("Search your subscribed channels")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /channels settings/i })).not.toBeInTheDocument();
+  });
+
+  it("shows no sync prompt when loading the channels fails", async () => {
+    vi.mocked(getList).mockResolvedValue({
+      list: {
+        id: "l1",
+        name: "News",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        channelIds: [],
+        channels: [],
+      },
+    });
+    vi.mocked(getChannels).mockRejectedValue(new Error("network"));
+
+    renderPage("l1");
+
+    await screen.findByDisplayValue("News");
+    expect(getChannels).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("link", { name: /channels settings/i })).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Search your subscribed channels")).toBeInTheDocument();
+  });
 });
