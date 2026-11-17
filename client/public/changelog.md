@@ -4,6 +4,7 @@
 - Added the Your lists cards to the demo home page
 - Added a note to the demo banner that changes you make reset when you refresh
 - Changed the home page button to a play icon with the text Watch all videos
+- Added seven channels and three lists to the demo
 
 ## 2026-11-13
 

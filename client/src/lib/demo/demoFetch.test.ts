@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { demoFetch } from "./demoFetch";
 import { createDemoStore, resetDemoStore } from "./store";
-import { DEMO_CHANNEL_IDS, DEMO_CHANNELS, DEMO_LISTS } from "./fixtures";
+import { DEMO_CHANNEL_IDS, DEMO_CHANNELS, DEMO_LISTS, DEMO_VIDEOS } from "./fixtures";
 import { DEMO_SYNC_DELAY_MS } from "./latency";
 import { FEED_PAGE_SIZE } from "../feedPageSize";
 import {
@@ -20,6 +20,9 @@ import {
 } from "../api";
 
 const THUMB_BY_ID = new Map(DEMO_CHANNELS.map((c) => [c.channelId, c.thumbUrl]));
+
+// shorts are measured at 60 seconds or less, unknown durations stay visible
+const VISIBLE_VIDEO_COUNT = DEMO_VIDEOS.filter((v) => v.durationSeconds === null || v.durationSeconds > 60).length;
 
 const NOW = new Date("2026-11-11T12:00:00Z");
 const FEED_FIELDS = [
@@ -143,13 +146,13 @@ describe("demoFetch", () => {
 
   it("pages with offset and limit", async () => {
     const second = await feedJson(`/api/feed/all?offset=${FEED_PAGE_SIZE}&limit=${FEED_PAGE_SIZE}`);
-    expect(second.items).toHaveLength(7);
+    expect(second.items).toHaveLength(VISIBLE_VIDEO_COUNT - FEED_PAGE_SIZE);
     expect(second.hasMore).toBe(false);
   });
 
   it("caps limit at 200 and returns every visible video", async () => {
     const body = await feedJson("/api/feed/all?limit=500");
-    expect(body.items).toHaveLength(57);
+    expect(body.items).toHaveLength(VISIBLE_VIDEO_COUNT);
     expect(body.hasMore).toBe(false);
   });
 
@@ -283,13 +286,13 @@ describe("demoFetch", () => {
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 
-  it("serves GET /api/channels as JSON with the 11 fixture channels", async () => {
+  it("serves GET /api/channels as JSON with the fixture channels", async () => {
     const resp = await demoFetch("http://localhost:5179/api/channels", { method: "GET" });
 
     expect(resp.status).toBe(200);
     expect(resp.headers.get("Content-Type")).toBe("application/json");
     const body = (await resp.json()) as { channels: Channel[] };
-    expect(body.channels).toHaveLength(11);
+    expect(body.channels).toHaveLength(DEMO_CHANNELS.length);
     for (const channel of body.channels) {
       expect(Object.keys(channel).sort()).toEqual([
         "channelId",
@@ -317,7 +320,7 @@ describe("demoFetch", () => {
     );
 
     expect(resp.status).toBe(200);
-    expect(await resp.json()).toEqual({ ok: true, syncedCount: 11 });
+    expect(await resp.json()).toEqual({ ok: true, syncedCount: DEMO_CHANNELS.length });
   });
 
   it("holds POST /api/youtube/sync-subscriptions for DEMO_SYNC_DELAY_MS", async () => {
@@ -337,7 +340,7 @@ describe("demoFetch", () => {
 
     const resp = await pending;
     expect(resp.status).toBe(200);
-    expect(await resp.json()).toEqual({ ok: true, syncedCount: 11 });
+    expect(await resp.json()).toEqual({ ok: true, syncedCount: DEMO_CHANNELS.length });
     expect(fetchMock).toHaveBeenCalledTimes(0);
   });
 
@@ -370,8 +373,8 @@ describe("demoFetch", () => {
       const { channels } = await getChannels();
       const sync = await afterLatency(syncSubscriptions(), DEMO_SYNC_DELAY_MS);
 
-      expect(channels).toHaveLength(11);
-      expect(sync).toEqual({ ok: true, syncedCount: 11 });
+      expect(channels).toHaveLength(DEMO_CHANNELS.length);
+      expect(sync).toEqual({ ok: true, syncedCount: DEMO_CHANNELS.length });
       expect(fetchMock).toHaveBeenCalledTimes(0);
     } finally {
       window.history.pushState({}, "", "/");
@@ -494,7 +497,7 @@ describe("demoFetch", () => {
     for (const id of [DEMO_CHANNEL_IDS.blender, DEMO_CHANNEL_IDS.nasa]) {
       expect(channels.find((c) => c.channelId === id)?.enabledAll).toBe(false);
     }
-    expect(channels.filter((c) => c.enabledAll)).toHaveLength(9);
+    expect(channels.filter((c) => c.enabledAll)).toHaveLength(DEMO_CHANNELS.length - 2);
 
     const feed = await feedJson("/api/feed/all?limit=200");
     expect(feed.items.some((item) => item.channel_id === DEMO_CHANNEL_IDS.blender)).toBe(false);
@@ -508,7 +511,7 @@ describe("demoFetch", () => {
 
     expect(await resp.json()).toEqual({ ok: true, updatedCount: 1 });
     const list = await demoFetch("http://localhost:5179/api/channels", { method: "GET" });
-    expect(((await list.json()) as { channels: Channel[] }).channels).toHaveLength(11);
+    expect(((await list.json()) as { channels: Channel[] }).channels).toHaveLength(DEMO_CHANNELS.length);
   });
 
   it("returns 200 with updatedCount 0 when every id is unknown", async () => {
@@ -599,24 +602,22 @@ describe("demoFetch", () => {
     }
   });
 
-  it("serves GET /api/lists with the three fixture lists in fixture order", async () => {
+  it("serves GET /api/lists with the fixture lists in fixture order", async () => {
     const resp = await demoFetch("http://localhost:5179/api/lists", { method: "GET" });
 
     expect(resp.status).toBe(200);
     expect(resp.headers.get("Content-Type")).toBe("application/json");
     const body = (await resp.json()) as { lists: Record<string, unknown>[] };
     const stamp = NOW.toISOString();
-    expect(body.lists).toEqual([
-      { id: SPACE_NERD, name: "Space nerd", channelCount: 5, createdAt: stamp, updatedAt: stamp },
-      { id: DEV_TALK, name: "Dev talk", channelCount: 3, createdAt: stamp, updatedAt: stamp },
-      {
-        id: "demo-list-quick-learning",
-        name: "Quick learning",
-        channelCount: 3,
+    expect(body.lists).toEqual(
+      DEMO_LISTS.map((list) => ({
+        id: list.listId,
+        name: list.name,
+        channelCount: list.channelIds.length,
         createdAt: stamp,
         updatedAt: stamp,
-      },
-    ]);
+      })),
+    );
   });
 
   it("serves GET /api/lists/:listId with channels sorted by title", async () => {
@@ -624,18 +625,16 @@ describe("demoFetch", () => {
 
     expect(resp.status).toBe(200);
     const stamp = NOW.toISOString();
+    const devIds = DEMO_LISTS.find((l) => l.listId === DEV_TALK)!.channelIds;
+    const sorted = DEMO_CHANNELS.filter((c) => devIds.includes(c.channelId)).sort((a, b) => new Intl.Collator("en-US").compare(a.title, b.title));
     expect(await resp.json()).toEqual({
       list: {
         id: DEV_TALK,
         name: "Dev talk",
         createdAt: stamp,
         updatedAt: stamp,
-        channelIds: [DEMO_CHANNEL_IDS.computerphile, DEMO_CHANNEL_IDS.exitNode, DEMO_CHANNEL_IDS.fireship],
-        channels: [
-          { channelId: DEMO_CHANNEL_IDS.computerphile, title: "Computerphile", thumbUrl: THUMB_BY_ID.get(DEMO_CHANNEL_IDS.computerphile) },
-          { channelId: DEMO_CHANNEL_IDS.exitNode, title: "exit node", thumbUrl: THUMB_BY_ID.get(DEMO_CHANNEL_IDS.exitNode) },
-          { channelId: DEMO_CHANNEL_IDS.fireship, title: "Fireship", thumbUrl: THUMB_BY_ID.get(DEMO_CHANNEL_IDS.fireship) },
-        ],
+        channelIds: sorted.map((c) => c.channelId),
+        channels: sorted.map((c) => ({ channelId: c.channelId, title: c.title, thumbUrl: THUMB_BY_ID.get(c.channelId) })),
       },
     });
   });
@@ -665,16 +664,19 @@ describe("demoFetch", () => {
     expect(body.hasMore).toBe(false);
     expect(body.items.length).toBeGreaterThan(0);
     expect(Object.keys(body.items[0]).sort()).toEqual(FEED_FIELDS);
+    const devIds = DEMO_LISTS.find((l) => l.listId === DEV_TALK)!.channelIds;
     for (const item of body.items) {
-      expect([DEMO_CHANNEL_IDS.computerphile, DEMO_CHANNEL_IDS.exitNode, DEMO_CHANNEL_IDS.fireship]).toContain(item.channel_id);
+      expect(devIds).toContain(item.channel_id);
     }
   });
 
   it("pages the list feed with offset and limit", async () => {
     const all = await feedJson(listFeedPath(SPACE_NERD, "?limit=200"));
     expect(all.hasMore).toBe(false);
-    // 28 fixture videos minus 3 shorts (45s, 46s, 46s) hidden by excludedShorts
-    expect(all.items).toHaveLength(25);
+    // shorts at 60 seconds or less are hidden by excludedShorts
+    const spaceIds = DEMO_LISTS.find((l) => l.listId === SPACE_NERD)!.channelIds;
+    const spaceVisible = DEMO_VIDEOS.filter((v) => spaceIds.includes(v.channelId) && (v.durationSeconds === null || v.durationSeconds > 60));
+    expect(all.items).toHaveLength(spaceVisible.length);
 
     const first = await feedJson(listFeedPath(SPACE_NERD, "?limit=2"));
     expect(first.items).toEqual(all.items.slice(0, 2));
@@ -759,7 +761,7 @@ describe("demoFetch", () => {
       const { list } = await getList(DEV_TALK);
       const feed = await getListFeed(SPACE_NERD, { limit: 2 });
 
-      expect(lists).toHaveLength(3);
+      expect(lists).toHaveLength(DEMO_LISTS.length);
       expect(list).toMatchObject({ id: DEV_TALK, name: "Dev talk" });
       expect(feed.list).toEqual({ id: SPACE_NERD, name: "Space nerd" });
       expect(feed.items).toHaveLength(2);

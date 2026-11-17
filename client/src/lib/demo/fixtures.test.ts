@@ -9,10 +9,11 @@ import { FEED_PAGE_SIZE } from "../feedPageSize";
 const PUBLIC_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../../../public");
 
 describe("demo fixtures", () => {
-  it("has 11 unique channels", () => {
-    expect(DEMO_CHANNELS).toHaveLength(11);
+  it("has unique channel ids and titles", () => {
     const ids = new Set(DEMO_CHANNELS.map((c) => c.channelId));
+    const titles = new Set(DEMO_CHANNELS.map((c) => c.title));
     expect(ids.size).toBe(DEMO_CHANNELS.length);
+    expect(titles.size).toBe(DEMO_CHANNELS.length);
   });
 
   it("gives every channel a production shaped id", () => {
@@ -85,7 +86,7 @@ describe("demo fixtures", () => {
       expect(url).toMatch(/^\/demo-avatars\/[a-z0-9-]+\.jpg$/);
       expect(existsSync(join(PUBLIC_DIR, url))).toBe(true);
     }
-    expect(new Set(urls).size).toBe(11);
+    expect(new Set(urls).size).toBe(DEMO_CHANNELS.length);
   });
 });
 

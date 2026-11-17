@@ -15,7 +15,7 @@ import {
 } from "./api";
 import { DEMO_REFRESHED_CHANNELS, DEMO_CACHED_VIDEOS } from "./demo/demoRefresh";
 import { DEMO_SYNC_DELAY_MS, DEMO_REFRESH_DELAY_MS } from "./demo/latency";
-import { DEMO_LISTS } from "./demo/fixtures";
+import { DEMO_CHANNELS, DEMO_LISTS } from "./demo/fixtures";
 
 function mockFetchOnce(body: string, status: number) {
   globalThis.fetch = vi.fn().mockResolvedValue(new Response(body, { status })) as unknown as typeof fetch;
@@ -387,7 +387,7 @@ describe("demo mode", () => {
 
     expect(watched).toEqual({ ok: true });
     expect(unwatched).toEqual({ ok: true });
-    expect(sync).toEqual({ ok: true, syncedCount: 11 });
+    expect(sync).toEqual({ ok: true, syncedCount: DEMO_CHANNELS.length });
     expect(summary.lists).toHaveLength(Math.min(6, DEMO_LISTS.length));
     expect(appSettingsErr).toBeInstanceOf(ApiError);
     expect(appSettingsErr).toMatchObject({ message: "Not found", status: 404 });
