@@ -21,6 +21,7 @@ import Thumbnail from "../../components/Thumbnail";
 import GuardedLink from "../../components/GuardedLink";
 import TextField from "../../components/TextField";
 import RowSelectButton from "../../components/RowSelectButton";
+import InfoBanner from "../../components/InfoBanner";
 
 const PAGE_SIZE = 25;
 
@@ -33,6 +34,8 @@ export default function ListEditorPage() {
   const [notFound, setNotFound] = useState(false);
   const [name, setName] = useState("");
   const [allChannels, setAllChannels] = useState<ListChannel[]>([]);
+  // false until getChannels succeeds, so a failed fetch is not shown as no synced channels
+  const [channelsLoaded, setChannelsLoaded] = useState(false);
   const [selectedChannels, setSelectedChannels] = useState<ListChannel[]>([]);
   // last name/channels we know are saved on the server, compared against
   // current state below to tell whether there are unsaved edits
@@ -103,9 +106,14 @@ export default function ListEditorPage() {
     // If this fails, just leave allChannels empty -- name editing (and the
     // rest of the page) should still work, per spec.
     getChannels()
-      .then((data) => setAllChannels(data.channels))
+      .then((data) => {
+        setAllChannels(data.channels);
+        setChannelsLoaded(true);
+      })
       .catch(() => {});
   }, []);
+
+  const noSyncedChannels = channelsLoaded && allChannels.length === 0;
 
   const searchResults = useMemo(() => {
     const selectedIds = new Set(selectedChannels.map((c) => c.channelId));
@@ -300,19 +308,26 @@ export default function ListEditorPage() {
 
           <section style={{ margin: "1rem 0" }}>
             <h2>Add channels</h2>
-            <TextField
-              label="Search your subscribed channels"
-              hideLabel
-              value={searchText}
-              onChange={(event) => handleSearchChange(event.target.value)}
-              placeholder="Search your subscribed channels"
-              style={{
-                width: "24rem",
-                maxWidth: "100%",
-                fontSize: "1.1rem",
-                padding: "0.6rem 0.9rem",
-              }}
-            />
+            {noSyncedChannels ? (
+              <InfoBanner>
+                No synced channels yet: <strong>Sync Subscriptions</strong> on the{" "}
+                <GuardedLink to="/settings/channels">Channels Settings page</GuardedLink> to get started.
+              </InfoBanner>
+            ) : (
+              <TextField
+                label="Search your subscribed channels"
+                hideLabel
+                value={searchText}
+                onChange={(event) => handleSearchChange(event.target.value)}
+                placeholder="Search your subscribed channels"
+                style={{
+                  width: "24rem",
+                  maxWidth: "100%",
+                  fontSize: "1.1rem",
+                  padding: "0.6rem 0.9rem",
+                }}
+              />
+            )}
             {searchResults.length > 0 && (
               <MutedText style={{ margin: "0.5rem 0 0", fontSize: "smaller" }}>
                 Showing {visibleSearchResults.length} of {searchResults.length}

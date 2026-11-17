@@ -16,6 +16,7 @@ import CheckboxGroup from "../../components/CheckboxGroup";
 import TextField from "../../components/TextField";
 import Thumbnail from "../../components/Thumbnail";
 import Spinner from "../../components/Spinner";
+import InfoBanner from "../../components/InfoBanner";
 
 
 type ChannelItem = {
@@ -476,16 +477,9 @@ export default function ChannelsSettingsPage() {
       </CheckboxGroup>
 
       {!loading && !error && channels.length === 0 && (
-        <p
-          style={{
-            background: "var(--accent-bg)",
-            border: "1px solid var(--accent-border)",
-            borderRadius: "12px",
-            padding: "1rem",
-          }}
-        >
+        <InfoBanner>
           ↑ No synced channels yet: click <strong>Sync Subscriptions</strong> above to import your YouTube subscriptions and get started.
-        </p>
+        </InfoBanner>
       )}
 
       {!loading && channels.length > 0 && (
