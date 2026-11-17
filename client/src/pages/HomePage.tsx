@@ -3,6 +3,7 @@ import { getLoginUrl, hasInviteCode, type User } from "../lib/api";
 import ErrorText from "../components/ErrorText";
 import Spinner from "../components/Spinner";
 import ListsGrid from "../components/ListsGrid";
+import PlayIcon from "../components/PlayIcon";
 import { GITHUB_URL, LINKEDIN_URL } from "../lib/contactLinks";
 
 
@@ -27,19 +28,7 @@ function TryDemoButton() {
       className="button button-primary"
       style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}
     >
-      <svg
-        aria-hidden="true"
-        focusable="false"
-        width="1em"
-        height="1em"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      >
-        <path d="M7 4.5v15l12-7.5z" />
-      </svg>
+      <PlayIcon />
       Try the demo
     </a>
   );
@@ -111,13 +100,18 @@ export default function HomePage(props:homePageProps) {
         )}
 
         {!loading && user && (
-          <div style={{ marginTop: "2rem" }}>
+          <div style={{ marginTop: "1.5rem" }}>
             <p style={{ fontSize: "0.875rem", marginBottom: "1rem" }}>
               Logged in as <strong>{user.email ?? "No email found"}</strong>
             </p>
 
-            <Link to="/all" className="button button-primary">
-              Go to /all videos
+            <Link
+              to="/all"
+              className="button button-primary"
+              style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}
+            >
+              <PlayIcon />
+              Watch all videos
             </Link>
           </div>
         )}
