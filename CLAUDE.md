@@ -44,6 +44,11 @@ pnpm --filter server lint
 pnpm db:up       # apply migrations
 pnpm db:status   # show migration status
 pnpm db:new      # create a new migration file
+
+# releases (prints the git commands, never runs git)
+pnpm release [minor|patch] [--dry-run]   # edits package.json version and changelog marker, run on a release branch
+pnpm release:tag                         # prints the tag commands
+pnpm test:scripts                        # vitest for scripts/release
 ```
 
 Postgres itself runs via `docker-compose.yml` (`db` service, port 5432). Migrations live in `server/src/db/migrations/`; the schema dump lives at `server/src/db/schema.sql`.
