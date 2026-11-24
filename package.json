@@ -5,9 +5,12 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "test:scripts": "vitest run --dir scripts",
     "dev": "concurrently -n server,client -c blue,green \"pnpm --filter server dev\" \"pnpm --filter client dev\"",
     "build": "pnpm --filter client build && pnpm --filter server build",
     "start": "pnpm --filter server start",
+    "release": "node scripts/release.mjs",
+    "release:tag": "node scripts/release.mjs tag",
 
     "db:up": "dotenv -e .env.dbmate -- docker compose run --rm dbmate up",
     "db:status": "dotenv -e .env.dbmate -- docker compose run --rm dbmate status",
@@ -22,6 +25,7 @@
   "packageManager": "pnpm@10.19.0",
   "devDependencies": {
     "concurrently": "^9.2.1",
-    "dotenv-cli": "^11.0.0"
+    "dotenv-cli": "^11.0.0",
+    "vitest": "^4.1.9"
   }
 }
