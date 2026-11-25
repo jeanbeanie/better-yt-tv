@@ -113,7 +113,7 @@ function printReleaseCommands(log, branch, version, bumped) {
   log(`  git add ${files}`);
   log(`  git commit -m "Release ${tagName(version)}"`);
   log(`  git push -u origin ${branch}`);
-  log("After the PR is merged and the deploy is healthy, run pnpm release:tag on main.");
+  log("After the PR is merged and the deploy is healthy, run git switch main and git pull, then pnpm release:tag.");
 }
 
 function runTag(deps) {
@@ -121,11 +121,10 @@ function runTag(deps) {
   const tag = tagName(readPackageVersion(readFile(PACKAGE_PATH)));
   if (listTags(git).includes(tag)) return fail(deps, `Tag ${tag} already exists.`);
 
+  log("The tag name comes from the checked out package.json. Run git switch main and git pull first.");
   log("Run these yourself, the script does not run git:");
-  log("  git switch main");
-  log("  git pull");
   log("  git log -1 --oneline");
-  log("  Confirm the last commit is the release PR merge commit before tagging.");
+  log("  # confirm the last commit is the release PR merge commit before tagging");
   log(`  git tag -a ${tag} -m "Release ${tag}"`);
   log(`  git push origin ${tag}`);
   log("The tag message can be edited before you run the tag command.");

@@ -72,7 +72,7 @@ The script reads `client/public/changelog.md`. It has one `## YYYY-MM-DD` headin
 
 5. Open a PR titled `Release vX.Y.Z`, wait for CI, and merge it.
 
-6. Once the deploy is healthy, run `pnpm release:tag` on `main`. It prints the tag commands: `git switch main`, `git pull`, `git log -1 --oneline`, `git tag -a vX.Y.Z -m "Release vX.Y.Z"` and `git push origin vX.Y.Z`. Check that the last commit is the release PR merge commit before tagging. Tags are annotated, and there are no GitHub Releases. You can edit the tag message by hand.
+6. Once the deploy is healthy, run `git switch main` and `git pull`, then `pnpm release:tag`. It reads the version from the checked out `package.json`, so an out of date `main` prints the wrong tag. It prints the tag commands: `git log -1 --oneline`, `git tag -a vX.Y.Z -m "Release vX.Y.Z"` and `git push origin vX.Y.Z`. Check that the last commit is the release PR merge commit before tagging. Tags are annotated, and there are no GitHub Releases. You can edit the tag message by hand.
 
    Skipping the tag means the next `pnpm release` still sees no tag for the current version and refuses with "already prepared", unless you force `minor` or `patch`.
 

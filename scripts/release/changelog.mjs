@@ -18,9 +18,9 @@ function bulletsIn(lines, from, to) {
     .map((line) => line.slice(2));
 }
 
-// newest marker M. bullets in newer sections above M's section count, and
-// bullets below M inside its own section count. bullets above M in its section
-// were already released. no marker means every bullet counts
+// counts bullets chronologically after the newest marker
+// newer sections above it, plus bullets below it in its own section
+// no marker means every bullet counts
 export function entriesSinceLastRelease(changelogText) {
   const lines = changelogText.split("\n");
   const markerIndex = lines.findIndex((line) => line.includes(RELEASE_MARKER));
