@@ -96,6 +96,9 @@ Live at [ytcatchup.com](https://ytcatchup.com) (invite only). No invite? Try the
 | `pnpm --filter server test` | Runs server tests (vitest) |
 | `pnpm db:status:production` | Shows migration status against the production database |
 | `pnpm db:up:production` | Applies pending migrations to the production database |
+| `pnpm release [minor\|patch] [--dry-run]` | Edits the version and changelog marker for a release, prints the git commands, never runs git. See CONTRIBUTING |
+| `pnpm release:tag` | Prints the commands to tag a merged release |
+| `pnpm test:scripts` | Runs the release script tests (vitest) |
  
 ## TODO / Future additions
  
