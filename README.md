@@ -1,4 +1,11 @@
-# YT Catchup
+<h1 align="center">YT Catchup</h1>
+ 
+<p align="center">
+  <a href="https://github.com/jeanbeanie/better-yt-tv/tags"><img src="https://img.shields.io/github/v/tag/jeanbeanie/better-yt-tv?label=release&amp;sort=semver" alt="Latest release" /></a>
+  <a href="https://github.com/jeanbeanie/better-yt-tv/actions/workflows/ci.yml"><img src="https://github.com/jeanbeanie/better-yt-tv/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/jeanbeanie/better-yt-tv" alt="License" /></a>
+  <a href="https://ytcatchup.com"><img src="https://img.shields.io/website?url=https%3A%2F%2Fytcatchup.com&amp;label=live" alt="Live site" /></a>
+</p>
  
 A personal YouTube viewing dashboard that lets you watch the most recent uploads from only the channels you're subscribed to. You can also build custom Lists from a hand picked set of channels, like programming your own TV stations. Think of YTCatchup as a TV queue for your subscriptions.
  
