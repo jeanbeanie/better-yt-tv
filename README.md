@@ -1,5 +1,7 @@
 # YT Catchup
  
+[![Latest release](https://img.shields.io/github/v/tag/jeanbeanie/better-yt-tv?label=release&sort=semver)](https://github.com/jeanbeanie/better-yt-tv/tags)
+ 
 A personal YouTube viewing dashboard that lets you watch the most recent uploads from only the channels you're subscribed to. You can also build custom Lists from a hand picked set of channels, like programming your own TV stations. Think of YTCatchup as a TV queue for your subscriptions.
  
 Live at [ytcatchup.com](https://ytcatchup.com) (invite only). No invite? Try the demo at [ytcatchup.com/demo](https://ytcatchup.com/demo). GIF and screenshots of the full app below!
