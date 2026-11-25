@@ -1,6 +1,7 @@
 ## 2026-11-24
 
 - Added a credit line with the app version to the footer
+- **Released v0.5.0**
 
 ## 2026-11-16
 
