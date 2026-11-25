@@ -128,4 +128,12 @@ describe("footer links", () => {
     expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/privacy");
     expect(screen.getByRole("link", { name: "Terms" })).toHaveAttribute("href", "/terms");
   });
+
+  it("shows the app version in the credit line", async () => {
+    renderApp();
+
+    await screen.findByRole("link", { name: "Home" });
+
+    expect(screen.getByText(/v\d+\.\d+\.\d+/)).toBeInTheDocument();
+  });
 });

@@ -4,6 +4,7 @@ import { getLoginUrl, getWhoAmI, hasInviteCode, logout, saveInviteCode, type Use
 import { isNavigationAllowed } from "./lib/navigationGuard";
 import Button from "./components/Button";
 import GuardedLink from "./components/GuardedLink";
+import AppCredit from "./components/AppCredit";
 import HomePage from "./pages/HomePage";
 import AllPage from "./pages/AllPage";
 import LivePage from "./pages/LivePage";
@@ -125,7 +126,7 @@ function App() {
       </Routes>
       
       <hr style={{ borderColor: "var(--border)", marginTop:"3rem", opacity: ".3"}}/>
-      <div style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "2rem 0"}}>
+      <div style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "2rem 0 0"}}>
       {!loading && user && (
         <div>
           <Button onClick={() => void handleLogout()}>Logout</Button>
@@ -135,6 +136,7 @@ function App() {
       <GuardedLink to="/privacy">Privacy</GuardedLink>
       <GuardedLink to="/terms">Terms</GuardedLink>
       </div>
+      <AppCredit />
 
     </div>
   );

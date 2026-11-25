@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Route, Routes } from "react-router-dom";
 import GuardedLink from "./components/GuardedLink";
+import AppCredit from "./components/AppCredit";
 import DemoBanner from "./components/DemoBanner";
 import DemoHomePage from "./pages/DemoHomePage";
 import AllPage from "./pages/AllPage";
@@ -66,7 +67,7 @@ export default function DemoApp() {
       </Routes>
 
       <hr style={{ borderColor: "var(--border)", marginTop:"3rem", opacity: ".3"}}/>
-      <div style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "2rem 0"}}>
+      <div style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "2rem 0 0"}}>
         <div>
           <a href="/" className="button">Exit demo</a>
         </div>
@@ -74,6 +75,7 @@ export default function DemoApp() {
         <GuardedLink to="/privacy">Privacy</GuardedLink>
         <GuardedLink to="/terms">Terms</GuardedLink>
       </div>
+      <AppCredit />
     </div>
   );
 }

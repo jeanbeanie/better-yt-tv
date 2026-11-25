@@ -1,3 +1,7 @@
+## 2026-11-24
+
+- Added a credit line with the app version to the footer
+
 ## 2026-11-16
 
 - Added a Your lists section to the home page when signed in: one card per list with its unwatched count, its channels and the video it will play, built from cached videos, with a Watch button that opens the list there
