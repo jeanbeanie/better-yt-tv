@@ -80,6 +80,7 @@ describe("demo shell", () => {
     expect(within(nav).getByRole("link", { name: "Home" })).toHaveAttribute("href", "/demo");
     expect(within(nav).queryByRole("link", { name: "Streams" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Exit demo" })).toHaveAttribute("href", "/");
+    expect(screen.getByText(/v\d+\.\d+\.\d+/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Logout" })).not.toBeInTheDocument();
 
     // demo feed loads from the in memory store on the All page
